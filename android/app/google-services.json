@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "191190218355",
+    "project_id": "teman-flutter",
+    "storage_bucket": "teman-flutter.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:191190218355:android:0d4be9c1b516f797431c06",
+        "android_client_info": {
+          "package_name": "com.example.teman_flutter_app_code"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAG19soj7l2LRBsHWWpInTFpP9W8wdjDII"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

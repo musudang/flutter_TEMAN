@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/meetup_model.dart';
-import '../services/mock_data_service.dart';
+import '../services/firestore_service.dart';
 import 'meetup_detail_screen.dart';
 import 'create_meetup_screen.dart';
 
@@ -11,6 +11,11 @@ class MeetupListScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final firestoreService = Provider.of<FirestoreService>(
+      context,
+      listen: false,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('만남의 장 (Meetups)'), // "Meeting Place"
@@ -31,9 +36,21 @@ class MeetupListScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<MockDataService>(
-        builder: (context, dataService, child) {
-          final meetups = dataService.meetups;
+      body: StreamBuilder<List<Meetup>>(
+        stream: firestoreService.getMeetups(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final meetups = snapshot.data ?? [];
+          if (meetups.isEmpty) {
+            return const Center(child: Text('No meetups yet. Create one!'));
+          }
+
           return ListView.builder(
             padding: const EdgeInsets.all(16.0),
             itemCount: meetups.length,
