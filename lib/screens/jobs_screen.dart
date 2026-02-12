@@ -7,17 +7,20 @@ import 'job_detail_screen.dart';
 import 'package:intl/intl.dart';
 
 class JobsScreen extends StatelessWidget {
-  const JobsScreen({super.key});
+  final bool embedded;
+  const JobsScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
     final firestoreService = Provider.of<FirestoreService>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Jobs & Info'),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: embedded
+          ? null
+          : AppBar(
+              title: const Text('Jobs & Info'),
+              automaticallyImplyLeading: false,
+            ),
       body: StreamBuilder<List<Job>>(
         stream: firestoreService.getJobs(),
         builder: (context, snapshot) {
@@ -124,17 +127,21 @@ class JobsScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'job_fab',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CreateJobScreen()),
-          );
-        },
-        backgroundColor: Colors.teal,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: embedded
+          ? null
+          : FloatingActionButton(
+              heroTag: 'job_fab',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreateJobScreen(),
+                  ),
+                );
+              },
+              backgroundColor: Colors.teal,
+              child: const Icon(Icons.add),
+            ),
     );
   }
 }

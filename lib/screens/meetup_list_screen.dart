@@ -7,7 +7,8 @@ import 'meetup_detail_screen.dart';
 import 'create_meetup_screen.dart';
 
 class MeetupListScreen extends StatefulWidget {
-  const MeetupListScreen({super.key});
+  final bool embedded;
+  const MeetupListScreen({super.key, this.embedded = false});
 
   @override
   State<MeetupListScreen> createState() => _MeetupListScreenState();
@@ -24,25 +25,27 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
     );
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('만남의 장 (Meetups)'),
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const CreateMeetupScreen(),
+      appBar: widget.embedded
+          ? null
+          : AppBar(
+              title: const Text('만남의 장 (Meetups)'),
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.black,
+              elevation: 0,
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.add),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const CreateMeetupScreen(),
+                      ),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        ],
-      ),
+              ],
+            ),
       body: Column(
         children: [
           // Category Filter

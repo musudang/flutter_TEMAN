@@ -7,7 +7,8 @@ import 'marketplace_detail_screen.dart';
 import 'package:intl/intl.dart';
 
 class MarketplaceListScreen extends StatelessWidget {
-  const MarketplaceListScreen({super.key});
+  final bool embedded;
+  const MarketplaceListScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
@@ -15,10 +16,12 @@ class MarketplaceListScreen extends StatelessWidget {
     final currencyFormat = NumberFormat.currency(locale: 'ko_KR', symbol: '₩');
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Jang-teo (Marketplace)'),
-        automaticallyImplyLeading: false,
-      ),
+      appBar: embedded
+          ? null
+          : AppBar(
+              title: const Text('Jang-teo (Marketplace)'),
+              automaticallyImplyLeading: false,
+            ),
       body: StreamBuilder<List<MarketplaceItem>>(
         stream: firestoreService.getMarketplaceItems(),
         builder: (context, snapshot) {
@@ -131,19 +134,21 @@ class MarketplaceListScreen extends StatelessWidget {
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'market_fab',
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CreateMarketplaceItemScreen(),
+      floatingActionButton: embedded
+          ? null
+          : FloatingActionButton(
+              heroTag: 'market_fab',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const CreateMarketplaceItemScreen(),
+                  ),
+                );
+              },
+              backgroundColor: Colors.teal,
+              child: const Icon(Icons.add),
             ),
-          );
-        },
-        backgroundColor: Colors.teal,
-        child: const Icon(Icons.add),
-      ),
     );
   }
 }

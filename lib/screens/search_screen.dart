@@ -5,10 +5,10 @@ import '../models/meetup_model.dart';
 import '../models/job_model.dart';
 import '../models/marketplace_model.dart';
 import '../models/post_model.dart';
+import '../models/question_model.dart';
 import 'meetup_detail_screen.dart';
 import 'job_detail_screen.dart';
 import 'marketplace_detail_screen.dart';
-// import 'post_detail_screen.dart'; // Assuming we might have this or Feed covers it
 
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
@@ -26,7 +26,7 @@ class _SearchScreenState extends State<SearchScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _searchController.addListener(() {
       setState(() {
         _query = _searchController.text.trim();
@@ -49,6 +49,7 @@ class _SearchScreenState extends State<SearchScreen>
     );
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: TextField(
           controller: _searchController,
@@ -62,6 +63,7 @@ class _SearchScreenState extends State<SearchScreen>
         ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
+        elevation: 0,
         bottom: TabBar(
           controller: _tabController,
           labelColor: Colors.teal,
@@ -69,34 +71,82 @@ class _SearchScreenState extends State<SearchScreen>
           indicatorColor: Colors.teal,
           isScrollable: true,
           tabs: const [
-            Tab(text: 'Community'),
+            Tab(text: 'All'),
             Tab(text: 'Meetups'),
+            Tab(text: 'Q&A'),
             Tab(text: 'Jobs'),
             Tab(text: 'Market'),
+            Tab(text: 'Events'),
           ],
         ),
       ),
       body: TabBarView(
         controller: _tabController,
         children: [
-          _buildPostResults(firestoreService),
+          _buildAllResults(firestoreService),
           _buildMeetupResults(firestoreService),
+          _buildQuestionResults(firestoreService),
           _buildJobResults(firestoreService),
           _buildMarketplaceResults(firestoreService),
+          _buildEventResults(firestoreService),
         ],
       ),
     );
   }
 
+  Widget _buildAllResults(FirestoreService service) {
+    if (_query.isEmpty) {
+      return const Center(
+        child: Text(
+          'Enter a search term',
+          style: TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView(
+      children: [
+        _sectionHeader('Community Posts'),
+        SizedBox(height: 200, child: _buildPostResults(service)),
+        _sectionHeader('Meetups'),
+        SizedBox(height: 200, child: _buildMeetupResults(service)),
+        _sectionHeader('Q&A'),
+        SizedBox(height: 200, child: _buildQuestionResults(service)),
+        _sectionHeader('Jobs'),
+        SizedBox(height: 200, child: _buildJobResults(service)),
+        _sectionHeader('Marketplace'),
+        SizedBox(height: 200, child: _buildMarketplaceResults(service)),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+          color: Color(0xFF1A1F36),
+        ),
+      ),
+    );
+  }
+
   Widget _buildPostResults(FirestoreService service) {
-    if (_query.isEmpty) return const Center(child: Text('Enter a search term'));
+    if (_query.isEmpty) {
+      return const Center(child: Text('Enter a search term'));
+    }
     return StreamBuilder<List<Post>>(
       stream: service.searchPosts(_query),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.isEmpty)
+        }
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No posts found'));
+        }
         return ListView.builder(
           itemCount: snapshot.data!.length,
           itemBuilder: (context, index) {
@@ -116,19 +166,32 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildMeetupResults(FirestoreService service) {
-    if (_query.isEmpty) return const Center(child: Text('Enter a search term'));
+    if (_query.isEmpty) {
+      return const Center(child: Text('Enter a search term'));
+    }
     return StreamBuilder<List<Meetup>>(
       stream: service.searchMeetups(_query),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.isEmpty)
+        }
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No meetups found'));
+        }
         return ListView.builder(
           itemCount: snapshot.data!.length,
           itemBuilder: (context, index) {
             final meetup = snapshot.data![index];
             return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.teal[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.people, color: Colors.teal[700], size: 20),
+              ),
               title: Text(meetup.title),
               subtitle: Text(meetup.location),
               onTap: () => Navigator.push(
@@ -144,20 +207,77 @@ class _SearchScreenState extends State<SearchScreen>
     );
   }
 
+  Widget _buildQuestionResults(FirestoreService service) {
+    if (_query.isEmpty) {
+      return const Center(child: Text('Enter a search term'));
+    }
+    return StreamBuilder<List<Question>>(
+      stream: service.searchQuestions(_query),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.data!.isEmpty) {
+          return const Center(child: Text('No questions found'));
+        }
+        return ListView.builder(
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, index) {
+            final q = snapshot.data![index];
+            return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.blue[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.help_outline,
+                  color: Colors.blue[700],
+                  size: 20,
+                ),
+              ),
+              title: Text(q.title),
+              subtitle: Text('${q.answersCount} answers'),
+            );
+          },
+        );
+      },
+    );
+  }
+
   Widget _buildJobResults(FirestoreService service) {
-    if (_query.isEmpty) return const Center(child: Text('Enter a search term'));
+    if (_query.isEmpty) {
+      return const Center(child: Text('Enter a search term'));
+    }
     return StreamBuilder<List<Job>>(
       stream: service.searchJobs(_query),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.isEmpty)
+        }
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No jobs found'));
+        }
         return ListView.builder(
           itemCount: snapshot.data!.length,
           itemBuilder: (context, index) {
             final job = snapshot.data![index];
             return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.green[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.work_outline,
+                  color: Colors.green[700],
+                  size: 20,
+                ),
+              ),
               title: Text(job.title),
               subtitle: Text(job.companyName),
               onTap: () => Navigator.push(
@@ -172,25 +292,85 @@ class _SearchScreenState extends State<SearchScreen>
   }
 
   Widget _buildMarketplaceResults(FirestoreService service) {
-    if (_query.isEmpty) return const Center(child: Text('Enter a search term'));
+    if (_query.isEmpty) {
+      return const Center(child: Text('Enter a search term'));
+    }
     return StreamBuilder<List<MarketplaceItem>>(
       stream: service.searchMarketplace(_query),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
-        if (snapshot.data!.isEmpty)
+        }
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No items found'));
+        }
         return ListView.builder(
           itemCount: snapshot.data!.length,
           itemBuilder: (context, index) {
             final item = snapshot.data![index];
             return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.orange[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  Icons.storefront,
+                  color: Colors.orange[700],
+                  size: 20,
+                ),
+              ),
               title: Text(item.title),
               subtitle: Text('${item.price} KRW'),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (_) => MarketplaceDetailScreen(item: item),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildEventResults(FirestoreService service) {
+    // Events are meetups filtered by event-like categories
+    if (_query.isEmpty) {
+      return const Center(child: Text('Enter a search term'));
+    }
+    return StreamBuilder<List<Meetup>>(
+      stream: service.searchMeetups(_query),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.data!.isEmpty) {
+          return const Center(child: Text('No events found'));
+        }
+        return ListView.builder(
+          itemCount: snapshot.data!.length,
+          itemBuilder: (context, index) {
+            final meetup = snapshot.data![index];
+            return ListTile(
+              leading: Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.purple[50],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.event, color: Colors.purple[700], size: 20),
+              ),
+              title: Text(meetup.title),
+              subtitle: Text(meetup.location),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => MeetupDetailScreen(meetupId: meetup.id),
                 ),
               ),
             );

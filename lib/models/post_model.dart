@@ -7,6 +7,9 @@ class Post {
   final DateTime timestamp;
   final int likes;
   final int comments;
+  final List<String> likedBy;
+  final String imageUrl;
+  final String category;
 
   Post({
     required this.id,
@@ -17,5 +20,8 @@ class Post {
     required this.timestamp,
     this.likes = 0,
     this.comments = 0,
+    this.likedBy = const [],
+    this.imageUrl = '',
+    this.category = 'general',
   });
 }

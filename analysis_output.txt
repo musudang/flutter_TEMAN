@@ -1,0 +1,35 @@
+﻿Analyzing teman_flutter_app_code...                             
+
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\chat_screen.dart:137:39 - deprecated_member_use
+   info - 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre - lib\screens\create_marketplace_item_screen.dart:136:17 - deprecated_member_use
+   info - Unnecessary braces in a string interpolation - lib\screens\create_post_screen.dart:109:28 - unnecessary_brace_in_string_interps
+   info - Statements in an if should be enclosed in a block - lib\screens\create_post_screen.dart:391:23 - curly_braces_in_flow_control_structures
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\job_detail_screen.dart:57:36 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\jobs_screen.dart:61:42 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\notifications_screen.dart:46:35 - deprecated_member_use
+   info - Don't use 'BuildContext's across async gaps - lib\screens\profile_screen.dart:108:43 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps - lib\screens\qna_detail_screen.dart:52:9 - use_build_context_synchronously
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\qna_detail_screen.dart:86:46 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\screens\qna_detail_screen.dart:252:35 - deprecated_member_use
+   info - 'withOpacity' is deprecated and shouldn't be used. Use .withValues() to avoid precision loss - lib\widgets\meetup_card.dart:29:35 - deprecated_member_use
+
+flutter : 12 issues f
+ound. (ran in 9.0s)
+위치 줄:1 문자:1
++ flutter analyze --n
+o-pub 2>&1 | Out-File
+ -FilePath "C:\Users\
+user\One ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (12 issu   
+ es found. (ran i    
+n 9.0s):String)     [
+], RemoteExcept    io
+n
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 

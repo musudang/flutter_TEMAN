@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../models/conversation_model.dart';
-import 'chat_screen.dart'; // We'll create this next
+import '../models/user_model.dart' as app_models;
+import 'chat_screen.dart';
 import 'package:intl/intl.dart';
 
 class ConversationListScreen extends StatelessWidget {
@@ -14,8 +15,13 @@ class ConversationListScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Messages'),
-        automaticallyImplyLeading: false,
+        title: const Text(
+          'Messages',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+        backgroundColor: Colors.white,
+        foregroundColor: const Color(0xFF1A1F36),
+        elevation: 0,
       ),
       body: StreamBuilder<List<Conversation>>(
         stream: firestoreService.getConversations(),
@@ -28,15 +34,15 @@ class ConversationListScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.chat_bubble_outline,
                     size: 64,
-                    color: Colors.grey,
+                    color: Colors.grey[300],
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'No messages yet.',
-                    style: Theme.of(context).textTheme.titleMedium,
+                    style: TextStyle(fontSize: 16, color: Colors.grey[500]),
                   ),
                 ],
               ),
@@ -46,40 +52,67 @@ class ConversationListScreen extends StatelessWidget {
           final conversations = snapshot.data!;
           return ListView.separated(
             itemCount: conversations.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
+            separatorBuilder: (context, index) =>
+                Divider(height: 1, color: Colors.grey[100]),
             itemBuilder: (context, index) {
               final conversation = conversations[index];
-              // In a real app, we'd fetch the OTHER user's name/avatar here.
-              // For now, checks conversation.participantIds to find the one that ISN'T current user?
-              // Or simpler: Conversation model needs 'otherUserName' / 'otherUserAvatar' which is hard in NoSQL without duplication.
-              // We'll rely on a placeholder or fetching user logic.
-
-              // Let's assume for MVP we just show "Chat" or try to get ID.
               final currentUserId = firestoreService.currentUserId;
-              // final otherUserId = conversation.participantIds.firstWhere(
-              //   (id) => id != currentUserId,
-              //   orElse: () => 'Unknown',
-              // );
 
-              return FutureBuilder(
-                // Fetch other user profile? Or just show ID/Placeholder
-                future: firestoreService
-                    .getCurrentUser(), // This gets CURRENT user, not other.
-                // We need a getUser(id) method. Let's add it or skip for now and show "User".
+              // Find the other user's ID
+              final otherUserId = conversation.participantIds.firstWhere(
+                (id) => id != currentUserId,
+                orElse: () => '',
+              );
+
+              return FutureBuilder<app_models.User?>(
+                future: otherUserId.isNotEmpty
+                    ? firestoreService.getUserById(otherUserId)
+                    : null,
                 builder: (context, userSnapshot) {
+                  final partnerName = userSnapshot.data?.name ?? 'Chat Partner';
+                  final partnerAvatar = userSnapshot.data?.avatarUrl ?? '';
+
                   return ListTile(
-                    leading: const CircleAvatar(child: Icon(Icons.person)),
-                    title: const Text('Chat Partner'), // Placeholder
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: Colors.teal[50],
+                      backgroundImage: partnerAvatar.isNotEmpty
+                          ? NetworkImage(partnerAvatar)
+                          : null,
+                      child: partnerAvatar.isEmpty
+                          ? Text(
+                              partnerName.isNotEmpty
+                                  ? partnerName[0].toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                color: Colors.teal[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                    title: Text(
+                      partnerName,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
                     subtitle: Text(
                       conversation.lastMessage,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: Colors.grey[500], fontSize: 13),
                     ),
                     trailing: Text(
                       DateFormat(
                         'MM/dd HH:mm',
                       ).format(conversation.lastMessageTime),
-                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
                     ),
                     onTap: () {
                       Navigator.push(
@@ -87,7 +120,7 @@ class ConversationListScreen extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (context) => ChatScreen(
                             conversationId: conversation.id,
-                            chatTitle: 'Chat', // Pass name if available
+                            chatTitle: partnerName,
                           ),
                         ),
                       );

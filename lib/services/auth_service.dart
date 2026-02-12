@@ -45,6 +45,8 @@ class AuthService extends ChangeNotifier {
         'avatarUrl': newUser.avatarUrl,
         'nationality': newUser.nationality,
         'email': email,
+        'bio': '',
+        'role': 'user',
         'createdAt': FieldValue.serverTimestamp(),
       });
 

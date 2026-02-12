@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'feed_screen.dart';
-import 'meetup_list_screen.dart';
-import 'jobs_screen.dart';
-import 'marketplace_list_screen.dart';
-import 'notifications_screen.dart';
+import 'create_post_screen.dart';
 import 'profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -17,17 +14,22 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
-    const FeedScreen(),
-    const MeetupListScreen(),
-    const JobsScreen(),
-    const MarketplaceListScreen(),
-    const NotificationsScreen(),
-    const ProfileScreen(),
+    const FeedScreen(), // index 0 = Home
+    const ProfileScreen(), // index 1 = Profile (mapped from nav index 3)
   ];
 
   void _onItemTapped(int index) {
+    if (index == 1 || index == 2) {
+      // Camera (1) or Create Post (2) – open CreatePostScreen as modal
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (context) => const CreatePostScreen()),
+      );
+      return; // Don't switch tab
+    }
     setState(() {
-      _selectedIndex = index;
+      // Map nav index to screen index: 0→0 (Home), 3→1 (Profile)
+      _selectedIndex = index == 3 ? 1 : 0;
     });
   }
 
@@ -39,7 +41,7 @@ class _MainScreenState extends State<MainScreen> {
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 10,
               offset: const Offset(0, -5),
             ),
@@ -53,19 +55,14 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Home',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.people_outline),
-              activeIcon: Icon(Icons.people),
-              label: 'Meetups',
+              icon: Icon(Icons.camera_alt_outlined),
+              activeIcon: Icon(Icons.camera_alt),
+              label: 'Camera',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.work_outline),
-              activeIcon: Icon(Icons.work),
-              label: 'Jobs',
-            ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.storefront_outlined),
-              activeIcon: Icon(Icons.storefront),
-              label: 'Market',
+              icon: Icon(Icons.add_circle_outline),
+              activeIcon: Icon(Icons.add_circle),
+              label: 'Create',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -73,8 +70,8 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Profile',
             ),
           ],
-          currentIndex: _selectedIndex,
-          selectedItemColor: Colors.teal, // Explicitly set to Teal
+          currentIndex: _selectedIndex == 1 ? 3 : 0,
+          selectedItemColor: Colors.teal,
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
