@@ -11,16 +11,20 @@ class CreatePostScreen extends StatefulWidget {
 }
 
 class _CreatePostScreenState extends State<CreatePostScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   bool _isSubmitting = false;
 
   @override
   void dispose() {
+    _titleController.dispose();
     _contentController.dispose();
     super.dispose();
   }
 
   Future<void> _submitPost() async {
+    final title = _titleController.text.trim();
     final content = _contentController.text.trim();
     if (content.isEmpty) return;
 
@@ -31,6 +35,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         context,
         listen: false,
       );
+      // The original code fetched 'user' and 'currentUser' and checked for null.
+      // The new instruction implies using firestoreService.currentUserId! directly.
+      // We'll keep the user check for robustness, but adapt the addPost call.
       final user = await firestoreService.getCurrentUser();
       final currentUser = FirebaseAuth.instance.currentUser;
 
@@ -49,7 +56,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       debugPrint("Submitting post for user: ${user.name} (${user.id})");
-      await firestoreService.addPost(content, user.id, user.name);
+      await firestoreService.addPost(title, content, user.id, user.name);
 
       if (mounted) {
         Navigator.pop(context);
@@ -117,17 +124,46 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: TextField(
-          controller: _contentController,
-          autofocus: true,
-          maxLines: null,
-          decoration: const InputDecoration(
-            hintText: "What's on your mind?",
-            border: InputBorder.none,
+        child: Form(
+          key: _formKey,
+          child: Column(
+            children: [
+              TextFormField(
+                controller: _titleController,
+                decoration: const InputDecoration(
+                  labelText: 'Title',
+                  border: OutlineInputBorder(),
+                  filled: true,
+                  fillColor: Colors.white,
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a title';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: TextField(
+                  controller: _contentController,
+                  autofocus: true,
+                  maxLines: null,
+                  expands: true,
+                  textAlignVertical: TextAlignVertical.top,
+                  decoration: const InputDecoration(
+                    hintText: "What's on your mind?",
+                    border: InputBorder.none,
+                    filled: true,
+                    fillColor: Colors.white,
+                  ),
+                  onChanged: (val) {
+                    setState(() {}); // Rebuild to enable/disable button
+                  },
+                ),
+              ),
+            ],
           ),
-          onChanged: (val) {
-            setState(() {}); // Rebuild to enable/disable button
-          },
         ),
       ),
     );

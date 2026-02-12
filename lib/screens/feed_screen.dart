@@ -5,6 +5,8 @@ import '../models/post_model.dart';
 import '../models/meetup_model.dart';
 import '../models/question_model.dart';
 import 'create_post_screen.dart';
+import 'conversation_list_screen.dart';
+import 'search_screen.dart';
 import 'meetup_detail_screen.dart';
 import '../widgets/meetup_card.dart';
 
@@ -42,7 +44,16 @@ class _FeedScreenState extends State<FeedScreen> {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Color(0xFF1A1F36)),
+            icon: const Icon(Icons.search, color: Colors.black),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const SearchScreen()),
+              );
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline, color: Colors.black),
             onPressed: () {},
           ),
           IconButton(
@@ -177,8 +188,7 @@ class _FeedScreenState extends State<FeedScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
-        heroTag: 'feed_fab',
-        backgroundColor: const Color(0xFFFF5A5F),
+        heroTag: 'post_fab', // Unique tag
         elevation: 4,
         onPressed: () {
           Navigator.push(
@@ -186,7 +196,8 @@ class _FeedScreenState extends State<FeedScreen> {
             MaterialPageRoute(builder: (context) => const CreatePostScreen()),
           );
         },
-        child: const Icon(Icons.add, color: Colors.white),
+        backgroundColor: Colors.teal,
+        child: const Icon(Icons.edit),
       ),
     );
   }

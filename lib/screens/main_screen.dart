@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'feed_screen.dart';
+import 'meetup_list_screen.dart';
+import 'jobs_screen.dart';
+import 'marketplace_list_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -14,8 +18,10 @@ class _MainScreenState extends State<MainScreen> {
 
   final List<Widget> _screens = [
     const FeedScreen(),
-    const Center(child: Text('Alerts Screen')), // Placeholder
-    const Center(child: Text('Messages Screen')), // Placeholder
+    const MeetupListScreen(),
+    const JobsScreen(),
+    const MarketplaceListScreen(),
+    const NotificationsScreen(),
     const ProfileScreen(),
   ];
 
@@ -47,14 +53,19 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Home',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.notifications_outlined),
-              activeIcon: Icon(Icons.notifications),
-              label: 'Alerts',
+              icon: Icon(Icons.people_outline),
+              activeIcon: Icon(Icons.people),
+              label: 'Meetups',
             ),
             BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
-              label: 'Messages',
+              icon: Icon(Icons.work_outline),
+              activeIcon: Icon(Icons.work),
+              label: 'Jobs',
+            ),
+            BottomNavigationBarItem(
+              icon: Icon(Icons.storefront_outlined),
+              activeIcon: Icon(Icons.storefront),
+              label: 'Market',
             ),
             BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
@@ -63,13 +74,21 @@ class _MainScreenState extends State<MainScreen> {
             ),
           ],
           currentIndex: _selectedIndex,
-          selectedItemColor: Theme.of(context).colorScheme.primary,
+          selectedItemColor: Colors.teal, // Explicitly set to Teal
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: true,
           type: BottomNavigationBarType.fixed,
           backgroundColor: Colors.white,
           elevation: 0,
           onTap: _onItemTapped,
+          selectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+          unselectedLabelStyle: const TextStyle(
+            fontWeight: FontWeight.normal,
+            fontSize: 12,
+          ),
         ),
       ),
     );
