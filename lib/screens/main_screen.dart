@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/firestore_service.dart';
 import 'feed_screen.dart';
+import 'conversation_list_screen.dart';
 import 'create_post_screen.dart';
+import 'notifications_screen.dart';
 import 'profile_screen.dart';
 
 class MainScreen extends StatefulWidget {
@@ -14,27 +18,34 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
-    const FeedScreen(), // index 0 = Home
-    const ProfileScreen(), // index 1 = Profile (mapped from nav index 3)
+    const FeedScreen(), // 0 = Home
+    const ConversationListScreen(), // 1 = Messages
+    const SizedBox(), // 2 = placeholder (Create opens as modal)
+    const NotificationsScreen(), // 3 = Notifications
+    const ProfileScreen(), // 4 = Profile
   ];
 
   void _onItemTapped(int index) {
-    if (index == 1 || index == 2) {
-      // Camera (1) or Create Post (2) – open CreatePostScreen as modal
+    if (index == 2) {
+      // Create – open as modal
       Navigator.push(
         context,
         MaterialPageRoute(builder: (context) => const CreatePostScreen()),
       );
-      return; // Don't switch tab
+      return;
     }
     setState(() {
-      // Map nav index to screen index: 0→0 (Home), 3→1 (Profile)
-      _selectedIndex = index == 3 ? 1 : 0;
+      _selectedIndex = index;
     });
   }
 
   @override
   Widget build(BuildContext context) {
+    final firestoreService = Provider.of<FirestoreService>(
+      context,
+      listen: false,
+    );
+
     return Scaffold(
       body: IndexedStack(index: _selectedIndex, children: _screens),
       bottomNavigationBar: Container(
@@ -48,29 +59,61 @@ class _MainScreenState extends State<MainScreen> {
           ],
         ),
         child: BottomNavigationBar(
-          items: const [
-            BottomNavigationBarItem(
+          items: [
+            const BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
               activeIcon: Icon(Icons.home),
               label: 'Home',
             ),
-            BottomNavigationBarItem(
-              icon: Icon(Icons.camera_alt_outlined),
-              activeIcon: Icon(Icons.camera_alt),
-              label: 'Camera',
+            const BottomNavigationBarItem(
+              icon: Icon(Icons.chat_bubble_outline),
+              activeIcon: Icon(Icons.chat_bubble),
+              label: 'Messages',
             ),
-            BottomNavigationBarItem(
+            const BottomNavigationBarItem(
               icon: Icon(Icons.add_circle_outline),
               activeIcon: Icon(Icons.add_circle),
               label: 'Create',
             ),
+            // Notification tab with real-time badge
             BottomNavigationBarItem(
+              icon: StreamBuilder<int>(
+                stream: firestoreService.getUnreadNotificationCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return Badge(
+                    isLabelVisible: count > 0,
+                    label: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: const Icon(Icons.notifications_outlined),
+                  );
+                },
+              ),
+              activeIcon: StreamBuilder<int>(
+                stream: firestoreService.getUnreadNotificationCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return Badge(
+                    isLabelVisible: count > 0,
+                    label: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    child: const Icon(Icons.notifications),
+                  );
+                },
+              ),
+              label: 'Alerts',
+            ),
+            const BottomNavigationBarItem(
               icon: Icon(Icons.person_outline),
               activeIcon: Icon(Icons.person),
               label: 'Profile',
             ),
           ],
-          currentIndex: _selectedIndex == 1 ? 3 : 0,
+          currentIndex: _selectedIndex,
           selectedItemColor: Colors.teal,
           unselectedItemColor: Colors.grey,
           showUnselectedLabels: true,

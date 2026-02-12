@@ -56,6 +56,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickAndUploadPhoto() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please sign in first')));
+      }
+      return;
+    }
+
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -68,29 +78,35 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       setState(() => _isUploadingPhoto = true);
 
-      final uid = FirebaseAuth.instance.currentUser?.uid;
-      if (uid == null) return;
-
       final ref = FirebaseStorage.instance
           .ref()
           .child('profile_photos')
           .child('$uid.jpg');
 
+      UploadTask uploadTask;
       if (kIsWeb) {
         final bytes = await picked.readAsBytes();
-        await ref.putData(bytes, SettableMetadata(contentType: 'image/jpeg'));
+        uploadTask = ref.putData(
+          bytes,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
       } else {
-        await ref.putFile(File(picked.path));
+        uploadTask = ref.putFile(File(picked.path));
       }
 
+      // Wait for upload to fully complete before getting URL
+      await uploadTask.whenComplete(() {});
       final url = await ref.getDownloadURL();
-      setState(() {
-        _avatarUrlController.text = url;
-        _isUploadingPhoto = false;
-      });
-    } catch (e) {
-      setState(() => _isUploadingPhoto = false);
+
       if (mounted) {
+        setState(() {
+          _avatarUrlController.text = url;
+          _isUploadingPhoto = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));

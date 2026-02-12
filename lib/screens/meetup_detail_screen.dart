@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/meetup_model.dart';
+import '../models/user_model.dart' as app_models;
 import '../services/firestore_service.dart';
 import 'meetup_chat_screen.dart';
+import 'user_profile_screen.dart';
 
 class MeetupDetailScreen extends StatelessWidget {
   final String meetupId;
@@ -189,6 +191,95 @@ class MeetupDetailScreen extends StatelessWidget {
                               color: Colors.grey[600],
                               height: 1.6,
                             ),
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        // Participants Section
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: const Text(
+                            'Participants',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          height: 72,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: meetup.participantIds.length,
+                            itemBuilder: (context, index) {
+                              final participantId =
+                                  meetup.participantIds[index];
+                              return FutureBuilder<app_models.User?>(
+                                future: firestoreService.getUserById(
+                                  participantId,
+                                ),
+                                builder: (context, userSnap) {
+                                  final pUser = userSnap.data;
+                                  final name = pUser?.name ?? '';
+                                  final avatar = pUser?.avatarUrl ?? '';
+
+                                  return GestureDetector(
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) =>
+                                              UserProfileScreen(
+                                                userId: participantId,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: 12),
+                                      child: Column(
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 22,
+                                            backgroundColor: Colors.teal[50],
+                                            backgroundImage: avatar.isNotEmpty
+                                                ? NetworkImage(avatar)
+                                                : null,
+                                            child: avatar.isEmpty
+                                                ? Text(
+                                                    name.isNotEmpty
+                                                        ? name[0].toUpperCase()
+                                                        : '?',
+                                                    style: TextStyle(
+                                                      color: Colors.teal[700],
+                                                      fontWeight:
+                                                          FontWeight.bold,
+                                                    ),
+                                                  )
+                                                : null,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          SizedBox(
+                                            width: 50,
+                                            child: Text(
+                                              name.isNotEmpty ? name : '...',
+                                              textAlign: TextAlign.center,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontSize: 11,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(height: 40),

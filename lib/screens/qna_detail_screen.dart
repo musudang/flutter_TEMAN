@@ -48,6 +48,7 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
         );
       }
     } catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to post answer: $e')));
@@ -83,7 +84,7 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
                       borderRadius: BorderRadius.circular(12),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
+                          color: Colors.grey.withValues(alpha: 0.1),
                           spreadRadius: 1,
                           blurRadius: 5,
                         ),
@@ -249,7 +250,7 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
           color: Colors.white,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               offset: const Offset(0, -2),
               blurRadius: 5,
             ),

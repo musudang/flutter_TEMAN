@@ -43,7 +43,7 @@ class NotificationsScreen extends StatelessWidget {
               return ListTile(
                 tileColor: notification.isRead
                     ? Colors.white
-                    : Colors.teal.withOpacity(0.05),
+                    : Colors.teal.withValues(alpha: 0.05),
                 leading: CircleAvatar(
                   backgroundColor: _getIconColor(notification.type),
                   child: Icon(

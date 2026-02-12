@@ -5,7 +5,10 @@ import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
+import '../models/meetup_model.dart';
 import 'edit_profile_screen.dart';
+import 'conversation_list_screen.dart';
+import 'meetup_detail_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -78,6 +81,10 @@ class ProfileScreen extends StatelessWidget {
                                   color: Colors.red,
                                 ),
                                 onPressed: () async {
+                                  final authService = Provider.of<AuthService>(
+                                    context,
+                                    listen: false,
+                                  );
                                   final confirm = await showDialog<bool>(
                                     context: context,
                                     builder: (ctx) => AlertDialog(
@@ -103,11 +110,6 @@ class ProfileScreen extends StatelessWidget {
                                     ),
                                   );
                                   if (confirm == true) {
-                                    final authService =
-                                        Provider.of<AuthService>(
-                                          context,
-                                          listen: false,
-                                        );
                                     await authService.signOut();
                                   }
                                 },
@@ -263,6 +265,33 @@ class ProfileScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 16),
+
+                      // Messages button
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            // Navigate to Messages tab (index 1 in MainScreen)
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ConversationListScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.chat_bubble_outline, size: 18),
+                          label: const Text('My Messages'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.teal,
+                            side: const BorderSide(color: Colors.teal),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -443,6 +472,167 @@ class ProfileScreen extends StatelessWidget {
                         ),
                       );
                     }, childCount: posts.length),
+                  );
+                },
+              ),
+
+              // Joined Meetups header
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(24, 24, 24, 12),
+                  child: Text(
+                    'Joined Meetups',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF1A1F36),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Joined Meetups list
+              StreamBuilder<List<Meetup>>(
+                stream: firestoreService.getJoinedMeetups(user.id),
+                builder: (context, meetupSnap) {
+                  if (meetupSnap.connectionState == ConnectionState.waiting) {
+                    return const SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(32),
+                          child: CircularProgressIndicator(),
+                        ),
+                      ),
+                    );
+                  }
+                  final meetups = meetupSnap.data ?? [];
+                  if (meetups.isEmpty) {
+                    return SliverToBoxAdapter(
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(32.0),
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.groups_outlined,
+                                size: 48,
+                                color: Colors.grey[300],
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                "You haven't joined any meetups yet.",
+                                style: TextStyle(color: Colors.grey[500]),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final meetup = meetups[index];
+                      final dateStr = DateFormat(
+                        'EEE, MMM d',
+                      ).format(meetup.dateTime);
+                      return GestureDetector(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  MeetupDetailScreen(meetupId: meetup.id),
+                            ),
+                          );
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 6,
+                          ),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.03),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(10),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal[50],
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Icon(
+                                  Icons.groups,
+                                  color: Colors.teal[700],
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      meetup.title,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                        color: Color(0xFF1A1F36),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          Icons.calendar_today_outlined,
+                                          size: 12,
+                                          color: Colors.grey[500],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          dateStr,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                        const SizedBox(width: 12),
+                                        Icon(
+                                          Icons.people_outline,
+                                          size: 12,
+                                          color: Colors.grey[500],
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          '${meetup.participantIds.length}/${meetup.maxParticipants}',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.grey[500],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                Icons.chevron_right,
+                                color: Colors.grey[400],
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }, childCount: meetups.length),
                   );
                 },
               ),

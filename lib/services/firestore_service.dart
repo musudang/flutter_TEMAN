@@ -1088,4 +1088,32 @@ class FirestoreService extends ChangeNotifier {
       'timestamp': FieldValue.serverTimestamp(),
     });
   }
+
+  // ===================== JOINED MEETUPS =====================
+
+  Stream<List<Meetup>> getJoinedMeetups(String userId) {
+    return _db
+        .collection('meetups')
+        .where('participantIds', arrayContains: userId)
+        .orderBy('dateTime', descending: true)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => _meetupFromDocument(doc)).toList();
+        });
+  }
+
+  // ===================== UNREAD NOTIFICATION COUNT =====================
+
+  Stream<int> getUnreadNotificationCount() {
+    final user = _auth.currentUser;
+    if (user == null) return Stream.value(0);
+
+    return _db
+        .collection('users')
+        .doc(user.uid)
+        .collection('notifications')
+        .where('isRead', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
+  }
 }

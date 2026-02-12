@@ -133,7 +133,7 @@ class _CreateMarketplaceItemScreenState
               ),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
-                value: _condition,
+                initialValue: _condition,
                 decoration: const InputDecoration(
                   labelText: 'Condition',
                   border: OutlineInputBorder(),
