@@ -12,7 +12,12 @@ class Meetup {
   final int maxParticipants;
   final User host;
   final List<String> participantIds; // List of User IDs
-  final String imageUrl; // Placeholder for image URL
+  final String imageUrl;
+  final int likes;
+  final int comments;
+  final List<String> likedBy;
+  final List<String> scrappedBy;
+  final DateTime createdAt; // [NEW] for sorting feed by upload time
 
   Meetup({
     required this.id,
@@ -25,6 +30,11 @@ class Meetup {
     required this.host,
     this.participantIds = const [],
     required this.imageUrl,
+    this.likes = 0,
+    this.comments = 0,
+    this.likedBy = const [],
+    this.scrappedBy = const [],
+    required this.createdAt,
   });
 
   bool get isFull => participantIds.length >= maxParticipants;

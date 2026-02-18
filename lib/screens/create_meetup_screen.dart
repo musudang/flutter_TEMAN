@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:typed_data';
 import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
 
@@ -17,17 +20,39 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
+  final _imageUrlController = TextEditingController(); // Added for URL input
 
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
   MeetupCategory _selectedCategory = MeetupCategory.other;
   int _maxParticipants = 5;
 
+  // Image Upload State
+  Uint8List? _imageBytes;
+  bool _isUploadingImage = false;
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      imageQuality: 70,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _imageBytes = bytes;
+        _imageUrlController.clear(); // Clear URL if local image picked
+      });
+    }
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
     _descriptionController.dispose();
     _locationController.dispose();
+    _imageUrlController.dispose(); // Dispose
     super.dispose();
   }
 
@@ -82,6 +107,29 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           return;
         }
 
+        // Upload image if selected
+        if (_imageBytes != null) {
+          setState(() => _isUploadingImage = true);
+          final ref = FirebaseStorage.instance
+              .ref()
+              .child('meetup_images')
+              .child('${const Uuid().v4()}.jpg');
+
+          final uploadTask = ref.putData(
+            _imageBytes!,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+          await uploadTask;
+          final url = await ref.getDownloadURL();
+          _imageUrlController.text = url;
+          setState(() => _isUploadingImage = false);
+        }
+
+        // Use controller URL or fallback default
+        final String finalImageUrl = _imageUrlController.text.trim().isNotEmpty
+            ? _imageUrlController.text.trim()
+            : 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60';
+
         final dateTime = DateTime(
           _selectedDate.year,
           _selectedDate.month,
@@ -96,12 +144,13 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           description: _descriptionController.text,
           location: _locationController.text,
           dateTime: dateTime,
-          category: _selectedCategory,
+          category:
+              _selectedCategory, // This works because I added the picker earlier
           maxParticipants: _maxParticipants,
           host: user,
           participantIds: [user.id],
-          imageUrl:
-              'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60', // Default image
+          imageUrl: finalImageUrl,
+          createdAt: DateTime.now(),
         );
 
         await firestoreService.addMeetup(newMeetup);
@@ -134,6 +183,82 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Image Picker
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _imageUrlController,
+                      decoration: const InputDecoration(
+                        labelText: 'Cover Image URL',
+                        hintText: 'https://example.com/image.jpg',
+                        border: OutlineInputBorder(),
+                        prefixIcon: Icon(Icons.image),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    height: 58,
+                    width: 58,
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.grey),
+                    ),
+                    child: _isUploadingImage
+                        ? const Center(child: CircularProgressIndicator())
+                        : IconButton(
+                            onPressed: _pickImage,
+                            icon: const Icon(Icons.add_photo_alternate),
+                            color: Colors.teal,
+                          ),
+                  ),
+                ],
+              ),
+              if (_imageBytes != null) ...[
+                const SizedBox(height: 12),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.memory(
+                        _imageBytes!,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _imageBytes = null;
+                            _imageUrlController.clear();
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+
               TextFormField(
                 controller: _titleController,
                 decoration: const InputDecoration(
@@ -143,22 +268,6 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                 validator: (value) => value == null || value.isEmpty
                     ? 'Please enter a title'
                     : null,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<MeetupCategory>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                ),
-                items: MeetupCategory.values.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(category.name.toUpperCase()),
-                  );
-                }).toList(),
-                onChanged: (value) =>
-                    setState(() => _selectedCategory = value!),
               ),
               const SizedBox(height: 16),
               Row(
@@ -193,6 +302,35 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                 ],
               ),
               const SizedBox(height: 16),
+
+              // Category Dropdown
+              DropdownButtonFormField<MeetupCategory>(
+                value: _selectedCategory,
+                decoration: InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  prefixIcon: const Icon(Icons.category_outlined),
+                ),
+                items: MeetupCategory.values.map((category) {
+                  return DropdownMenuItem(
+                    value: category,
+                    child: Text(
+                      category.name.toUpperCase(),
+                      style: const TextStyle(fontWeight: FontWeight.w500),
+                    ),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() => _selectedCategory = value);
+                  }
+                },
+              ),
+
+              const SizedBox(height: 16),
+
               TextFormField(
                 controller: _locationController,
                 decoration: const InputDecoration(

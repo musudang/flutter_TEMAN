@@ -14,6 +14,7 @@ import '../models/notification_model.dart';
 import '../models/comment_model.dart';
 
 import 'dart:async';
+import 'package:rxdart/rxdart.dart';
 
 class FirestoreService extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -84,6 +85,9 @@ class FirestoreService extends ChangeNotifier {
           : null,
       age: data['age'] as int?,
       personalInfo: data['personalInfo'] ?? '',
+      instagramId: data['instagramId'] ?? '',
+      followers: List<String>.from(data['followers'] ?? []),
+      following: List<String>.from(data['following'] ?? []),
     );
   }
 
@@ -96,9 +100,18 @@ class FirestoreService extends ChangeNotifier {
         return _userFromData(doc.data()!, userId);
       }
     } catch (e) {
-      debugPrint("Error fetching user $userId: $e");
+      debugPrint("Error fetching user by ID: $e");
     }
     return null;
+  }
+
+  Stream<app_models.User?> getUserStream(String userId) {
+    return _db.collection('users').doc(userId).snapshots().map((doc) {
+      if (doc.exists && doc.data() != null) {
+        return _userFromData(doc.data()!, userId);
+      }
+      return null;
+    });
   }
 
   Future<void> updateUserProfile({
@@ -108,6 +121,7 @@ class FirestoreService extends ChangeNotifier {
     String? avatarUrl,
     int? age,
     String? personalInfo,
+    String? instagramId,
   }) async {
     final uid = currentUserId;
     if (uid == null) return;
@@ -120,6 +134,7 @@ class FirestoreService extends ChangeNotifier {
     if (avatarUrl != null) data['avatarUrl'] = avatarUrl;
     if (age != null) data['age'] = age;
     if (personalInfo != null) data['personalInfo'] = personalInfo;
+    if (instagramId != null) data['instagramId'] = instagramId;
 
     await _db.collection('users').doc(uid).update(data);
   }
@@ -127,6 +142,76 @@ class FirestoreService extends ChangeNotifier {
   Future<bool> isAdmin() async {
     final user = await getCurrentUser();
     return user?.isAdmin ?? false;
+  }
+
+  Future<void> followUser(String targetUserId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    if (uid == targetUserId) return;
+
+    final batch = _db.batch();
+    final currentUserRef = _db.collection('users').doc(uid);
+    final targetUserRef = _db.collection('users').doc(targetUserId);
+
+    batch.update(currentUserRef, {
+      'following': FieldValue.arrayUnion([targetUserId]),
+    });
+    batch.update(targetUserRef, {
+      'followers': FieldValue.arrayUnion([uid]),
+    });
+
+    await batch.commit();
+
+    // Notify target user
+    await sendNotification(
+      userId: targetUserId,
+      title: 'New Follower 👤',
+      body: 'Someone started following you!',
+      type: 'follow',
+      relatedId: uid,
+    );
+  }
+
+  Future<void> unfollowUser(String targetUserId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final batch = _db.batch();
+    final currentUserRef = _db.collection('users').doc(uid);
+    final targetUserRef = _db.collection('users').doc(targetUserId);
+
+    batch.update(currentUserRef, {
+      'following': FieldValue.arrayRemove([targetUserId]),
+    });
+    batch.update(targetUserRef, {
+      'followers': FieldValue.arrayRemove([uid]),
+    });
+
+    await batch.commit();
+  }
+
+  Stream<List<app_models.User>> getFollowers(String userId) {
+    return _db
+        .collection('users')
+        .where('following', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => _userFromData(doc.data(), doc.id))
+              .toList();
+        });
+  }
+
+  Stream<List<app_models.User>> getFollowing(String userId) {
+    return _db
+        .collection('users')
+        .where('followers', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => _userFromData(doc.data(), doc.id))
+              .toList();
+        });
   }
 
   // ===================== MEETUPS =====================
@@ -154,13 +239,32 @@ class FirestoreService extends ChangeNotifier {
 
     debugPrint("Attempting to save meetup... Title: ${meetup.title}");
     try {
-      // Use .add() to auto-generate ID (meetup.id is '' from CreatePostScreen)
-      if (meetup.id.isEmpty) {
-        await _db.collection('meetups').add(_toDocument(meetup));
-      } else {
-        await _db.collection('meetups').doc(meetup.id).set(_toDocument(meetup));
-      }
       debugPrint("Meetup saved successfully!");
+
+      // Create Group Chat for this Meetup
+      // actually we can't get the ID if we used .add().
+      // But wait, the code says:
+      // if (meetup.id.isEmpty) await _db.collection('meetups').add(...)
+      // We need the ID.
+
+      DocumentReference docRef;
+      if (meetup.id.isEmpty) {
+        docRef = await _db.collection('meetups').add(_toDocument(meetup));
+      } else {
+        docRef = _db.collection('meetups').doc(meetup.id);
+        await docRef.set(_toDocument(meetup));
+      }
+
+      // Create Group Chat
+      await _db.collection('conversations').add({
+        'participantIds': [meetup.host.id],
+        'lastMessage': 'Meetup created! 👋',
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'unreadCounts': {meetup.host.id: 0},
+        'isGroup': true,
+        'groupName': meetup.title,
+        'meetupId': docRef.id,
+      });
     } catch (e) {
       debugPrint("Error saving meetup: $e");
       rethrow;
@@ -204,68 +308,78 @@ class FirestoreService extends ChangeNotifier {
         transaction.update(docRef, {'participantIds': updatedParticipants});
         debugPrint("Successfully joined meetup!");
 
-        // Auto-create group chat when meetup is full
-        if (updatedParticipants.length >= meetup.maxParticipants) {
-          // We can't do async calls inside a transaction, so we schedule it
-          Future.microtask(
-            () => _createGroupChatForMeetup(
-              meetupId,
-              meetup.title,
-              updatedParticipants,
-            ),
-          );
-        }
-
         return true;
       });
     } catch (e) {
       debugPrint("Error joining meetup: $e");
       return false;
+    } finally {
+      // Add to group chat immediately (outside transaction)
+      // We need meetup title. We can get it from the doc we fetched or assume we have it.
+      // For safety, let's fetch it or just pass empty if we can't.
+      // Actually, joinMeetup doesn't return the title easily.
+      // We can just rely on _addUserToMeetupChat finding existing chat by ID.
+      // If chat doesn't exist, title is needed.
+      // Let's optimisticly assume it exists or fetch it.
+      // Simpler: Just resolve the title inside _addUser.. if needed or pass "Meetup Chat".
+
+      final doc = await _db.collection('meetups').doc(meetupId).get();
+      if (doc.exists) {
+        final title = doc.data()?['title'] ?? 'Meetup Chat';
+        await _addUserToMeetupChat(meetupId, title, uid);
+      }
     }
   }
 
-  Future<void> _createGroupChatForMeetup(
+  Future<void> _addUserToMeetupChat(
     String meetupId,
     String meetupTitle,
-    List<String> participantIds,
+    String userId,
   ) async {
     try {
-      // Check if group chat already exists for this meetup
-      final existing = await _db
+      final query = await _db
           .collection('conversations')
           .where('meetupId', isEqualTo: meetupId)
           .limit(1)
           .get();
 
-      if (existing.docs.isNotEmpty) {
-        debugPrint("Group chat already exists for meetup $meetupId");
-        return;
+      if (query.docs.isNotEmpty) {
+        // Chat exists, add user
+        final doc = query.docs.first;
+        final participants = List<String>.from(doc['participantIds'] ?? []);
+        if (!participants.contains(userId)) {
+          participants.add(userId);
+          await _db.collection('conversations').doc(doc.id).update({
+            'participantIds': participants,
+            'unreadCounts.$userId': 0,
+          });
+        }
+      } else {
+        // Chat doesn't exist, create it
+        // We need to fetch the hostId if we want to include them definedly,
+        // but often the host is already in participantIds of the meetup.
+        // For simplicity, we create a new chat with the current joining user.
+        // ideally we should add the host too if they are not the joiner.
+
+        // Fetch meetup to get Host ID
+        final meetupDoc = await _db.collection('meetups').doc(meetupId).get();
+        final hostId = meetupDoc.data()?['hostId'];
+
+        final newParticipants = <String>{userId};
+        if (hostId != null) newParticipants.add(hostId);
+
+        await _db.collection('conversations').add({
+          'participantIds': newParticipants.toList(),
+          'lastMessage': 'Chat created for ${meetupTitle}',
+          'lastMessageTime': FieldValue.serverTimestamp(),
+          'meetupId': meetupId,
+          'isGroup': true,
+          'groupName': meetupTitle,
+          'unreadCounts': {userId: 0},
+        });
       }
-
-      final docRef = await _db.collection('conversations').add({
-        'participantIds': participantIds,
-        'lastMessage': '🎉 Meetup group created! Everyone is here.',
-        'lastMessageTime': FieldValue.serverTimestamp(),
-        'meetupId': meetupId,
-        'isGroup': true,
-        'groupName': meetupTitle,
-        'unreadCounts': {for (var id in participantIds) id: 0},
-      });
-
-      // Notify all participants
-      for (final pid in participantIds) {
-        await sendNotification(
-          userId: pid,
-          title: 'Group Chat Created! 🎉',
-          body: 'Meetup "$meetupTitle" is full! A group chat has been created.',
-          type: 'meetup_join',
-          relatedId: docRef.id,
-        );
-      }
-
-      debugPrint("Group chat created for meetup $meetupId");
     } catch (e) {
-      debugPrint("Error creating group chat: $e");
+      debugPrint("Error adding user to meetup chat: $e");
     }
   }
 
@@ -288,9 +402,61 @@ class FirestoreService extends ChangeNotifier {
         final updatedParticipants = List<String>.from(meetup.participantIds)
           ..remove(uid);
         transaction.update(docRef, {'participantIds': updatedParticipants});
+
+        // Remove from conversation (chat)
+        final conversationQuery = await _db
+            .collection('conversations')
+            .where('meetupId', isEqualTo: meetupId)
+            .limit(1)
+            .get();
+
+        if (conversationQuery.docs.isNotEmpty) {
+          final convDoc = conversationQuery.docs.first;
+          final convRef = _db.collection('conversations').doc(convDoc.id);
+          final currentParticipants = List<String>.from(
+            convDoc['participantIds'] ?? [],
+          );
+          if (currentParticipants.contains(uid)) {
+            currentParticipants.remove(uid);
+            transaction.update(convRef, {
+              'participantIds': currentParticipants,
+            });
+          }
+        }
       });
     } catch (e) {
       debugPrint("Error leaving meetup: $e");
+    }
+  }
+
+  Future<void> deleteMeetup(String meetupId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final docSnapshot = await _db.collection('meetups').doc(meetupId).get();
+      if (!docSnapshot.exists) return;
+
+      final data = docSnapshot.data();
+      if (data != null && data['hostId'] == uid) {
+        // Delete the meetup
+        await _db.collection('meetups').doc(meetupId).delete();
+
+        // Also try to find and delete the associated conversation
+        final query = await _db
+            .collection('conversations')
+            .where('meetupId', isEqualTo: meetupId)
+            .get();
+
+        for (var doc in query.docs) {
+          await _db.collection('conversations').doc(doc.id).delete();
+        }
+      } else {
+        throw Exception('Only the host can delete this meetup');
+      }
+    } catch (e) {
+      debugPrint("Error deleting meetup: $e");
+      rethrow;
     }
   }
 
@@ -318,6 +484,17 @@ class FirestoreService extends ChangeNotifier {
       ),
       participantIds: List<String>.from(data['participantIds'] ?? []),
       imageUrl: data['imageUrl'] ?? '',
+      likes: data['likes'] ?? 0,
+      comments: data['comments'] ?? 0,
+      likedBy: List<String>.from(data['likedBy'] ?? []),
+      scrappedBy: List<String>.from(data['scrappedBy'] ?? []),
+      createdAt: data['createdAt'] != null
+          ? (data['createdAt'] as Timestamp).toDate()
+          : DateTime(
+              2025,
+              1,
+              1,
+            ), // Fallback to past date to avoid pinning old meetups
     );
   }
 
@@ -327,6 +504,7 @@ class FirestoreService extends ChangeNotifier {
       'description': meetup.description,
       'location': meetup.location,
       'dateTime': Timestamp.fromDate(meetup.dateTime),
+      'createdAt': Timestamp.fromDate(meetup.createdAt), // [NEW]
       'category': meetup.category.name,
       'maxParticipants': meetup.maxParticipants,
       'hostId': meetup.host.id,
@@ -334,15 +512,149 @@ class FirestoreService extends ChangeNotifier {
       'hostAvatar': meetup.host.avatarUrl,
       'participantIds': meetup.participantIds,
       'imageUrl': meetup.imageUrl,
+      'likes': meetup.likes,
+      'comments': meetup.comments,
+      'likedBy': meetup.likedBy,
+      'scrappedBy': meetup.scrappedBy,
     };
+  }
+
+  // ===================== MEETUP LIKES & COMMENTS =====================
+
+  Future<void> toggleLikeMeetup(String meetupId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db.collection('meetups').doc(meetupId);
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final likedBy = List<String>.from(data['likedBy'] ?? []);
+
+        if (likedBy.contains(uid)) {
+          likedBy.remove(uid);
+        } else {
+          likedBy.add(uid);
+        }
+
+        transaction.update(docRef, {
+          'likedBy': likedBy,
+          'likes': likedBy.length,
+        });
+      });
+    } catch (e) {
+      debugPrint("Error toggling meetup like: $e");
+    }
+  }
+
+  Stream<List<Comment>> getMeetupComments(String meetupId) {
+    return _db
+        .collection('meetups')
+        .doc(meetupId)
+        .collection('comments')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            final data = doc.data();
+            return Comment(
+              id: doc.id,
+              postId: meetupId, // Using postId field for meetupId as well
+              content: data['content'] ?? '',
+              authorId: data['authorId'] ?? '',
+              authorName: data['authorName'] ?? 'Unknown',
+              authorAvatar: data['authorAvatar'] ?? '',
+              timestamp: (data['timestamp'] as Timestamp).toDate(),
+            );
+          }).toList();
+        });
+  }
+
+  Future<void> addMeetupComment(String meetupId, String content) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Must be logged in to comment');
+
+    final userData = await getCurrentUser();
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final meetupRef = _db.collection('meetups').doc(meetupId);
+        final commentRef = meetupRef.collection('comments').doc();
+
+        transaction.set(commentRef, {
+          'content': content,
+          'authorId': user.uid,
+          'authorName': userData?.name ?? 'Unknown',
+          'authorAvatar': userData?.avatarUrl ?? '',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+        transaction.update(meetupRef, {'comments': FieldValue.increment(1)});
+      });
+    } catch (e) {
+      debugPrint("Error adding meetup comment: $e");
+      rethrow;
+    }
   }
 
   // ===================== POSTS =====================
 
-  Stream<List<dynamic>> getFeed() {
+  Future<void> toggleScrapMeetup(String meetupId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db.collection('meetups').doc(meetupId);
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final scrappedBy = List<String>.from(data['scrappedBy'] ?? []);
+
+        if (scrappedBy.contains(uid)) {
+          scrappedBy.remove(uid);
+        } else {
+          scrappedBy.add(uid);
+        }
+
+        transaction.update(docRef, {'scrappedBy': scrappedBy});
+      });
+    } catch (e) {
+      debugPrint("Error toggling meetup scrap: $e");
+    }
+  }
+
+  Stream<List<Meetup>> getScrappedMeetups(String userId) {
+    if (userId.isEmpty) return Stream.value([]);
+
+    return _db
+        .collection('meetups')
+        .where('scrappedBy', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+          final meetups = snapshot.docs
+              .map((doc) => _meetupFromDocument(doc))
+              .toList();
+          // Client-side sort
+          meetups.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+          return meetups;
+        })
+        .handleError((e) {
+          debugPrint("Error fetching scrapped meetups: $e");
+          return <Meetup>[];
+        });
+  }
+
+  Stream<List<dynamic>> getScrappedFeed(String userId) {
     final controller = StreamController<List<dynamic>>();
-    final postsStream = getPosts();
-    final meetupsStream = getMeetups();
+    final postsStream = getScrappedPosts(userId);
+    final meetupsStream = getScrappedMeetups(userId);
 
     List<Post>? posts;
     List<Meetup>? meetups;
@@ -381,6 +693,70 @@ class FirestoreService extends ChangeNotifier {
     return controller.stream;
   }
 
+  Stream<List<dynamic>> getFeed() {
+    return Rx.combineLatest5<
+          List<Post>,
+          List<Meetup>,
+          List<Job>,
+          List<MarketplaceItem>,
+          List<Question>,
+          List<dynamic>
+        >(
+          getPosts(),
+          getMeetups(),
+          getJobs(),
+          getMarketplaceItems(),
+          getQuestions(),
+          (posts, meetups, jobs, marketItems, questions) {
+            final List<dynamic> allItems = [
+              ...posts,
+              ...meetups,
+              ...jobs,
+              ...marketItems,
+              ...questions,
+            ];
+
+            allItems.sort((a, b) {
+              DateTime timeA;
+              if (a is Post)
+                timeA = a.timestamp;
+              else if (a is Meetup)
+                timeA = a.createdAt;
+              else if (a is Job)
+                timeA = a.postedDate;
+              else if (a is MarketplaceItem)
+                timeA = a.postedDate;
+              else if (a is Question)
+                timeA = a.timestamp;
+              else
+                timeA = DateTime.now();
+
+              DateTime timeB;
+              if (b is Post)
+                timeB = b.timestamp;
+              else if (b is Meetup)
+                timeB = b.createdAt;
+              else if (b is Job)
+                timeB = b.postedDate;
+              else if (b is MarketplaceItem)
+                timeB = b.postedDate;
+              else if (b is Question)
+                timeB = b.timestamp;
+              else
+                timeB = DateTime.now();
+
+              return timeB.compareTo(timeA);
+            });
+
+            return allItems;
+          },
+        )
+        .handleError((error) {
+          debugPrint("Error in feed stream: $error");
+          return [];
+        });
+  }
+
   Stream<List<Post>> getPosts() {
     return _db
         .collection('posts')
@@ -395,10 +771,14 @@ class FirestoreService extends ChangeNotifier {
     return _db
         .collection('posts')
         .where('authorId', isEqualTo: userId)
-        .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => _postFromDocument(doc)).toList();
+          final posts = snapshot.docs
+              .map((doc) => _postFromDocument(doc))
+              .toList();
+          // Client-side sort
+          posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return posts;
         });
   }
 
@@ -416,6 +796,8 @@ class FirestoreService extends ChangeNotifier {
       likedBy: List<String>.from(data['likedBy'] ?? []),
       imageUrl: data['imageUrl'] ?? '',
       category: data['category'] ?? 'general',
+      scrappedBy: List<String>.from(data['scrappedBy'] ?? []),
+      authorAvatar: data['authorAvatar'] ?? '',
     );
   }
 
@@ -426,6 +808,7 @@ class FirestoreService extends ChangeNotifier {
     String authorName, {
     String? imageUrl,
     String category = 'general',
+    String authorAvatar = '',
   }) async {
     if (_auth.currentUser == null) {
       debugPrint('Error: User must be logged in to write to Firestore');
@@ -447,6 +830,7 @@ class FirestoreService extends ChangeNotifier {
         'likedBy': [],
         'imageUrl': imageUrl ?? '',
         'category': category,
+        'authorAvatar': authorAvatar,
       });
       debugPrint("Post saved successfully!");
     } catch (e) {
@@ -515,6 +899,48 @@ class FirestoreService extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error toggling like: $e");
     }
+  }
+
+  Future<void> toggleScrapPost(String postId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db.collection('posts').doc(postId);
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final scrappedBy = List<String>.from(data['scrappedBy'] ?? []);
+
+        if (scrappedBy.contains(uid)) {
+          scrappedBy.remove(uid);
+        } else {
+          scrappedBy.add(uid);
+        }
+
+        transaction.update(docRef, {'scrappedBy': scrappedBy});
+      });
+    } catch (e) {
+      debugPrint("Error toggling scrap: $e");
+    }
+  }
+
+  Stream<List<Post>> getScrappedPosts(String userId) {
+    return _db
+        .collection('posts')
+        .where('scrappedBy', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+          final posts = snapshot.docs
+              .map((doc) => _postFromDocument(doc))
+              .toList();
+          // Client-side sort
+          posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+          return posts;
+        });
   }
 
   // ===================== COMMENTS =====================
@@ -686,25 +1112,34 @@ class FirestoreService extends ChangeNotifier {
   // ===================== MEETUP CHAT =====================
 
   Stream<List<Message>> getMeetupMessages(String meetupId) {
-    return _db
-        .collection('meetups')
-        .doc(meetupId)
-        .collection('messages')
-        .orderBy('timestamp', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            final data = doc.data();
-            return Message(
-              id: doc.id,
-              senderId: data['senderId'] ?? '',
-              senderName: data['senderName'] ?? 'Unknown',
-              senderAvatar: data['senderAvatar'] ?? '',
-              content: data['content'] ?? '',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
-            );
-          }).toList();
+    // Return a stream that switches to the conversation stream once identified
+    final controller = StreamController<List<Message>>();
+    StreamSubscription? subscription;
+
+    final conversationStream = _db
+        .collection('conversations')
+        .where('meetupId', isEqualTo: meetupId)
+        .limit(1)
+        .snapshots();
+
+    final convSub = conversationStream.listen((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        final convId = snapshot.docs.first.id;
+        // Switch to the messages stream
+        subscription?.cancel();
+        subscription = getChatMessages(convId).listen((messages) {
+          controller.add(messages);
         });
+      } else {
+        controller.add([]);
+      }
+    });
+
+    controller.onCancel = () {
+      convSub.cancel();
+      subscription?.cancel();
+    };
+    return controller.stream;
   }
 
   Future<void> sendMeetupMessage(String meetupId, String content) async {
@@ -713,12 +1148,66 @@ class FirestoreService extends ChangeNotifier {
 
     final userData = await getCurrentUser();
 
-    await _db.collection('meetups').doc(meetupId).collection('messages').add({
-      'senderId': user.uid,
-      'senderName': userData?.name ?? 'Unknown',
-      'senderAvatar': userData?.avatarUrl ?? '',
-      'content': content,
-      'timestamp': FieldValue.serverTimestamp(),
+    // Find conversation
+    final query = await _db
+        .collection('conversations')
+        .where('meetupId', isEqualTo: meetupId)
+        .limit(1)
+        .get();
+
+    String convId;
+    if (query.docs.isNotEmpty) {
+      convId = query.docs.first.id;
+    } else {
+      // Create if missing
+      final mDoc = await _db.collection('meetups').doc(meetupId).get();
+      final meetupData = mDoc.data() ?? {};
+      final title = meetupData['title'] ?? 'Meetup Group';
+      final participants = List<String>.from(
+        meetupData['participantIds'] ?? [],
+      );
+
+      // Ensure current user is in participants (safeguard)
+      if (!participants.contains(user.uid)) {
+        participants.add(user.uid);
+      }
+
+      // Initialize unread counts for all participants
+      final unreadCounts = <String, int>{};
+      for (final pid in participants) {
+        unreadCounts[pid] = 0;
+      }
+
+      final docRef = await _db.collection('conversations').add({
+        'participantIds': participants,
+        'lastMessage': content,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'meetupId': meetupId,
+        'isGroup': true,
+        'groupName': title,
+        'unreadCounts': unreadCounts,
+      });
+      convId = docRef.id;
+      // But let's stick to the message sending for now.
+    }
+
+    // Add message
+    await _db
+        .collection('conversations')
+        .doc(convId)
+        .collection('messages')
+        .add({
+          'senderId': user.uid,
+          'senderName': userData?.name ?? 'Unknown',
+          'senderAvatar': userData?.avatarUrl ?? '',
+          'content': content,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+
+    // Update conversation
+    await _db.collection('conversations').doc(convId).update({
+      'lastMessage': content,
+      'lastMessageTime': FieldValue.serverTimestamp(),
     });
   }
 
@@ -850,10 +1339,9 @@ class FirestoreService extends ChangeNotifier {
     return _db
         .collection('conversations')
         .where('participantIds', arrayContains: user.uid)
-        .orderBy('lastMessageTime', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) {
+          final conversations = snapshot.docs.map((doc) {
             final data = doc.data();
             return Conversation(
               id: doc.id,
@@ -861,9 +1349,49 @@ class FirestoreService extends ChangeNotifier {
               lastMessage: data['lastMessage'] ?? '',
               lastMessageTime: (data['lastMessageTime'] as Timestamp).toDate(),
               unreadCounts: Map<String, int>.from(data['unreadCounts'] ?? {}),
+              isGroup: data['isGroup'] ?? false,
+              groupName: data['groupName'],
+              meetupId: data['meetupId'],
             );
           }).toList();
+
+          // Client-side sort to avoid composite index requirement
+          conversations.sort(
+            (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+          );
+          return conversations;
         });
+  }
+
+  Future<void> leaveConversation(String conversationId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final docRef = _db.collection('conversations').doc(conversationId);
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data();
+        if (data == null) return;
+
+        final participants = List<String>.from(data['participantIds'] ?? []);
+        if (participants.contains(uid)) {
+          participants.remove(uid);
+          // If no participants left, maybe delete?
+          // For now just keep it or let a cleanup job handle it.
+
+          transaction.update(docRef, {
+            'participantIds': participants,
+            'unreadCounts.$uid': FieldValue.delete(),
+          });
+        }
+      });
+    } catch (e) {
+      debugPrint("Error leaving conversation: $e");
+      rethrow;
+    }
   }
 
   Stream<List<Message>> getChatMessages(String conversationId) {
@@ -965,6 +1493,8 @@ class FirestoreService extends ChangeNotifier {
       'lastMessageTime': FieldValue.serverTimestamp(),
       'unreadCounts': {user.uid: 0, otherUserId: 0},
       'isGroup': false,
+      'groupName': null,
+      'meetupId': null,
     });
 
     return docRef.id;
@@ -1059,6 +1589,22 @@ class FirestoreService extends ChangeNotifier {
         });
   }
 
+  Future<void> deleteNotification(String notificationId) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _db
+          .collection('users')
+          .doc(user.uid)
+          .collection('notifications')
+          .doc(notificationId)
+          .delete();
+    } catch (e) {
+      debugPrint("Error deleting notification: $e");
+    }
+  }
+
   Future<void> markNotificationAsRead(String notificationId) async {
     final user = _auth.currentUser;
     if (user == null) return;
@@ -1092,13 +1638,22 @@ class FirestoreService extends ChangeNotifier {
   // ===================== JOINED MEETUPS =====================
 
   Stream<List<Meetup>> getJoinedMeetups(String userId) {
+    if (userId.isEmpty) return Stream.value([]);
+
     return _db
         .collection('meetups')
         .where('participantIds', arrayContains: userId)
-        .orderBy('dateTime', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => _meetupFromDocument(doc)).toList();
+          final meetups = snapshot.docs
+              .map((doc) => _meetupFromDocument(doc))
+              .toList();
+          meetups.sort((a, b) => b.dateTime.compareTo(a.dateTime));
+          return meetups;
+        })
+        .handleError((e) {
+          debugPrint("Error fetching joined meetups: $e");
+          return <Meetup>[];
         });
   }
 
@@ -1115,5 +1670,41 @@ class FirestoreService extends ChangeNotifier {
         .where('isRead', isEqualTo: false)
         .snapshots()
         .map((snapshot) => snapshot.docs.length);
+  }
+
+  // ===================== RESET DATA =====================
+
+  Future<void> resetAppData() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    // Only allow this if user confirms (UI side)
+    // We will delete all collections
+    // NOTE: In a real production app, you'd use a cloud function for this.
+    // Here we will do best-effort client-side deletion.
+
+    final collections = [
+      'posts',
+      'meetups',
+      'jobs',
+      'marketplace',
+      'questions',
+      'conversations',
+      'users', // Delete users last or carefully
+    ];
+
+    for (final col in collections) {
+      final snapshot = await _db.collection(col).get();
+      for (final doc in snapshot.docs) {
+        // Don't delete self auth record if you want to keep login, but
+        // request said "metadata reset... account delete".
+        // If we really want to delete EVERYTHING including accounts, we should also delete auth user.
+        // But client SDK cannot delete OTHER users.
+        // So we will just delete documents.
+        await doc.reference.delete();
+      }
+    }
+
+    debugPrint("App data reset complete.");
   }
 }

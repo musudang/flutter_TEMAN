@@ -154,43 +154,102 @@ class UserProfileScreen extends StatelessWidget {
                       const SizedBox(height: 16),
 
                       // DM Button
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () async {
-                            try {
-                              final conversationId = await firestoreService
-                                  .startConversation(userId);
-                              if (context.mounted) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => ChatScreen(
-                                      conversationId: conversationId,
-                                      chatTitle: user.name,
+                      // Follow/Unfollow & Message Buttons
+                      Row(
+                        children: [
+                          Expanded(
+                            child: StreamBuilder<app_models.User?>(
+                              stream: firestoreService.getUserStream(
+                                firestoreService.currentUserId!,
+                              ),
+                              builder: (context, snapshot) {
+                                if (!snapshot.hasData) return const SizedBox();
+                                final currentUser = snapshot.data!;
+                                final isFollowing = currentUser.following
+                                    .contains(userId);
+
+                                return ElevatedButton.icon(
+                                  onPressed: () async {
+                                    if (isFollowing) {
+                                      await firestoreService.unfollowUser(
+                                        userId,
+                                      );
+                                    } else {
+                                      await firestoreService.followUser(userId);
+                                    }
+                                  },
+                                  icon: Icon(
+                                    isFollowing
+                                        ? Icons.check
+                                        : Icons.person_add,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    isFollowing ? 'Following' : 'Follow',
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isFollowing
+                                        ? Colors.grey[200]
+                                        : Colors.teal,
+                                    foregroundColor: isFollowing
+                                        ? Colors.black
+                                        : Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 12,
                                     ),
                                   ),
                                 );
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error: $e')),
-                                );
-                              }
-                            }
-                          },
-                          icon: const Icon(Icons.chat_bubble_outline, size: 18),
-                          label: const Text('Message'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              },
                             ),
                           ),
-                        ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () async {
+                                try {
+                                  final conversationId = await firestoreService
+                                      .startConversation(userId);
+                                  if (context.mounted) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => ChatScreen(
+                                          conversationId: conversationId,
+                                          chatTitle: user.name,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(content: Text('Error: $e')),
+                                    );
+                                  }
+                                }
+                              },
+                              icon: const Icon(
+                                Icons.chat_bubble_outline,
+                                size: 18,
+                              ),
+                              label: const Text('Message'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.teal,
+                                side: const BorderSide(color: Colors.teal),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 12,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),

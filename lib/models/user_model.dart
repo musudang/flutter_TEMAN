@@ -10,6 +10,10 @@ class User {
   final int? age;
   final String personalInfo;
 
+  final String instagramId;
+  final List<String> followers;
+  final List<String> following;
+
   User({
     required this.id,
     required this.name,
@@ -21,6 +25,9 @@ class User {
     this.createdAt,
     this.age,
     this.personalInfo = '',
+    this.instagramId = '',
+    this.followers = const [],
+    this.following = const [],
   });
 
   bool get isAdmin => role == 'admin';

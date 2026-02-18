@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../models/post_model.dart';
 import '../models/meetup_model.dart';
 import '../models/question_model.dart';
+import '../models/user_model.dart' as app_models;
 import 'create_post_screen.dart';
 import 'conversation_list_screen.dart';
 import 'notifications_screen.dart';
@@ -13,6 +14,7 @@ import 'meetup_list_screen.dart';
 import 'jobs_screen.dart';
 import 'marketplace_list_screen.dart';
 import '../widgets/meetup_card.dart';
+import 'user_profile_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -34,13 +36,20 @@ class _FeedScreenState extends State<FeedScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Teman Korea',
-          style: TextStyle(
-            fontWeight: FontWeight.w800,
-            fontSize: 24,
-            color: Color(0xFF1A1F36),
-            letterSpacing: -0.5,
+        title: GestureDetector(
+          onTap: () {
+            setState(() {
+              _selectedFilter = 'All';
+            });
+          },
+          child: const Text(
+            'TEMAN',
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              fontSize: 24,
+              color: Color(0xFF1A1F36),
+              letterSpacing: -0.5,
+            ),
           ),
         ),
         centerTitle: false,
@@ -179,7 +188,7 @@ class _FeedScreenState extends State<FeedScreen> {
       return const MeetupListScreen(embedded: true);
     }
 
-    // For All, Q&A, Events – use the feed stream
+    // For All, Q&A, Events, and Meetup Categories – use the feed stream
     return StreamBuilder<List<dynamic>>(
       stream: firestoreService.getFeed(),
       builder: (context, snapshot) {
@@ -204,10 +213,14 @@ class _FeedScreenState extends State<FeedScreen> {
             return false;
           }
           if (_selectedFilter == 'Events') {
-            if (item is Post && item.category == 'events') return true;
-            if (item is Meetup) return true;
+            // Only show Posts with category 'event' OR 'events'
+            // Explicitly exclude Meetups from this tab as per user request
+            if (item is Post &&
+                (item.category == 'event' || item.category == 'events'))
+              return true;
             return false;
           }
+
           return false;
         }).toList();
 
@@ -368,116 +381,179 @@ class _FeedScreenState extends State<FeedScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              CircleAvatar(
-                radius: 20,
-                backgroundColor: Colors.teal[50],
-                child: Text(
-                  post.authorName.isNotEmpty
-                      ? post.authorName[0].toUpperCase()
-                      : '?',
-                  style: TextStyle(
-                    color: Colors.teal[700],
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      post.authorName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                        color: Color(0xFF1A1F36),
-                      ),
+          // Live User Data Stream
+          StreamBuilder<app_models.User?>(
+            stream: firestoreService.getUserStream(post.authorId),
+            builder: (context, userSnap) {
+              final user = userSnap.data;
+              final authorName = user?.name ?? post.authorName;
+              final authorAvatar = user?.avatarUrl ?? '';
+
+              return Row(
+                children: [
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              UserProfileScreen(userId: post.authorId),
+                        ),
+                      );
+                    },
+                    child: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: Colors.teal[50],
+                      backgroundImage: authorAvatar.isNotEmpty
+                          ? NetworkImage(authorAvatar)
+                          : null,
+                      child: authorAvatar.isEmpty
+                          ? Text(
+                              authorName.isNotEmpty
+                                  ? authorName[0].toUpperCase()
+                                  : '?',
+                              style: TextStyle(
+                                color: Colors.teal[700],
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
                     ),
-                    const SizedBox(height: 2),
-                    Row(
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: categoryColor,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    UserProfileScreen(userId: post.authorId),
+                              ),
+                            );
+                          },
                           child: Text(
-                            categoryLabel,
-                            style: TextStyle(
-                              color: categoryTextColor,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
+                            authorName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                              color: Color(0xFF1A1F36),
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          timeAgo,
-                          style: TextStyle(
-                            color: Colors.grey[400],
-                            fontSize: 12,
-                          ),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: categoryColor,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                categoryLabel,
+                                style: TextStyle(
+                                  color: categoryTextColor,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              timeAgo,
+                              style: TextStyle(
+                                color: Colors.grey[400],
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              // Delete menu for owner / admin
-              PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: Colors.grey[400], size: 20),
-                onSelected: (value) async {
-                  if (value == 'delete') {
-                    final confirm = await showDialog<bool>(
-                      context: context,
-                      builder: (ctx) => AlertDialog(
-                        title: const Text('Delete Post?'),
-                        content: const Text('This action cannot be undone.'),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, false),
-                            child: const Text('Cancel'),
-                          ),
-                          TextButton(
-                            onPressed: () => Navigator.pop(ctx, true),
-                            child: const Text(
-                              'Delete',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                    if (confirm == true) {
-                      await firestoreService.deletePost(post.id);
-                    }
-                  }
-                },
-                itemBuilder: (ctx) {
-                  final isOwner = post.authorId == uid;
-                  return [
-                    if (isOwner)
-                      const PopupMenuItem(
-                        value: 'delete',
-                        child: Text('Delete Post'),
-                      ),
-                    // Admin check is async; for simplicity we always show if owner.
-                    // Admin deletion is handled server-side in deletePost().
-                    const PopupMenuItem(
-                      value: 'delete',
-                      child: Text('Report / Delete'),
+                  ),
+                  // Scrap Button
+                  StreamBuilder<app_models.User?>(
+                    stream: firestoreService.getUserStream(
+                      firestoreService.currentUserId ?? '',
                     ),
-                  ];
-                },
-              ),
-            ],
+                    builder: (context, userSnap) {
+                      final isScrapped = post.scrappedBy.contains(
+                        firestoreService.currentUserId,
+                      );
+                      return IconButton(
+                        icon: Icon(
+                          isScrapped ? Icons.bookmark : Icons.bookmark_border,
+                          color: isScrapped ? Colors.teal : Colors.grey[400],
+                          size: 24,
+                        ),
+                        onPressed: () =>
+                            firestoreService.toggleScrapPost(post.id),
+                      );
+                    },
+                  ),
+                  // Delete menu for owner / admin
+                  PopupMenuButton<String>(
+                    icon: Icon(
+                      Icons.more_vert,
+                      color: Colors.grey[400],
+                      size: 20,
+                    ),
+                    onSelected: (value) async {
+                      if (value == 'delete') {
+                        final confirm = await showDialog<bool>(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Delete Post?'),
+                            content: const Text(
+                              'This action cannot be undone.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, false),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text(
+                                  'Delete',
+                                  style: TextStyle(color: Colors.red),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await firestoreService.deletePost(post.id);
+                        }
+                      }
+                    },
+                    itemBuilder: (ctx) {
+                      final isOwner = post.authorId == uid;
+                      return [
+                        if (isOwner)
+                          const PopupMenuItem(
+                            value: 'delete',
+                            child: Text('Delete Post'),
+                          ),
+                        // Admin check is async; for simplicity we always show if owner.
+                        // Admin deletion is handled server-side in deletePost().
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text('Report / Delete'),
+                        ),
+                      ];
+                    },
+                  ),
+                ],
+              );
+            },
           ),
           if (post.imageUrl.isNotEmpty) ...[
             ClipRRect(

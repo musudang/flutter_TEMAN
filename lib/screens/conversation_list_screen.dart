@@ -22,7 +22,7 @@ class ConversationListScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1A1F36),
         elevation: 0,
-        automaticallyImplyLeading: false,
+        centerTitle: true,
       ),
       body: StreamBuilder<List<Conversation>>(
         stream: firestoreService.getConversations(),
@@ -60,7 +60,9 @@ class ConversationListScreen extends StatelessWidget {
               final currentUserId = firestoreService.currentUserId;
 
               // Determine if this is a group chat
-              final isGroup = conversation.participantIds.length > 2;
+              final isGroup =
+                  conversation.isGroup ||
+                  conversation.participantIds.length > 2;
 
               if (isGroup) {
                 // Group chat – show group name from Firestore data
@@ -138,6 +140,36 @@ class ConversationListScreen extends StatelessWidget {
                         ),
                       );
                     },
+                    onLongPress: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Leave Chat?'),
+                          content: const Text(
+                            'Are you sure you want to leave this conversation?',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: const Text(
+                                'Leave',
+                                style: TextStyle(color: Colors.red),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+
+                      if (confirm == true) {
+                        await firestoreService.leaveConversation(
+                          conversation.id,
+                        );
+                      }
+                    },
                   );
                 },
               );
@@ -153,9 +185,8 @@ class ConversationListScreen extends StatelessWidget {
     Conversation conversation,
     FirestoreService firestoreService,
   ) {
-    // Group chats stored with a groupName field; we read it from unreadCounts
-    // as a workaround since Conversation model doesn't have groupName.
-    // We'll show a group icon and generic name based on participant count.
+    // Use groupName if available, otherwise fallback to "Group Chat"
+    final groupName = conversation.groupName ?? 'Group Chat';
     final memberCount = conversation.participantIds.length;
 
     return ListTile(
@@ -166,7 +197,7 @@ class ConversationListScreen extends StatelessWidget {
         child: Icon(Icons.groups, color: Colors.blue[700]),
       ),
       title: Text(
-        'Group Chat ($memberCount)',
+        '$groupName ($memberCount)',
         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
       ),
       subtitle: Text(
@@ -185,7 +216,7 @@ class ConversationListScreen extends StatelessWidget {
           MaterialPageRoute(
             builder: (context) => ChatScreen(
               conversationId: conversation.id,
-              chatTitle: 'Group Chat ($memberCount)',
+              chatTitle: '$groupName ($memberCount)',
             ),
           ),
         );

@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import 'dart:typed_data';
 import '../services/firestore_service.dart';
 import '../models/meetup_model.dart';
 import '../models/marketplace_model.dart';
@@ -17,6 +21,24 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
+  Uint8List? _imageBytes;
+  bool _isUploadingImage = false;
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      imageQuality: 70,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _imageBytes = bytes;
+        _imageUrlController.clear(); // Clear URL if local image picked
+      });
+    }
+  }
 
   // Category selection
   String _selectedCategory = 'General';
@@ -123,6 +145,24 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         return;
       }
 
+      // Upload image if selected
+      if (_imageBytes != null) {
+        setState(() => _isUploadingImage = true);
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('post_images')
+            .child('${const Uuid().v4()}.jpg');
+
+        final uploadTask = ref.putData(
+          _imageBytes!,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+        await uploadTask;
+        final url = await ref.getDownloadURL();
+        _imageUrlController.text = url;
+        setState(() => _isUploadingImage = false);
+      }
+
       if (_selectedCategory == 'Meetup') {
         await _submitMeetup(firestoreService, user);
       } else if (_selectedCategory == 'Market') {
@@ -138,6 +178,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           user.name,
           imageUrl: _imageUrlController.text.trim(),
           category: _firestoreCategory,
+          authorAvatar: user.avatarUrl,
         );
       }
 
@@ -187,6 +228,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       host: user,
       participantIds: [user.id],
       imageUrl: _imageUrlController.text.trim(),
+      createdAt: DateTime.now(),
     );
 
     await service.addMeetup(meetup);
@@ -391,12 +433,84 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               const SizedBox(height: 16),
 
               // Image URL (common)
-              _buildField(
-                controller: _imageUrlController,
-                label: 'Image URL (Optional)',
-                hint: 'https://example.com/image.jpg',
-                icon: Icons.image_outlined,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: _buildField(
+                      controller: _imageUrlController,
+                      label: 'Image URL',
+                      hint: 'https://example.com/image.jpg',
+                      icon: Icons.image_outlined,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 2),
+                    height: 56,
+                    width: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: Colors.teal.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: _isUploadingImage
+                        ? const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : IconButton(
+                            onPressed: _pickImage,
+                            icon: const Icon(
+                              Icons.add_photo_alternate_outlined,
+                            ),
+                            color: Colors.teal,
+                            tooltip: 'Upload Image',
+                          ),
+                  ),
+                ],
               ),
+              if (_imageBytes != null) ...[
+                const SizedBox(height: 12),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.memory(
+                        _imageBytes!,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _imageBytes = null;
+                            _imageUrlController.clear();
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
 
               const SizedBox(height: 16),
 

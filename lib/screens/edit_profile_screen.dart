@@ -1,10 +1,9 @@
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
 
@@ -24,6 +23,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _ageController;
   late TextEditingController _personalInfoController;
   late TextEditingController _avatarUrlController;
+  late TextEditingController _instagramController;
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
 
@@ -42,6 +42,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       text: widget.user.personalInfo,
     );
     _avatarUrlController = TextEditingController(text: widget.user.avatarUrl);
+    _instagramController = TextEditingController(text: widget.user.instagramId);
   }
 
   @override
@@ -52,6 +53,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _ageController.dispose();
     _personalInfoController.dispose();
     _avatarUrlController.dispose();
+    _instagramController.dispose();
     super.dispose();
   }
 
@@ -70,11 +72,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 512,
-        maxHeight: 512,
-        imageQuality: 75,
+        maxWidth: 600,
+        maxHeight: 600,
+        imageQuality: 50,
       );
       if (picked == null) return;
+
+      if (!mounted) return;
 
       setState(() => _isUploadingPhoto = true);
 
@@ -84,18 +88,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .child('$uid.jpg');
 
       UploadTask uploadTask;
-      if (kIsWeb) {
-        final bytes = await picked.readAsBytes();
-        uploadTask = ref.putData(
-          bytes,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-      } else {
-        uploadTask = ref.putFile(File(picked.path));
-      }
+
+      // Ensure platform-agnostic upload by using bytes
+      final bytes = await picked.readAsBytes();
+      uploadTask = ref.putData(
+        bytes,
+        SettableMetadata(contentType: 'image/jpeg'),
+      );
 
       // Wait for upload to fully complete before getting URL
-      await uploadTask.whenComplete(() {});
+      // Add timeout to prevent infinite loading
+      // Wait for the upload to complete or timeout after 30 seconds
+      await uploadTask
+          .whenComplete(() {})
+          .timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              if (uploadTask.snapshot.state == TaskState.running) {
+                uploadTask.cancel();
+              }
+              throw TimeoutException('Upload timed out');
+            },
+          );
+
       final url = await ref.getDownloadURL();
 
       if (mounted) {
@@ -103,13 +118,45 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _avatarUrlController.text = url;
           _isUploadingPhoto = false;
         });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile photo uploaded!')),
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUploadingPhoto = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+        // Clean error message
+        String errorMessage = 'Upload failed: $e';
+        if (e.toString().contains('unauthorized')) {
+          errorMessage = 'Permission denied. Please check your connection.';
+        } else if (e.toString().contains('retry-limit-exceeded')) {
+          errorMessage = 'Upload timed out. File might be too large.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Details',
+              onPressed: () {
+                showDialog(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Upload Error'),
+                    content: Text(e.toString()),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
       }
     }
   }
@@ -133,6 +180,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         avatarUrl: _avatarUrlController.text.trim(),
         age: int.tryParse(_ageController.text.trim()),
         personalInfo: _personalInfoController.text.trim(),
+        instagramId: _instagramController.text.trim(),
       );
 
       if (mounted) {
@@ -244,7 +292,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+            _buildLabel('Profile Image URL'),
+            const SizedBox(height: 8),
+            _buildTextField(
+              _avatarUrlController,
+              'Paste image URL or upload above',
+            ),
+            const SizedBox(height: 24),
 
             _buildLabel('Display Name'),
             const SizedBox(height: 8),
@@ -280,6 +335,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _personalInfoController,
               'Hobbies, interests, what you do...',
               maxLines: 3,
+            ),
+
+            const SizedBox(height: 24),
+            _buildLabel('Instagram ID / Link'),
+            const SizedBox(height: 8),
+            _buildTextField(
+              _instagramController,
+              'e.g. username or https://instagram.com/...',
             ),
 
             const SizedBox(height: 24),

@@ -40,43 +40,61 @@ class NotificationsScreen extends StatelessWidget {
             separatorBuilder: (context, index) => const Divider(height: 1),
             itemBuilder: (context, index) {
               final notification = notifications[index];
-              return ListTile(
-                tileColor: notification.isRead
-                    ? Colors.white
-                    : Colors.teal.withValues(alpha: 0.05),
-                leading: CircleAvatar(
-                  backgroundColor: _getIconColor(notification.type),
-                  child: Icon(
-                    _getIcon(notification.type),
-                    color: Colors.white,
-                    size: 20,
-                  ),
+              return Dismissible(
+                key: Key(notification.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  color: Colors.red,
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: const Icon(Icons.delete, color: Colors.white),
                 ),
-                title: Text(
-                  notification.title,
-                  style: TextStyle(
-                    fontWeight: notification.isRead
-                        ? FontWeight.normal
-                        : FontWeight.bold,
-                  ),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(notification.body),
-                    const SizedBox(height: 4),
-                    Text(
-                      DateFormat(
-                        'MMM d, h:mm a',
-                      ).format(notification.timestamp),
-                      style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                onDismissed: (direction) {
+                  firestoreService.deleteNotification(notification.id);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Notification deleted'),
+                      duration: Duration(seconds: 1),
                     ),
-                  ],
-                ),
-                onTap: () {
-                  firestoreService.markNotificationAsRead(notification.id);
-                  // Navigate based on type if needed
+                  );
                 },
+                child: ListTile(
+                  tileColor: notification.isRead
+                      ? Colors.white
+                      : Colors.teal.withValues(alpha: 0.05),
+                  leading: CircleAvatar(
+                    backgroundColor: _getIconColor(notification.type),
+                    child: Icon(
+                      _getIcon(notification.type),
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    notification.title,
+                    style: TextStyle(
+                      fontWeight: notification.isRead
+                          ? FontWeight.normal
+                          : FontWeight.bold,
+                    ),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(notification.body),
+                      const SizedBox(height: 4),
+                      Text(
+                        DateFormat(
+                          'MMM d, h:mm a',
+                        ).format(notification.timestamp),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                  onTap: () {
+                    firestoreService.markNotificationAsRead(notification.id);
+                  },
+                ),
               );
             },
           );
