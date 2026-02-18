@@ -370,7 +370,7 @@ class FirestoreService extends ChangeNotifier {
 
         await _db.collection('conversations').add({
           'participantIds': newParticipants.toList(),
-          'lastMessage': 'Chat created for ${meetupTitle}',
+          'lastMessage': 'Chat created for $meetupTitle',
           'lastMessageTime': FieldValue.serverTimestamp(),
           'meetupId': meetupId,
           'isGroup': true,
@@ -702,11 +702,26 @@ class FirestoreService extends ChangeNotifier {
           List<Question>,
           List<dynamic>
         >(
-          getPosts(),
-          getMeetups(),
-          getJobs(),
-          getMarketplaceItems(),
-          getQuestions(),
+          getPosts().onErrorReturnWith((error, stackTrace) {
+            debugPrint('Error fetching posts: $error');
+            return [];
+          }),
+          getMeetups().onErrorReturnWith((error, stackTrace) {
+            debugPrint('Error fetching meetups: $error');
+            return [];
+          }),
+          getJobs().onErrorReturnWith((error, stackTrace) {
+            debugPrint('Error fetching jobs: $error');
+            return [];
+          }),
+          getMarketplaceItems().onErrorReturnWith((error, stackTrace) {
+            debugPrint('Error fetching marketplace: $error');
+            return [];
+          }),
+          getQuestions().onErrorReturnWith((error, stackTrace) {
+            debugPrint('Error fetching questions: $error');
+            return [];
+          }),
           (posts, meetups, jobs, marketItems, questions) {
             final List<dynamic> allItems = [
               ...posts,
@@ -717,33 +732,36 @@ class FirestoreService extends ChangeNotifier {
             ];
 
             allItems.sort((a, b) {
+              // Sort descending (newest first)
               DateTime timeA;
-              if (a is Post)
+              if (a is Post) {
                 timeA = a.timestamp;
-              else if (a is Meetup)
+              } else if (a is Meetup) {
                 timeA = a.createdAt;
-              else if (a is Job)
+              } else if (a is Job) {
                 timeA = a.postedDate;
-              else if (a is MarketplaceItem)
+              } else if (a is MarketplaceItem) {
                 timeA = a.postedDate;
-              else if (a is Question)
+              } else if (a is Question) {
                 timeA = a.timestamp;
-              else
+              } else {
                 timeA = DateTime.now();
+              }
 
               DateTime timeB;
-              if (b is Post)
+              if (b is Post) {
                 timeB = b.timestamp;
-              else if (b is Meetup)
+              } else if (b is Meetup) {
                 timeB = b.createdAt;
-              else if (b is Job)
+              } else if (b is Job) {
                 timeB = b.postedDate;
-              else if (b is MarketplaceItem)
+              } else if (b is MarketplaceItem) {
                 timeB = b.postedDate;
-              else if (b is Question)
+              } else if (b is Question) {
                 timeB = b.timestamp;
-              else
+              } else {
                 timeB = DateTime.now();
+              }
 
               return timeB.compareTo(timeA);
             });

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
@@ -26,6 +28,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _instagramController;
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
+  String? _uploadError;
 
   @override
   void initState() {
@@ -80,7 +83,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       if (!mounted) return;
 
-      setState(() => _isUploadingPhoto = true);
+      setState(() {
+        _isUploadingPhoto = true;
+        _uploadError = null;
+      });
 
       final ref = FirebaseStorage.instance
           .ref()
@@ -89,12 +95,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       UploadTask uploadTask;
 
-      // Ensure platform-agnostic upload by using bytes
-      final bytes = await picked.readAsBytes();
-      uploadTask = ref.putData(
-        bytes,
-        SettableMetadata(contentType: 'image/jpeg'),
-      );
+      if (kIsWeb) {
+        // Web: Use bytes
+        final bytes = await picked.readAsBytes();
+        debugPrint(
+          'Pick image: ${picked.path}, Mime: ${picked.mimeType}, Bytes: ${bytes.length}',
+        );
+
+        uploadTask = ref.putData(
+          bytes,
+          SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
+        );
+      } else {
+        // Native (Windows/Mobile): Use File for better stability
+        final file = File(picked.path);
+        uploadTask = ref.putFile(
+          file,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+      }
 
       // Wait for upload to fully complete before getting URL
       // Add timeout to prevent infinite loading
@@ -102,16 +121,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       await uploadTask
           .whenComplete(() {})
           .timeout(
-            const Duration(seconds: 30),
+            const Duration(seconds: 90),
             onTimeout: () {
               if (uploadTask.snapshot.state == TaskState.running) {
                 uploadTask.cancel();
               }
-              throw TimeoutException('Upload timed out');
+              throw TimeoutException(
+                'Upload timed out. Please check your internet connection and try again.',
+              );
             },
           );
 
       final url = await ref.getDownloadURL();
+
+      debugPrint('Upload successful. Download URL: $url');
 
       if (mounted) {
         setState(() {
@@ -122,29 +145,38 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           const SnackBar(content: Text('Profile photo uploaded!')),
         );
       }
-    } catch (e) {
+    } on FirebaseException catch (e) {
       if (mounted) {
         setState(() => _isUploadingPhoto = false);
-        // Clean error message
-        String errorMessage = 'Upload failed: $e';
-        if (e.toString().contains('unauthorized')) {
-          errorMessage = 'Permission denied. Please check your connection.';
-        } else if (e.toString().contains('retry-limit-exceeded')) {
-          errorMessage = 'Upload timed out. File might be too large.';
+        String errorMessage = 'Upload failed: ${e.message}';
+        if (e.code == 'unauthorized') {
+          errorMessage = 'Permission denied. Check Firebase Storage Rules.';
+          debugPrint('Upload Error: Permission denied. User: $uid');
+        } else if (e.code == 'retry-limit-exceeded') {
+          errorMessage = 'Upload timed out. Check connection.';
+          debugPrint('Upload Error: Timeout');
+        } else {
+          debugPrint('Upload Error: ${e.code} - ${e.message}');
+          errorMessage += '\nCode: ${e.code}\nMessage: ${e.message}';
         }
+
+        setState(() {
+          _isUploadingPhoto = false;
+          _uploadError = errorMessage;
+        });
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),
-            duration: const Duration(seconds: 4),
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'Details',
               onPressed: () {
                 showDialog(
                   context: context,
                   builder: (ctx) => AlertDialog(
-                    title: const Text('Upload Error'),
-                    content: Text(e.toString()),
+                    title: Text('Error: ${e.code}'),
+                    content: Text(e.message ?? 'Unknown error'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(ctx),
@@ -157,6 +189,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
           ),
         );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isUploadingPhoto = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unexpected error: $e')));
       }
     }
   }
@@ -237,17 +276,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Avatar preview with upload button
             Center(
               child: Stack(
                 children: [
+                  const SizedBox(height: 24),
                   CircleAvatar(
                     radius: 48,
                     backgroundColor: Colors.teal[50],
-                    backgroundImage: _avatarUrlController.text.isNotEmpty
-                        ? NetworkImage(_avatarUrlController.text)
+                    backgroundImage: _avatarUrlController.text.trim().isNotEmpty
+                        ? NetworkImage(_avatarUrlController.text.trim())
                         : null,
-                    child: _avatarUrlController.text.isEmpty
+                    onBackgroundImageError:
+                        _avatarUrlController.text.trim().isNotEmpty
+                        ? (exception, stackTrace) {
+                            debugPrint('Image load error: $exception');
+                          }
+                        : null,
+                    child:
+                        _avatarUrlController.text.trim().isEmpty ||
+                            !_avatarUrlController.text.trim().startsWith('http')
                         ? Text(
                             _nameController.text.isNotEmpty
                                 ? _nameController.text[0].toUpperCase()
@@ -292,6 +339,17 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 ],
               ),
             ),
+            if (_uploadError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: Center(
+                  child: Text(
+                    _uploadError!,
+                    style: const TextStyle(color: Colors.red, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
             const SizedBox(height: 24),
             _buildLabel('Profile Image URL'),
             const SizedBox(height: 8),

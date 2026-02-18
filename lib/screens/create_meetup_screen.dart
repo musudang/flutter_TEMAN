@@ -305,7 +305,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
 
               // Category Dropdown
               DropdownButtonFormField<MeetupCategory>(
-                value: _selectedCategory,
+                initialValue: _selectedCategory,
                 decoration: InputDecoration(
                   labelText: 'Category',
                   border: OutlineInputBorder(

@@ -216,8 +216,9 @@ class _FeedScreenState extends State<FeedScreen> {
             // Only show Posts with category 'event' OR 'events'
             // Explicitly exclude Meetups from this tab as per user request
             if (item is Post &&
-                (item.category == 'event' || item.category == 'events'))
+                (item.category == 'event' || item.category == 'events')) {
               return true;
+            }
             return false;
           }
 
