@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
@@ -95,25 +93,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       UploadTask uploadTask;
 
-      if (kIsWeb) {
-        // Web: Use bytes
-        final bytes = await picked.readAsBytes();
-        debugPrint(
-          'Pick image: ${picked.path}, Mime: ${picked.mimeType}, Bytes: ${bytes.length}',
-        );
+      // Use putData for all platforms (Web, Windows, Mobile) for better cross-platform compatibility
+      final bytes = await picked.readAsBytes();
+      debugPrint(
+        'Pick image: ${picked.path}, Mime: ${picked.mimeType}, Bytes: ${bytes.length}',
+      );
 
-        uploadTask = ref.putData(
-          bytes,
-          SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
-        );
-      } else {
-        // Native (Windows/Mobile): Use File for better stability
-        final file = File(picked.path);
-        uploadTask = ref.putFile(
-          file,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-      }
+      uploadTask = ref.putData(
+        bytes,
+        SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
+      );
 
       // Wait for upload to fully complete before getting URL
       // Add timeout to prevent infinite loading

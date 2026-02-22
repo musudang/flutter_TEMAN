@@ -340,6 +340,127 @@ class MeetupDetailScreen extends StatelessWidget {
                           ),
                         ),
 
+                        if (isJoined) ...[
+                          const SizedBox(height: 32),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Participants',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 100,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: meetup.participantIds.length,
+                              itemBuilder: (context, index) {
+                                final participantId =
+                                    meetup.participantIds[index];
+                                final isHost = participantId == meetup.host.id;
+
+                                return FutureBuilder<app_models.User?>(
+                                  future: firestoreService.getUserById(
+                                    participantId,
+                                  ),
+                                  builder: (context, userSnap) {
+                                    final user = userSnap.data;
+                                    return GestureDetector(
+                                      onTap: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                UserProfileScreen(
+                                                  userId: participantId,
+                                                ),
+                                          ),
+                                        );
+                                      },
+                                      child: Container(
+                                        width: 70,
+                                        margin: const EdgeInsets.only(
+                                          right: 12,
+                                        ),
+                                        child: Column(
+                                          children: [
+                                            Stack(
+                                              children: [
+                                                CircleAvatar(
+                                                  radius: 30,
+                                                  backgroundColor:
+                                                      Colors.grey[300],
+                                                  backgroundImage:
+                                                      user != null &&
+                                                          user
+                                                              .avatarUrl
+                                                              .isNotEmpty
+                                                      ? NetworkImage(
+                                                          user.avatarUrl,
+                                                        )
+                                                      : null,
+                                                  child:
+                                                      user == null ||
+                                                          user.avatarUrl.isEmpty
+                                                      ? const Icon(
+                                                          Icons.person,
+                                                          color: Colors.white,
+                                                          size: 30,
+                                                        )
+                                                      : null,
+                                                ),
+                                                if (isHost)
+                                                  Positioned(
+                                                    bottom: 0,
+                                                    right: 0,
+                                                    child: Container(
+                                                      padding:
+                                                          const EdgeInsets.all(
+                                                            4,
+                                                          ),
+                                                      decoration:
+                                                          const BoxDecoration(
+                                                            color: Colors.amber,
+                                                            shape:
+                                                                BoxShape.circle,
+                                                          ),
+                                                      child: const Icon(
+                                                        Icons.star,
+                                                        color: Colors.white,
+                                                        size: 14,
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 8),
+                                            Text(
+                                              user?.name ?? 'Loading',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: isHost
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                              ),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              textAlign: TextAlign.center,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+
                         const SizedBox(height: 100), // Bottom padding
                       ],
                     ),

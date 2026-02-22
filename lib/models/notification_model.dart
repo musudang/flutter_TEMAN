@@ -31,7 +31,7 @@ class NotificationModel {
       type: data['type'] ?? 'system',
       relatedId: data['relatedId'] ?? '',
       isRead: data['isRead'] ?? false,
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 

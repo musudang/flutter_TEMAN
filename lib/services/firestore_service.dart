@@ -81,7 +81,7 @@ class FirestoreService extends ChangeNotifier {
       bio: data['bio'] ?? '',
       role: data['role'] ?? 'user',
       createdAt: data['createdAt'] != null
-          ? (data['createdAt'] as Timestamp).toDate()
+          ? (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now()
           : null,
       age: data['age'] as int?,
       personalInfo: data['personalInfo'] ?? '',
@@ -325,8 +325,22 @@ class FirestoreService extends ChangeNotifier {
 
       final doc = await _db.collection('meetups').doc(meetupId).get();
       if (doc.exists) {
-        final title = doc.data()?['title'] ?? 'Meetup Chat';
+        final data = doc.data();
+        final title = data?['title'] ?? 'Meetup Chat';
+        final hostId = data?['hostId'];
         await _addUserToMeetupChat(meetupId, title, uid);
+
+        // Notify host
+        if (hostId != null && hostId != uid) {
+          final currentUserData = await getCurrentUser();
+          await sendNotification(
+            userId: hostId,
+            title: 'New Member 🥳',
+            body: '${currentUserData?.name ?? 'Someone'} joined your meetup!',
+            type: 'meetup_join',
+            relatedId: meetupId,
+          );
+        }
       }
     }
   }
@@ -390,6 +404,21 @@ class FirestoreService extends ChangeNotifier {
     final docRef = _db.collection('meetups').doc(meetupId);
 
     try {
+      // Find the conversation related to this meetup outside the transaction
+      // Add 'participantIds' filter to comply with possible Firestore Security Rules
+      // requiring the user to be a participant to read the conversation.
+      final conversationQuery = await _db
+          .collection('conversations')
+          .where('meetupId', isEqualTo: meetupId)
+          .where('participantIds', arrayContains: uid)
+          .limit(1)
+          .get();
+
+      DocumentReference? convRef;
+      if (conversationQuery.docs.isNotEmpty) {
+        convRef = conversationQuery.docs.first.reference;
+      }
+
       await _db.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) throw Exception("Meetup does not exist!");
@@ -399,28 +428,29 @@ class FirestoreService extends ChangeNotifier {
           return;
         }
 
+        // ALL reads must happen before any writes in a transaction
+        DocumentSnapshot? convSnapshot;
+        if (convRef != null) {
+          convSnapshot = await transaction.get(convRef);
+        }
+
+        // Now perform writes
         final updatedParticipants = List<String>.from(meetup.participantIds)
           ..remove(uid);
         transaction.update(docRef, {'participantIds': updatedParticipants});
 
-        // Remove from conversation (chat)
-        final conversationQuery = await _db
-            .collection('conversations')
-            .where('meetupId', isEqualTo: meetupId)
-            .limit(1)
-            .get();
-
-        if (conversationQuery.docs.isNotEmpty) {
-          final convDoc = conversationQuery.docs.first;
-          final convRef = _db.collection('conversations').doc(convDoc.id);
-          final currentParticipants = List<String>.from(
-            convDoc['participantIds'] ?? [],
-          );
-          if (currentParticipants.contains(uid)) {
-            currentParticipants.remove(uid);
-            transaction.update(convRef, {
-              'participantIds': currentParticipants,
-            });
+        if (convSnapshot != null && convSnapshot.exists) {
+          final data = convSnapshot.data() as Map<String, dynamic>?;
+          if (data != null) {
+            final currentParticipants = List<String>.from(
+              data['participantIds'] ?? [],
+            );
+            if (currentParticipants.contains(uid)) {
+              currentParticipants.remove(uid);
+              transaction.update(convRef!, {
+                'participantIds': currentParticipants,
+              });
+            }
           }
         }
       });
@@ -446,6 +476,7 @@ class FirestoreService extends ChangeNotifier {
         final query = await _db
             .collection('conversations')
             .where('meetupId', isEqualTo: meetupId)
+            .where('participantIds', arrayContains: uid)
             .get();
 
         for (var doc in query.docs) {
@@ -471,7 +502,7 @@ class FirestoreService extends ChangeNotifier {
       title: data['title'] ?? '',
       description: data['description'] ?? '',
       location: data['location'] ?? '',
-      dateTime: (data['dateTime'] as Timestamp).toDate(),
+      dateTime: (data['dateTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       category: MeetupCategory.values.firstWhere(
         (e) => e.toString() == 'MeetupCategory.${data['category']}',
         orElse: () => MeetupCategory.other,
@@ -489,7 +520,7 @@ class FirestoreService extends ChangeNotifier {
       likedBy: List<String>.from(data['likedBy'] ?? []),
       scrappedBy: List<String>.from(data['scrappedBy'] ?? []),
       createdAt: data['createdAt'] != null
-          ? (data['createdAt'] as Timestamp).toDate()
+          ? (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now()
           : DateTime(
               2025,
               1,
@@ -568,7 +599,7 @@ class FirestoreService extends ChangeNotifier {
               authorId: data['authorId'] ?? '',
               authorName: data['authorName'] ?? 'Unknown',
               authorAvatar: data['authorAvatar'] ?? '',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
             );
           }).toList();
         });
@@ -595,6 +626,21 @@ class FirestoreService extends ChangeNotifier {
 
         transaction.update(meetupRef, {'comments': FieldValue.increment(1)});
       });
+
+      // Notify host
+      final meetupDoc = await _db.collection('meetups').doc(meetupId).get();
+      if (meetupDoc.exists) {
+        final hostId = meetupDoc.data()?['hostId'] ?? '';
+        if (hostId.isNotEmpty && hostId != user.uid) {
+          await sendNotification(
+            userId: hostId,
+            title: 'New Meetup Comment 💬',
+            body: '${userData?.name ?? "Someone"} commented on your meetup.',
+            type: 'comment',
+            relatedId: meetupId,
+          );
+        }
+      }
     } catch (e) {
       debugPrint("Error adding meetup comment: $e");
       rethrow;
@@ -808,7 +854,7 @@ class FirestoreService extends ChangeNotifier {
       authorName: data['authorName'] ?? 'Unknown',
       title: data['title'] ?? '',
       content: data['content'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       likes: data['likes'] ?? 0,
       comments: data['comments'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
@@ -980,7 +1026,7 @@ class FirestoreService extends ChangeNotifier {
               authorId: data['authorId'] ?? '',
               authorName: data['authorName'] ?? 'Unknown',
               authorAvatar: data['authorAvatar'] ?? '',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
             );
           }).toList();
         });
@@ -1044,7 +1090,7 @@ class FirestoreService extends ChangeNotifier {
               content: data['content'] ?? '',
               authorId: data['authorId'] ?? '',
               authorName: data['authorName'] ?? 'Unknown',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
               answersCount: data['answersCount'] ?? 0,
             );
           }).toList();
@@ -1090,7 +1136,7 @@ class FirestoreService extends ChangeNotifier {
               authorId: data['authorId'] ?? '',
               authorName: data['authorName'] ?? 'Unknown',
               authorAvatar: data['authorAvatar'] ?? '',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
             );
           }).toList();
         });
@@ -1280,9 +1326,9 @@ class FirestoreService extends ChangeNotifier {
       requirements: List<String>.from(data['requirements'] ?? []),
       contactInfo: data['contactInfo'] ?? '',
       authorId: data['authorId'] ?? '',
-      postedDate: (data['postedDate'] as Timestamp).toDate(),
+      postedDate: (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deadline: data['deadline'] != null
-          ? (data['deadline'] as Timestamp).toDate()
+          ? (data['deadline'] as Timestamp?)?.toDate() ?? DateTime.now()
           : null,
       isActive: data['isActive'] ?? true,
     );
@@ -1343,7 +1389,7 @@ class FirestoreService extends ChangeNotifier {
       sellerId: data['sellerId'] ?? '',
       sellerName: data['sellerName'] ?? 'Unknown',
       sellerAvatar: data['sellerAvatar'] ?? '',
-      postedDate: (data['postedDate'] as Timestamp).toDate(),
+      postedDate: (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isSold: data['isSold'] ?? false,
     );
   }
@@ -1365,7 +1411,7 @@ class FirestoreService extends ChangeNotifier {
               id: doc.id,
               participantIds: List<String>.from(data['participantIds'] ?? []),
               lastMessage: data['lastMessage'] ?? '',
-              lastMessageTime: (data['lastMessageTime'] as Timestamp).toDate(),
+              lastMessageTime: (data['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
               unreadCounts: Map<String, int>.from(data['unreadCounts'] ?? {}),
               isGroup: data['isGroup'] ?? false,
               groupName: data['groupName'],
@@ -1428,7 +1474,7 @@ class FirestoreService extends ChangeNotifier {
               senderName: data['senderName'] ?? 'Unknown',
               senderAvatar: data['senderAvatar'] ?? '',
               content: data['content'] ?? '',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
             );
           }).toList();
         });
@@ -1581,7 +1627,7 @@ class FirestoreService extends ChangeNotifier {
               content: data['content'] ?? '',
               authorId: data['authorId'] ?? '',
               authorName: data['authorName'] ?? 'Unknown',
-              timestamp: (data['timestamp'] as Timestamp).toDate(),
+              timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
               answersCount: data['answersCount'] ?? 0,
             );
           }).toList();
@@ -1642,15 +1688,25 @@ class FirestoreService extends ChangeNotifier {
     required String type,
     required String relatedId,
   }) async {
-    await _db.collection('users').doc(userId).collection('notifications').add({
-      'userId': userId,
-      'title': title,
-      'body': body,
-      'type': type,
-      'relatedId': relatedId,
-      'isRead': false,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _db
+          .collection('users')
+          .doc(userId)
+          .collection('notifications')
+          .add({
+            'userId': userId,
+            'title': title,
+            'body': body,
+            'type': type,
+            'relatedId': relatedId,
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+          });
+    } catch (e) {
+      debugPrint(
+        "❌ Error sending notification to $userId. Please check Firebase Security Rules. $e",
+      );
+    }
   }
 
   // ===================== JOINED MEETUPS =====================
