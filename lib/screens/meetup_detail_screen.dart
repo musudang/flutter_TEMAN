@@ -530,34 +530,95 @@ class MeetupDetailScreen extends StatelessWidget {
                             onPressed: isFull && !isJoined
                                 ? null
                                 : () async {
-                                    if (isJoined) {
-                                      await firestoreService.leaveMeetup(
-                                        meetupId,
-                                      );
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'You left the meetup.',
-                                            ),
-                                            duration: Duration(seconds: 1),
+                                    final action = isJoined ? 'Leave' : 'Join';
+                                    final confirm = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: Text('$action Meetup?'),
+                                        content: const Text(
+                                          'Are you sure you want to continue?',
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text('Cancel'),
                                           ),
+                                          TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            child: const Text(
+                                              'Yes',
+                                              style: TextStyle(
+                                                color: Colors.blue,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+
+                                    if (confirm != true || !context.mounted) {
+                                      return;
+                                    }
+
+                                    try {
+                                      if (isJoined) {
+                                        await firestoreService.leaveMeetup(
+                                          meetupId,
                                         );
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'You left the meetup.',
+                                              ),
+                                              duration: Duration(seconds: 1),
+                                            ),
+                                          );
+                                        }
+                                      } else {
+                                        // The modified joinMeetup triggers Exceptions if cooldown active
+                                        final success = await firestoreService
+                                            .joinMeetup(meetupId);
+                                        if (context.mounted && success) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Successfully joined!',
+                                              ),
+                                              duration: Duration(seconds: 1),
+                                            ),
+                                          );
+                                        }
                                       }
-                                    } else {
-                                      final success = await firestoreService
-                                          .joinMeetup(meetupId);
-                                      if (context.mounted && success) {
+                                    } catch (e) {
+                                      if (context.mounted) {
+                                        String errorMessage = e.toString();
+                                        if (errorMessage.contains(
+                                          '1 hour later',
+                                        )) {
+                                          errorMessage =
+                                              'Try join this group 1 hour later.';
+                                        } else if (errorMessage.startsWith(
+                                          'Exception: ',
+                                        )) {
+                                          errorMessage = errorMessage
+                                              .replaceFirst('Exception: ', '');
+                                        }
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Successfully joined!',
+                                          SnackBar(
+                                            content: Text(errorMessage),
+                                            duration: const Duration(
+                                              seconds: 2,
                                             ),
-                                            duration: Duration(seconds: 1),
                                           ),
                                         );
                                       }

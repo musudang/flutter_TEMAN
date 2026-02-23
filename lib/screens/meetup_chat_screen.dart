@@ -75,6 +75,67 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
             ),
           ],
         ),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'leave') {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Leave Meetup & Chat?'),
+                    content: const Text(
+                      'You will leave the meetup group and no longer see this chat.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text(
+                          'Leave',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && context.mounted) {
+                  try {
+                    await firestoreService.leaveMeetup(widget.meetupId);
+                    if (context.mounted) {
+                      Navigator.pop(
+                        context,
+                      ); // Go back to meetup details / inbox
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Left meetup and chat successfully'),
+                        ),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to leave meetup: $e')),
+                      );
+                    }
+                  }
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'leave',
+                child: Text(
+                  'Leave Meetup Chat',
+                  style: TextStyle(color: Colors.red),
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -121,6 +182,29 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
   }
 
   Widget _buildMessageBubble(Message message, bool isMe) {
+    if (message.senderId == 'system') {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[300],
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              message.content,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[700],
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     final timeString = DateFormat('h:mm a').format(message.timestamp);
 
     return Padding(

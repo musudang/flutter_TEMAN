@@ -17,6 +17,21 @@ class MeetupCard extends StatelessWidget {
         ? (currentParticipants / maxParticipants).clamp(0.0, 1.0)
         : 0.0;
 
+    final now = DateTime.now();
+    final difference = now.difference(meetup.createdAt);
+    String timeAgo = '';
+    if (difference.inDays > 0) {
+      timeAgo = '${difference.inDays}d ago';
+    } else if (difference.inHours > 0) {
+      timeAgo = '${difference.inHours}h ago';
+    } else if (difference.inMinutes > 0) {
+      timeAgo = '${difference.inMinutes}m ago';
+    } else {
+      timeAgo = 'Just now';
+    }
+
+    final formattedTimeAgo = '($timeAgo)';
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -34,35 +49,44 @@ class MeetupCard extends StatelessWidget {
         ),
         child: Column(
           children: [
-            // Header Image/Status Area (optional, can be just padding if no image)
-            // For now, let's stick to a clean card layout without a massive banner image
-            // unless we have one, but we'll add the "Recruitment Status" badge at the top.
             Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Top Row: Category & Status
+                  // Top Row: Category & Status & Time Ago
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 5,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Text(
-                          meetup.category.name.toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[600],
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              meetup.category.name.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[600],
+                              ),
+                            ),
                           ),
-                        ),
+                          const SizedBox(width: 8),
+                          Text(
+                            formattedTimeAgo,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey[500],
+                            ),
+                          ),
+                        ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(

@@ -57,7 +57,65 @@ class _ChatScreenState extends State<ChatScreen> {
     final currentUserId = firestoreService.currentUserId;
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.chatTitle)),
+      appBar: AppBar(
+        title: Text(widget.chatTitle),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (value) async {
+              if (value == 'leave') {
+                final confirm = await showDialog<bool>(
+                  context: context,
+                  builder: (ctx) => AlertDialog(
+                    title: const Text('Leave Chat?'),
+                    content: const Text(
+                      'You will no longer see this chat or receive messages from it.',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, false),
+                        child: const Text('Cancel'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text(
+                          'Leave',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (confirm == true && context.mounted) {
+                  try {
+                    await firestoreService.leaveConversation(
+                      widget.conversationId,
+                    );
+                    if (context.mounted) {
+                      Navigator.pop(context); // Go back to inbox
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Left chat successfully')),
+                      );
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Failed to leave chat: $e')),
+                      );
+                    }
+                  }
+                }
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'leave',
+                child: Text('Leave Chat', style: TextStyle(color: Colors.red)),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
