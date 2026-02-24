@@ -303,30 +303,41 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
               ),
               const SizedBox(height: 16),
 
-              // Category Dropdown
-              DropdownButtonFormField<MeetupCategory>(
-                initialValue: _selectedCategory,
-                decoration: InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  prefixIcon: const Icon(Icons.category_outlined),
-                ),
-                items: MeetupCategory.values.map((category) {
-                  return DropdownMenuItem(
-                    value: category,
-                    child: Text(
+              const Text(
+                'Category',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8.0,
+                runSpacing: 8.0,
+                children: MeetupCategory.values.map((category) {
+                  final isSelected = _selectedCategory == category;
+                  return ChoiceChip(
+                    label: Text(
                       category.name.toUpperCase(),
-                      style: const TextStyle(fontWeight: FontWeight.w500),
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : Colors.black87,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
                     ),
+                    selected: isSelected,
+                    onSelected: (selected) {
+                      if (selected) {
+                        setState(() => _selectedCategory = category);
+                      }
+                    },
+                    selectedColor:
+                        Colors.blueAccent, // Use explicit highlight color
+                    backgroundColor: Colors.grey[200],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    showCheckmark: false,
                   );
                 }).toList(),
-                onChanged: (value) {
-                  if (value != null) {
-                    setState(() => _selectedCategory = value);
-                  }
-                },
               ),
 
               const SizedBox(height: 16),

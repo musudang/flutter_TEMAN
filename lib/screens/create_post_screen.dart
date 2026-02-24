@@ -83,6 +83,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final _maxParticipantsController = TextEditingController(text: '5');
   DateTime _meetupDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _meetupTime = TimeOfDay.now();
+  MeetupCategory _meetupCategory = MeetupCategory.other;
 
   // Market-specific fields
   final _priceController = TextEditingController();
@@ -223,7 +224,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       description: _contentController.text.trim(),
       location: _locationController.text.trim(),
       dateTime: meetupDateTime,
-      category: MeetupCategory.other,
+      category: _meetupCategory,
       maxParticipants: int.tryParse(_maxParticipantsController.text) ?? 5,
       host: user,
       participantIds: [user.id],
@@ -563,6 +564,52 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                     ),
                   ],
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Meetup Category',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF4B5563),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8.0,
+                  runSpacing: 8.0,
+                  children: MeetupCategory.values.map((category) {
+                    final isSelected = _meetupCategory == category;
+                    return ChoiceChip(
+                      label: Text(
+                        category.name.toUpperCase(),
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black87,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                          fontSize: 12,
+                        ),
+                      ),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        if (selected) {
+                          setState(() => _meetupCategory = category);
+                        }
+                      },
+                      selectedColor: const Color(0xFFFF5A5F),
+                      backgroundColor: Colors.grey[200],
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(20),
+                        side: BorderSide(
+                          color: isSelected
+                              ? const Color(0xFFFF5A5F)
+                              : Colors.transparent,
+                        ),
+                      ),
+                      showCheckmark: false,
+                    );
+                  }).toList(),
                 ),
                 const SizedBox(height: 16),
               ],
