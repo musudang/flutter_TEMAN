@@ -281,26 +281,36 @@ class FirestoreService extends ChangeNotifier {
     }
 
     final docRef = _db.collection('meetups').doc(meetupId);
-    final cooldownRef = _db
-        .collection('users')
-        .doc(uid)
-        .collection('meetup_cooldowns')
-        .doc(meetupId);
 
+    // Use main user doc to avoid Firebase subcollection rule crashes
     try {
-      // Check cooldown first
-      final cooldownDoc = await cooldownRef.get();
-      if (cooldownDoc.exists) {
-        final leftAt = (cooldownDoc.data()?['leftAt'] as Timestamp?)?.toDate();
-        if (leftAt != null) {
-          final difference = DateTime.now().difference(leftAt);
-          if (difference.inHours < 1) {
-            throw Exception('Try join this group 1 hour later.');
+      final userDoc = await _db.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final data = userDoc.data();
+        if (data != null && data.containsKey('cooldowns')) {
+          final cooldowns = data['cooldowns'] as Map<String, dynamic>;
+          if (cooldowns.containsKey(meetupId)) {
+            final leftAt = (cooldowns[meetupId] as Timestamp?)?.toDate();
+            if (leftAt != null) {
+              final difference = DateTime.now().difference(leftAt);
+              if (difference.inHours < 1) {
+                // We MUST throw this precise message for the UI to display it correctly
+                throw Exception('Try join this group 1 hour later.');
+              }
+            }
           }
         }
       }
+    } catch (e) {
+      if (e.toString().contains('1 hour later'))
+        rethrow; // Pass up the exact error
+      debugPrint("Warning: Could not fetch user cooldowns: $e");
+    }
 
-      return await _db.runTransaction((transaction) async {
+    bool joinedSuccess = false;
+
+    try {
+      joinedSuccess = await _db.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) {
           debugPrint("Error: Meetup $meetupId does not exist!");
@@ -329,40 +339,41 @@ class FirestoreService extends ChangeNotifier {
 
         return true;
       });
+      return joinedSuccess;
     } catch (e) {
       debugPrint("Error joining meetup: $e");
-      return false;
+      rethrow;
     } finally {
-      // Add to group chat immediately (outside transaction)
-      // We need meetup title. We can get it from the doc we fetched or assume we have it.
-      // For safety, let's fetch it or just pass empty if we can't.
-      // Actually, joinMeetup doesn't return the title easily.
-      // We can just rely on _addUserToMeetupChat finding existing chat by ID.
-      // If chat doesn't exist, title is needed.
-      // Let's optimisticly assume it exists or fetch it.
-      // Simpler: Just resolve the title inside _addUser.. if needed or pass "Meetup Chat".
+      if (joinedSuccess) {
+        // Add to group chat immediately (outside transaction)
+        final doc = await _db.collection('meetups').doc(meetupId).get();
+        if (doc.exists) {
+          final data = doc.data();
+          final title = data?['title'] ?? 'Meetup Chat';
+          final hostId = data?['hostId'];
+          await _addUserToMeetupChat(meetupId, title, uid);
 
-      final doc = await _db.collection('meetups').doc(meetupId).get();
-      if (doc.exists) {
-        final data = doc.data();
-        final title = data?['title'] ?? 'Meetup Chat';
-        final hostId = data?['hostId'];
-        await _addUserToMeetupChat(meetupId, title, uid);
+          // Notify host
+          if (hostId != null && hostId != uid) {
+            final currentUserData = await getCurrentUser();
+            await sendNotification(
+              userId: hostId,
+              title: 'New Member 🥳',
+              body: '${currentUserData?.name ?? 'Someone'} joined your meetup!',
+              type: 'meetup_join',
+              relatedId: meetupId,
+            );
+          }
 
-        // Notify host
-        if (hostId != null && hostId != uid) {
-          final currentUserData = await getCurrentUser();
-          await sendNotification(
-            userId: hostId,
-            title: 'New Member 🥳',
-            body: '${currentUserData?.name ?? 'Someone'} joined your meetup!',
-            type: 'meetup_join',
-            relatedId: meetupId,
-          );
+          // Clear cooldown since they successfully joined
+          try {
+            await _db.collection('users').doc(uid).update({
+              'cooldowns.$meetupId': FieldValue.delete(),
+            });
+          } catch (e) {
+            debugPrint("Warning: Could not clear cooldown: $e");
+          }
         }
-
-        // Clear cooldown since they successfully joined
-        await cooldownRef.delete();
       }
     }
   }
@@ -461,13 +472,14 @@ class FirestoreService extends ChangeNotifier {
         debugPrint("Could not strictly update conversation for leave: $e");
       }
 
-      // Record Cooldown
-      final cooldownRef = _db
-          .collection('users')
-          .doc(uid)
-          .collection('meetup_cooldowns')
-          .doc(meetupId);
-      await cooldownRef.set({'leftAt': FieldValue.serverTimestamp()});
+      // Record Cooldown to the main user document
+      try {
+        await _db.collection('users').doc(uid).update({
+          'cooldowns.$meetupId': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Warning: Could not save cooldown timestamp: $e");
+      }
     } catch (e) {
       debugPrint("Error leaving meetup: $e");
     }
