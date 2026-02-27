@@ -1460,6 +1460,16 @@ class FirestoreService extends ChangeNotifier {
     );
   }
 
+  Stream<List<Job>> getUserJobs(String userId) {
+    return _db
+        .collection('jobs')
+        .where('authorId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => _jobFromDocument(doc)).toList();
+        });
+  }
+
   // ===================== MARKETPLACE =====================
 
   Stream<List<MarketplaceItem>> getMarketplaceItems() {
@@ -1519,6 +1529,18 @@ class FirestoreService extends ChangeNotifier {
           (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isSold: data['isSold'] ?? false,
     );
+  }
+
+  Stream<List<MarketplaceItem>> getUserMarketplaceItems(String userId) {
+    return _db
+        .collection('marketplace')
+        .where('sellerId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs
+              .map((doc) => _marketplaceItemFromDocument(doc))
+              .toList();
+        });
   }
 
   // ===================== DIRECT MESSAGING =====================

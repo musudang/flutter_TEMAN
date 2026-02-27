@@ -11,6 +11,11 @@ import 'edit_profile_screen.dart';
 import 'conversation_list_screen.dart';
 import 'meetup_detail_screen.dart';
 import 'follow_list_screen.dart';
+import 'job_detail_screen.dart';
+import 'marketplace_detail_screen.dart';
+import '../models/job_model.dart';
+import '../models/marketplace_model.dart';
+import 'post_detail_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -448,43 +453,200 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildMyPostsList(FirestoreService service, String userId) {
+    // Combine Posts, Jobs, and Marketplace items into one unified list
     return StreamBuilder<List<Post>>(
       stream: service.getUserPosts(userId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final posts = snapshot.data!;
-        if (posts.isEmpty) {
-          return _buildEmptyState(Icons.article_outlined, "No posts yet");
-        }
+      builder: (context, postsSnap) {
+        return StreamBuilder<List<Job>>(
+          stream: service.getUserJobs(userId),
+          builder: (context, jobsSnap) {
+            return StreamBuilder<List<MarketplaceItem>>(
+              stream: service.getUserMarketplaceItems(userId),
+              builder: (context, marketSnap) {
+                if (!postsSnap.hasData &&
+                    !jobsSnap.hasData &&
+                    !marketSnap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: posts.length,
-          itemBuilder: (context, index) {
-            final post = posts[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                title: Text(
-                  post.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  post.content,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => service.deletePost(post.id),
-                ),
-              ),
+                // Build a flat list of all items
+                final List<dynamic> allItems = [
+                  ...?postsSnap.data,
+                  ...?jobsSnap.data,
+                  ...?marketSnap.data,
+                ];
+
+                if (allItems.isEmpty) {
+                  return _buildEmptyState(
+                    Icons.article_outlined,
+                    'No posts yet',
+                  );
+                }
+
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: allItems.length,
+                  itemBuilder: (context, index) {
+                    final item = allItems[index];
+
+                    if (item is Post) {
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PostDetailScreen(postId: item.id),
+                            ),
+                          ),
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.teal[50],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.article_outlined,
+                              color: Colors.teal,
+                            ),
+                          ),
+                          title: Text(
+                            item.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            item.content,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              color: Colors.red,
+                            ),
+                            onPressed: () => service.deletePost(item.id),
+                          ),
+                        ),
+                      );
+                    } else if (item is Job) {
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => JobDetailScreen(job: item),
+                            ),
+                          ),
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEDE7F6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.work_outline,
+                              color: Color(0xFF4527A0),
+                            ),
+                          ),
+                          title: Text(
+                            item.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            item.companyName.isNotEmpty
+                                ? item.companyName
+                                : item.location,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEDE7F6),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Job',
+                              style: TextStyle(
+                                color: Color(0xFF4527A0),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    } else if (item is MarketplaceItem) {
+                      return Card(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 2,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: ListTile(
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  MarketplaceDetailScreen(item: item),
+                            ),
+                          ),
+                          leading: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(
+                              Icons.storefront_outlined,
+                              color: Color(0xFF2E7D32),
+                            ),
+                          ),
+                          title: Text(
+                            item.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: Text(
+                            '₩${item.price.toStringAsFixed(0)} • ${item.condition}',
+                          ),
+                          trailing: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFE8F5E9),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Text(
+                              'Market',
+                              style: TextStyle(
+                                color: Color(0xFF2E7D32),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }
+                    return const SizedBox.shrink();
+                  },
+                );
+              },
             );
           },
         );

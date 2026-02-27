@@ -19,6 +19,7 @@ import '../models/job_model.dart';
 import '../models/marketplace_model.dart';
 import '../widgets/meetup_card.dart';
 import 'user_profile_screen.dart';
+import 'profile_screen.dart';
 import 'post_detail_screen.dart';
 import 'share_content_sheet.dart';
 
@@ -416,13 +417,22 @@ class _FeedScreenState extends State<FeedScreen> {
                   children: [
                     GestureDetector(
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                UserProfileScreen(userId: post.authorId),
-                          ),
-                        );
+                        if (post.authorId == uid) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const ProfileScreen(),
+                            ),
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  UserProfileScreen(userId: post.authorId),
+                            ),
+                          );
+                        }
                       },
                       child: CircleAvatar(
                         radius: 20,
@@ -450,13 +460,23 @@ class _FeedScreenState extends State<FeedScreen> {
                         children: [
                           GestureDetector(
                             onTap: () {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      UserProfileScreen(userId: post.authorId),
-                                ),
-                              );
+                              if (post.authorId == uid) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ProfileScreen(),
+                                  ),
+                                );
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => UserProfileScreen(
+                                      userId: post.authorId,
+                                    ),
+                                  ),
+                                );
+                              }
                             },
                             child: Text(
                               authorName,
