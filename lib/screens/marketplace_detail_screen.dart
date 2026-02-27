@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/marketplace_model.dart';
 import 'package:intl/intl.dart';
+import 'user_profile_screen.dart';
+import 'chat_screen.dart';
 
 class MarketplaceDetailScreen extends StatelessWidget {
   final MarketplaceItem item;
@@ -38,28 +40,43 @@ class MarketplaceDetailScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      CircleAvatar(
-                        radius: 16,
-                        backgroundImage: item.sellerAvatar.isNotEmpty
-                            ? NetworkImage(item.sellerAvatar)
-                            : null,
-                        child: item.sellerAvatar.isEmpty
-                            ? Text(item.sellerName[0].toUpperCase())
-                            : null,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        item.sellerName,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                      const Spacer(),
-                      Text(
-                        DateFormat('MMM d').format(item.postedDate),
-                        style: const TextStyle(color: Colors.grey),
-                      ),
-                    ],
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              UserProfileScreen(userId: item.sellerId),
+                        ),
+                      );
+                    },
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 16,
+                          backgroundImage: item.sellerAvatar.isNotEmpty
+                              ? NetworkImage(item.sellerAvatar)
+                              : null,
+                          child: item.sellerAvatar.isEmpty
+                              ? Text(
+                                  item.sellerName.isNotEmpty
+                                      ? item.sellerName[0].toUpperCase()
+                                      : '?',
+                                )
+                              : null,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          item.sellerName,
+                          style: const TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Text(
+                          DateFormat('MMM d').format(item.postedDate),
+                          style: const TextStyle(color: Colors.grey),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 16),
                   Text(
@@ -112,9 +129,20 @@ class MarketplaceDetailScreen extends StatelessWidget {
         child: SafeArea(
           child: ElevatedButton.icon(
             onPressed: () {
-              // Chat with seller logic
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Chat feature coming soon!')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ChatScreen(
+                    conversationId:
+                        '', // Will be created or fetched in ChatScreen
+                    chatTitle: item.sellerName,
+                    otherUserId: item.sellerId,
+                    otherUserName: item.sellerName,
+                    otherUserAvatar: item.sellerAvatar,
+                    initialMessage:
+                        'Hi! I am interested in your item: ${item.title}',
+                  ),
+                ),
               );
             },
             icon: const Icon(Icons.chat),
