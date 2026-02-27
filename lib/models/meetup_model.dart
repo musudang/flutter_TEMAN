@@ -19,6 +19,10 @@ class Meetup {
   final List<String> scrappedBy;
   final DateTime createdAt; // [NEW] for sorting feed by upload time
 
+  // [NEW] Accept/Decline feature
+  final bool requiresApproval;
+  final List<String> pendingParticipantIds;
+
   Meetup({
     required this.id,
     required this.title,
@@ -35,6 +39,8 @@ class Meetup {
     this.likedBy = const [],
     this.scrappedBy = const [],
     required this.createdAt,
+    this.requiresApproval = false,
+    this.pendingParticipantIds = const [],
   });
 
   bool get isFull => participantIds.length >= maxParticipants;

@@ -88,8 +88,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
       final ref = FirebaseStorage.instance
           .ref()
-          .child('profile_photos')
-          .child('$uid.jpg');
+          .child('profiles')
+          .child(uid)
+          .child('profile_pic.jpg');
 
       UploadTask uploadTask;
 
@@ -139,14 +140,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         setState(() => _isUploadingPhoto = false);
         String errorMessage = 'Upload failed: ${e.message}';
         if (e.code == 'unauthorized') {
-          errorMessage = 'Permission denied. Check Firebase Storage Rules.';
+          errorMessage =
+              'Code: unauthorized\nPermission denied. Check Firebase Storage Rules.';
           debugPrint('Upload Error: Permission denied. User: $uid');
         } else if (e.code == 'retry-limit-exceeded') {
-          errorMessage = 'Upload timed out. Check connection.';
+          errorMessage = 'Code: timeout\nUpload timed out. Check connection.';
           debugPrint('Upload Error: Timeout');
         } else {
           debugPrint('Upload Error: ${e.code} - ${e.message}');
-          errorMessage += '\nCode: ${e.code}\nMessage: ${e.message}';
+          errorMessage = 'Code: ${e.code}\nMessage: ${e.message}';
         }
 
         setState(() {
@@ -272,11 +274,14 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   CircleAvatar(
                     radius: 48,
                     backgroundColor: Colors.teal[50],
-                    backgroundImage: _avatarUrlController.text.trim().isNotEmpty
+                    backgroundImage:
+                        _avatarUrlController.text.trim().isNotEmpty &&
+                            _avatarUrlController.text.trim().startsWith('http')
                         ? NetworkImage(_avatarUrlController.text.trim())
                         : null,
                     onBackgroundImageError:
-                        _avatarUrlController.text.trim().isNotEmpty
+                        _avatarUrlController.text.trim().isNotEmpty &&
+                            _avatarUrlController.text.trim().startsWith('http')
                         ? (exception, stackTrace) {
                             debugPrint('Image load error: $exception');
                           }

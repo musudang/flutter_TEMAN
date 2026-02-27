@@ -11,8 +11,10 @@ void main() async {
 
   if (content != newContent) {
     await file.writeAsString(newContent);
+    // ignore: avoid_print
     print("Fixed firestore_service.dart");
   } else {
+    // ignore: avoid_print
     print("No matches found.");
   }
 }

@@ -4,6 +4,7 @@ import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
 import 'chat_screen.dart';
+import 'follow_list_screen.dart';
 
 /// A screen that shows another user's public profile.
 /// Accessible by tapping a participant avatar in MeetupDetailScreen, etc.
@@ -151,6 +152,36 @@ class UserProfileScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+                      const SizedBox(height: 12),
+
+                      // Stats (Followers/Following)
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          _buildStatItem(
+                            context,
+                            'Followers',
+                            user.followers.length,
+                            user.id,
+                            user.name,
+                            0,
+                          ),
+                          Container(
+                            height: 20,
+                            width: 1,
+                            color: Colors.grey[300],
+                            margin: const EdgeInsets.symmetric(horizontal: 20),
+                          ),
+                          _buildStatItem(
+                            context,
+                            'Following',
+                            user.following.length,
+                            user.id,
+                            user.name,
+                            1,
+                          ),
+                        ],
+                      ),
                       const SizedBox(height: 16),
 
                       // DM Button
@@ -344,6 +375,43 @@ class UserProfileScreen extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  Widget _buildStatItem(
+    BuildContext context,
+    String label,
+    int count,
+    String userId,
+    String userName,
+    int tabIndex,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FollowListScreen(
+              userId: userId,
+              userName: userName,
+              initialTabIndex: tabIndex,
+            ),
+          ),
+        );
+      },
+      child: Column(
+        children: [
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1F36),
+            ),
+          ),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+        ],
+      ),
     );
   }
 }

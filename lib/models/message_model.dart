@@ -5,6 +5,10 @@ class Message {
   final String senderAvatar;
   final String content;
   final DateTime timestamp;
+  final String? sharedPostId;
+  final String? sharedPostType; // 'meetup' or 'post'
+  final String? sharedPostTitle;
+  final String? sharedPostDescription;
 
   Message({
     required this.id,
@@ -13,5 +17,9 @@ class Message {
     required this.senderAvatar,
     required this.content,
     required this.timestamp,
+    this.sharedPostId,
+    this.sharedPostType,
+    this.sharedPostTitle,
+    this.sharedPostDescription,
   });
 }

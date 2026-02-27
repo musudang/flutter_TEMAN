@@ -12,7 +12,9 @@ import '../models/job_model.dart';
 import '../models/user_model.dart' as app_models;
 
 class CreatePostScreen extends StatefulWidget {
-  const CreatePostScreen({super.key});
+  final String? initialPostText;
+
+  const CreatePostScreen({super.key, this.initialPostText});
 
   @override
   State<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -84,6 +86,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   DateTime _meetupDate = DateTime.now().add(const Duration(days: 1));
   TimeOfDay _meetupTime = TimeOfDay.now();
   MeetupCategory _meetupCategory = MeetupCategory.other;
+  bool _requiresApproval = false;
 
   // Market-specific fields
   final _priceController = TextEditingController();
@@ -108,6 +111,14 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     'Contract',
     'Freelance',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialPostText != null) {
+      _contentController.text = widget.initialPostText!;
+    }
+  }
 
   @override
   void dispose() {
@@ -225,6 +236,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       location: _locationController.text.trim(),
       dateTime: meetupDateTime,
       category: _meetupCategory,
+      requiresApproval: _requiresApproval,
       maxParticipants: int.tryParse(_maxParticipantsController.text) ?? 5,
       host: user,
       participantIds: [user.id],
@@ -607,9 +619,22 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                               : Colors.transparent,
                         ),
                       ),
-                      showCheckmark: false,
                     );
                   }).toList(),
+                ),
+                const SizedBox(height: 16),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Participant Management (Approval & Kick)'),
+                  subtitle: const Text(
+                    'Requires approval to join. The host can also kick existing participants.',
+                  ),
+                  value: _requiresApproval,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _requiresApproval = value;
+                    });
+                  },
                 ),
                 const SizedBox(height: 16),
               ],

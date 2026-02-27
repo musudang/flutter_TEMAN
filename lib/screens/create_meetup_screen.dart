@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
 
@@ -26,6 +27,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   TimeOfDay _selectedTime = TimeOfDay.now();
   MeetupCategory _selectedCategory = MeetupCategory.other;
   int _maxParticipants = 5;
+  bool _requiresApproval = false; // [NEW] Accept/Decline toggle
 
   // Image Upload State
   Uint8List? _imageBytes;
@@ -138,6 +140,47 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           _selectedTime.minute,
         );
 
+        // --- Check if user already has an active meetup ---
+        try {
+          // Force block if they already have *any* meetup where they are the host
+          final querySnapshot = await FirebaseFirestore.instance
+              .collection('meetups')
+              .where('hostId', isEqualTo: user.id)
+              .get();
+
+          if (querySnapshot.docs.isNotEmpty) {
+            if (mounted) {
+              showDialog(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('주최 제한 안내'),
+                  content: const Text(
+                    '이미 개설하신 모임이 있습니다.\n기존 모임을 삭제한 후 새 모임을 개설해주세요.\n(1인당 1개의 모임만 개설 가능합니다)',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('확인'),
+                    ),
+                  ],
+                ),
+              );
+              setState(() => _isSubmitting = false);
+            }
+            return;
+          }
+        } catch (e) {
+          debugPrint('Error checking existing meetups: $e');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Failed to verify meetup limit: $e')),
+            );
+            setState(() => _isSubmitting = false);
+          }
+          return; // Block on error to prevent bypassing
+        }
+        // --------------------------------------------------------
+
         final newMeetup = Meetup(
           id: const Uuid().v4(),
           title: _titleController.text,
@@ -147,6 +190,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           category:
               _selectedCategory, // This works because I added the picker earlier
           maxParticipants: _maxParticipants,
+          requiresApproval: _requiresApproval, // [NEW] Accept/Decline toggle
           host: user,
           participantIds: [user.id],
           imageUrl: finalImageUrl,
@@ -395,6 +439,23 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                   return null;
                 },
               ),
+              const SizedBox(height: 16),
+
+              // [NEW] Accept/Decline & Kick toggle
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Participant Management (Approval & Kick)'),
+                subtitle: const Text(
+                  'Requires approval to join. The host can also kick existing participants.',
+                ),
+                value: _requiresApproval,
+                onChanged: (bool value) {
+                  setState(() {
+                    _requiresApproval = value;
+                  });
+                },
+              ),
+
               const SizedBox(height: 32),
               SizedBox(
                 width: double.infinity,

@@ -7,6 +7,7 @@ import '../services/firestore_service.dart';
 import 'meetup_chat_screen.dart';
 import 'user_profile_screen.dart';
 import 'meetup_comments_sheet.dart';
+import 'share_content_sheet.dart';
 
 class MeetupDetailScreen extends StatelessWidget {
   final String meetupId;
@@ -47,6 +48,9 @@ class MeetupDetailScreen extends StatelessWidget {
         final isJoined =
             currentUserId != null &&
             meetup.participantIds.contains(currentUserId);
+        final isPending =
+            currentUserId != null &&
+            meetup.pendingParticipantIds.contains(currentUserId);
         final isFull = meetup.participantIds.length >= meetup.maxParticipants;
         final dateFormat = DateFormat('EEE, MMM d @ h:mm a');
 
@@ -136,6 +140,21 @@ class MeetupDetailScreen extends StatelessWidget {
                     ),
                     onPressed: () =>
                         firestoreService.toggleScrapMeetup(meetupId),
+                  );
+                },
+              ),
+              IconButton(
+                icon: const Icon(Icons.share, color: Colors.black),
+                onPressed: () {
+                  showModalBottomSheet(
+                    context: context,
+                    backgroundColor: Colors.transparent,
+                    builder: (context) => ShareContentSheet(
+                      itemId: meetup.id,
+                      itemType: 'meetup',
+                      itemTitle: meetup.title,
+                      itemDescription: meetup.description,
+                    ),
                   );
                 },
               ),
@@ -435,6 +454,103 @@ class MeetupDetailScreen extends StatelessWidget {
                                                       ),
                                                     ),
                                                   ),
+                                                if (currentUserId ==
+                                                        meetup.host.id &&
+                                                    meetup.requiresApproval &&
+                                                    !isHost)
+                                                  Positioned(
+                                                    top: -4,
+                                                    right: -4,
+                                                    child: GestureDetector(
+                                                      onTap: () async {
+                                                        final confirm = await showDialog<bool>(
+                                                          context: context,
+                                                          builder: (ctx) => AlertDialog(
+                                                            title: const Text(
+                                                              '강퇴하기',
+                                                            ),
+                                                            content: const Text(
+                                                              '이 참가자를 강퇴하시겠습니까?\n(채팅에서도 내보내집니다)',
+                                                            ),
+                                                            actions: [
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                      false,
+                                                                    ),
+                                                                child:
+                                                                    const Text(
+                                                                      '취소',
+                                                                    ),
+                                                              ),
+                                                              TextButton(
+                                                                onPressed: () =>
+                                                                    Navigator.pop(
+                                                                      ctx,
+                                                                      true,
+                                                                    ),
+                                                                child: const Text(
+                                                                  '강퇴',
+                                                                  style: TextStyle(
+                                                                    color: Colors
+                                                                        .red,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ],
+                                                          ),
+                                                        );
+                                                        if (confirm == true) {
+                                                          try {
+                                                            await firestoreService
+                                                                .kickMeetupParticipant(
+                                                                  meetupId,
+                                                                  participantId,
+                                                                );
+                                                            if (context
+                                                                .mounted) {
+                                                              ScaffoldMessenger.of(
+                                                                context,
+                                                              ).showSnackBar(
+                                                                const SnackBar(
+                                                                  content: Text(
+                                                                    '사용자를 강퇴했습니다.',
+                                                                  ),
+                                                                ),
+                                                              );
+                                                            }
+                                                          } catch (e) {
+                                                            debugPrint(
+                                                              '강퇴 실패: $e',
+                                                            );
+                                                          }
+                                                        }
+                                                      },
+                                                      child: Container(
+                                                        padding:
+                                                            const EdgeInsets.all(
+                                                              2,
+                                                            ),
+                                                        decoration:
+                                                            BoxDecoration(
+                                                              color: Colors.red,
+                                                              shape: BoxShape
+                                                                  .circle,
+                                                              border: Border.all(
+                                                                color: Colors
+                                                                    .white,
+                                                                width: 2,
+                                                              ),
+                                                            ),
+                                                        child: const Icon(
+                                                          Icons.close,
+                                                          color: Colors.white,
+                                                          size: 12,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
                                               ],
                                             ),
                                             const SizedBox(height: 8),
@@ -452,6 +568,121 @@ class MeetupDetailScreen extends StatelessWidget {
                                             ),
                                           ],
                                         ),
+                                      ),
+                                    );
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                        ],
+
+                        if (currentUserId == meetup.host.id &&
+                            meetup.pendingParticipantIds.isNotEmpty) ...[
+                          const SizedBox(height: 32),
+                          const Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Pending Requests (참여 요청)',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.orange,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            height: 120,
+                            child: ListView.builder(
+                              scrollDirection: Axis.horizontal,
+                              itemCount: meetup.pendingParticipantIds.length,
+                              itemBuilder: (context, index) {
+                                final pendingId =
+                                    meetup.pendingParticipantIds[index];
+
+                                return FutureBuilder<app_models.User?>(
+                                  future: firestoreService.getUserById(
+                                    pendingId,
+                                  ),
+                                  builder: (context, userSnap) {
+                                    final user = userSnap.data;
+                                    if (user == null) {
+                                      return const SizedBox.shrink();
+                                    }
+
+                                    return Container(
+                                      width: 100,
+                                      margin: const EdgeInsets.only(right: 12),
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: Colors.orange.shade200,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 20,
+                                            backgroundColor: Colors.grey[300],
+                                            backgroundImage:
+                                                user.avatarUrl.isNotEmpty
+                                                ? NetworkImage(user.avatarUrl)
+                                                : null,
+                                            child: user.avatarUrl.isEmpty
+                                                ? const Icon(
+                                                    Icons.person,
+                                                    color: Colors.white,
+                                                    size: 20,
+                                                  )
+                                                : null,
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            user.name,
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Row(
+                                            mainAxisAlignment:
+                                                MainAxisAlignment.spaceEvenly,
+                                            children: [
+                                              InkWell(
+                                                onTap: () => firestoreService
+                                                    .acceptMeetupParticipant(
+                                                      meetupId,
+                                                      pendingId,
+                                                    ),
+                                                child: const Icon(
+                                                  Icons.check_circle,
+                                                  color: Colors.green,
+                                                  size: 24,
+                                                ),
+                                              ),
+                                              InkWell(
+                                                onTap: () => firestoreService
+                                                    .declineMeetupParticipant(
+                                                      meetupId,
+                                                      pendingId,
+                                                    ),
+                                                child: const Icon(
+                                                  Icons.cancel,
+                                                  color: Colors.red,
+                                                  size: 24,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
                                     );
                                   },
@@ -527,10 +758,14 @@ class MeetupDetailScreen extends StatelessWidget {
                         child: SizedBox(
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: isFull && !isJoined
+                            onPressed: (isFull && !isJoined && !isPending)
                                 ? null
                                 : () async {
-                                    final action = isJoined ? 'Leave' : 'Join';
+                                    final action = isJoined
+                                        ? 'Leave'
+                                        : (isPending
+                                              ? 'Cancel Request to Join'
+                                              : 'Join');
                                     final confirm = await showDialog<bool>(
                                       context: context,
                                       builder: (ctx) => AlertDialog(
@@ -564,19 +799,32 @@ class MeetupDetailScreen extends StatelessWidget {
                                     }
 
                                     try {
-                                      if (isJoined) {
-                                        await firestoreService.leaveMeetup(
-                                          meetupId,
-                                        );
+                                      if (isJoined || isPending) {
+                                        if (isJoined) {
+                                          await firestoreService.leaveMeetup(
+                                            meetupId,
+                                          );
+                                        } else {
+                                          // Cancel Request (Decline self essentially)
+                                          await firestoreService
+                                              .declineMeetupParticipant(
+                                                meetupId,
+                                                currentUserId,
+                                              );
+                                        }
                                         if (context.mounted) {
                                           ScaffoldMessenger.of(
                                             context,
                                           ).showSnackBar(
-                                            const SnackBar(
+                                            SnackBar(
                                               content: Text(
-                                                'You left the meetup.',
+                                                isJoined
+                                                    ? 'You left the meetup.'
+                                                    : 'Join request cancelled.',
                                               ),
-                                              duration: Duration(seconds: 1),
+                                              duration: const Duration(
+                                                seconds: 1,
+                                              ),
                                             ),
                                           );
                                         }
@@ -627,8 +875,13 @@ class MeetupDetailScreen extends StatelessWidget {
                             style: ElevatedButton.styleFrom(
                               backgroundColor: isJoined
                                   ? Colors.redAccent
-                                  : (isFull ? Colors.grey[300] : Colors.blue),
-                              foregroundColor: isFull && !isJoined
+                                  : (isPending
+                                        ? Colors.orange
+                                        : (isFull
+                                              ? Colors.grey[300]
+                                              : Colors.blue)),
+                              foregroundColor:
+                                  (isFull && !isJoined && !isPending)
                                   ? Colors.grey[600]
                                   : Colors.white,
                               elevation: 0,
@@ -639,7 +892,9 @@ class MeetupDetailScreen extends StatelessWidget {
                             child: Text(
                               isJoined
                                   ? 'Leave'
-                                  : (isFull ? 'Closed' : 'Join Now'),
+                                  : (isPending
+                                        ? 'Cancel Request'
+                                        : (isFull ? 'Closed' : 'Join Now')),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

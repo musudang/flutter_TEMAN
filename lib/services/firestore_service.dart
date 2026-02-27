@@ -15,6 +15,7 @@ import '../models/comment_model.dart';
 
 import 'dart:async';
 import 'package:rxdart/rxdart.dart';
+import 'package:uuid/uuid.dart';
 
 class FirestoreService extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -302,8 +303,9 @@ class FirestoreService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      if (e.toString().contains('1 hour later'))
+      if (e.toString().contains('1 hour later')) {
         rethrow; // Pass up the exact error
+      }
       debugPrint("Warning: Could not fetch user cooldowns: $e");
     }
 
@@ -425,6 +427,128 @@ class FirestoreService extends ChangeNotifier {
       });
     } catch (e) {
       debugPrint("Error adding user to meetup chat: $e");
+    }
+  }
+
+  Future<void> kickMeetupParticipant(
+    String meetupId,
+    String participantId,
+  ) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db.collection('meetups').doc(meetupId);
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) throw Exception('Meetup not found');
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        if (data['hostId'] != uid) throw Exception('Only host can kick');
+
+        final participants = List<String>.from(data['participantIds'] ?? []);
+        if (participants.contains(participantId)) {
+          participants.remove(participantId);
+          transaction.update(docRef, {'participantIds': participants});
+        }
+      });
+
+      // Update chat
+      final convRef = _db.collection('conversations').doc(meetupId);
+      try {
+        await convRef.update({
+          'participantIds': FieldValue.arrayRemove([participantId]),
+          'unreadCounts.$participantId': FieldValue.delete(),
+        });
+
+        // Add System Leave Message
+        await convRef.collection('messages').add({
+          'senderId': 'system',
+          'senderName': 'System',
+          'senderAvatar': '',
+          'content': 'A participant was removed from the group.',
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      } catch (e) {
+        debugPrint("Could not strictly update conversation for kick: $e");
+      }
+    } catch (e) {
+      debugPrint("Error kicking participant: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> acceptMeetupParticipant(
+    String meetupId,
+    String participantId,
+  ) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db.collection('meetups').doc(meetupId);
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) throw Exception('Meetup not found');
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        if (data['hostId'] != uid) throw Exception('Only host can accept');
+
+        final pending = List<String>.from(data['pendingParticipantIds'] ?? []);
+        final participants = List<String>.from(data['participantIds'] ?? []);
+
+        if (pending.contains(participantId)) {
+          pending.remove(participantId);
+          if (!participants.contains(participantId)) {
+            participants.add(participantId);
+          }
+          transaction.update(docRef, {
+            'pendingParticipantIds': pending,
+            'participantIds': participants,
+          });
+        }
+      });
+      // Update chat
+      final doc = await docRef.get();
+      if (doc.exists) {
+        final data = doc.data() as Map<String, dynamic>;
+        final title = data['title'] ?? 'Meetup';
+        await _addUserToMeetupChat(meetupId, title, participantId);
+      }
+    } catch (e) {
+      debugPrint("Error accepting participant: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> declineMeetupParticipant(
+    String meetupId,
+    String participantId,
+  ) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db.collection('meetups').doc(meetupId);
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return; // Silent return if not found
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        // A user can decline themselves (cancel request), or the host can decline them.
+        if (data['hostId'] != uid && participantId != uid) {
+          throw Exception('Unauthorized to decline');
+        }
+
+        final pending = List<String>.from(data['pendingParticipantIds'] ?? []);
+        if (pending.contains(participantId)) {
+          pending.remove(participantId);
+          transaction.update(docRef, {'pendingParticipantIds': pending});
+        }
+      });
+    } catch (e) {
+      debugPrint("Error declining participant: $e");
+      rethrow;
     }
   }
 
@@ -856,6 +980,13 @@ class FirestoreService extends ChangeNotifier {
         .map((snapshot) {
           return snapshot.docs.map((doc) => _postFromDocument(doc)).toList();
         });
+  }
+
+  Stream<Post?> getPostStream(String postId) {
+    return _db.collection('posts').doc(postId).snapshots().map((doc) {
+      if (!doc.exists) return null;
+      return _postFromDocument(doc);
+    });
   }
 
   Stream<List<Post>> getUserPosts(String userId) {
@@ -1425,6 +1556,37 @@ class FirestoreService extends ChangeNotifier {
         });
   }
 
+  Future<String> getOrCreateConversation(String otherUserId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Not logged in');
+
+    // Look for an existing conversation
+    final querySnapshot = await _db
+        .collection('conversations')
+        .where('participantIds', arrayContains: uid)
+        .get();
+
+    for (var doc in querySnapshot.docs) {
+      final participants = List<String>.from(
+        doc.data()['participantIds'] ?? [],
+      );
+      if (participants.contains(otherUserId) && doc.data()['isGroup'] != true) {
+        return doc.id; // Existing conversation found
+      }
+    }
+
+    // Create a new conversation
+    final newDoc = await _db.collection('conversations').add({
+      'participantIds': [uid, otherUserId],
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'unreadCounts': {uid: 0, otherUserId: 0},
+      'isGroup': false,
+    });
+
+    return newDoc.id;
+  }
+
   Future<void> leaveConversation(String conversationId) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
@@ -1474,23 +1636,38 @@ class FirestoreService extends ChangeNotifier {
               content: data['content'] ?? '',
               timestamp:
                   (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              sharedPostId: data['sharedPostId'],
+              sharedPostType: data['sharedPostType'],
+              sharedPostTitle: data['sharedPostTitle'],
+              sharedPostDescription: data['sharedPostDescription'],
             );
           }).toList();
         });
   }
 
-  Future<void> sendDirectMessage(String conversationId, String content) async {
-    final user = _auth.currentUser;
-    if (user == null) return;
+  Future<void> sendDirectMessage(
+    String conversationId,
+    String content, {
+    String? sharedPostId,
+    String? sharedPostType,
+    String? sharedPostTitle,
+    String? sharedPostDescription,
+  }) async {
+    final user = await getCurrentUser();
+    if (user == null || content.trim().isEmpty) return;
 
-    final userData = await getCurrentUser();
-
+    final messageId = const Uuid().v4();
     final messageData = {
-      'senderId': user.uid,
-      'senderName': userData?.name ?? 'Unknown',
-      'senderAvatar': userData?.avatarUrl ?? '',
-      'content': content,
+      'id': messageId,
+      'senderId': user.id,
+      'senderName': user.name,
+      'senderAvatar': user.avatarUrl,
+      'content': content.trim(),
       'timestamp': FieldValue.serverTimestamp(),
+      'sharedPostId': sharedPostId,
+      'sharedPostType': sharedPostType,
+      'sharedPostTitle': sharedPostTitle,
+      'sharedPostDescription': sharedPostDescription,
     };
 
     try {
@@ -1517,11 +1694,11 @@ class FirestoreService extends ChangeNotifier {
           convDoc.data()?['participantIds'] ?? [],
         );
         for (final pid in participants) {
-          if (pid != user.uid) {
+          if (pid != user.id) {
             await sendNotification(
               userId: pid,
               title: 'New Message 💬',
-              body: '${userData?.name ?? "Someone"}: $content',
+              body: '${user.name}: $content',
               type: 'message',
               relatedId: conversationId,
             );

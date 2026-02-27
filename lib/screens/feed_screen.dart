@@ -15,6 +15,8 @@ import 'jobs_screen.dart';
 import 'marketplace_list_screen.dart';
 import '../widgets/meetup_card.dart';
 import 'user_profile_screen.dart';
+import 'post_detail_screen.dart';
+import 'share_content_sheet.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -366,284 +368,321 @@ class _FeedScreenState extends State<FeedScreen> {
     final uid = firestoreService.currentUserId ?? '';
     final isLiked = post.likedBy.contains(uid);
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => PostDetailScreen(postId: post.id),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Live User Data Stream
-          StreamBuilder<app_models.User?>(
-            stream: firestoreService.getUserStream(post.authorId),
-            builder: (context, userSnap) {
-              final user = userSnap.data;
-              final authorName = user?.name ?? post.authorName;
-              final authorAvatar = user?.avatarUrl ?? '';
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Live User Data Stream
+            StreamBuilder<app_models.User?>(
+              stream: firestoreService.getUserStream(post.authorId),
+              builder: (context, userSnap) {
+                final user = userSnap.data;
+                final authorName = user?.name ?? post.authorName;
+                final authorAvatar = user?.avatarUrl ?? '';
 
-              return Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              UserProfileScreen(userId: post.authorId),
-                        ),
-                      );
-                    },
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundColor: Colors.teal[50],
-                      backgroundImage: authorAvatar.isNotEmpty
-                          ? NetworkImage(authorAvatar)
-                          : null,
-                      child: authorAvatar.isEmpty
-                          ? Text(
-                              authorName.isNotEmpty
-                                  ? authorName[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                color: Colors.teal[700],
-                                fontWeight: FontWeight.bold,
-                              ),
-                            )
-                          : null,
+                return Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                UserProfileScreen(userId: post.authorId),
+                          ),
+                        );
+                      },
+                      child: CircleAvatar(
+                        radius: 20,
+                        backgroundColor: Colors.teal[50],
+                        backgroundImage: authorAvatar.isNotEmpty
+                            ? NetworkImage(authorAvatar)
+                            : null,
+                        child: authorAvatar.isEmpty
+                            ? Text(
+                                authorName.isNotEmpty
+                                    ? authorName[0].toUpperCase()
+                                    : '?',
+                                style: TextStyle(
+                                  color: Colors.teal[700],
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              )
+                            : null,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    UserProfileScreen(userId: post.authorId),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      UserProfileScreen(userId: post.authorId),
+                                ),
+                              );
+                            },
+                            child: Text(
+                              authorName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                                color: Color(0xFF1A1F36),
                               ),
-                            );
-                          },
-                          child: Text(
-                            authorName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                              color: Color(0xFF1A1F36),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 2,
-                              ),
-                              decoration: BoxDecoration(
-                                color: categoryColor,
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Text(
-                                categoryLabel,
-                                style: TextStyle(
-                                  color: categoryTextColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
+                          const SizedBox(height: 2),
+                          Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: categoryColor,
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  categoryLabel,
+                                  style: TextStyle(
+                                    color: categoryTextColor,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              timeAgo,
-                              style: TextStyle(
-                                color: Colors.grey[400],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  // Scrap Button
-                  StreamBuilder<app_models.User?>(
-                    stream: firestoreService.getUserStream(
-                      firestoreService.currentUserId ?? '',
-                    ),
-                    builder: (context, userSnap) {
-                      final isScrapped = post.scrappedBy.contains(
-                        firestoreService.currentUserId,
-                      );
-                      return IconButton(
-                        icon: Icon(
-                          isScrapped ? Icons.bookmark : Icons.bookmark_border,
-                          color: isScrapped ? Colors.teal : Colors.grey[400],
-                          size: 24,
-                        ),
-                        onPressed: () =>
-                            firestoreService.toggleScrapPost(post.id),
-                      );
-                    },
-                  ),
-                  // Delete menu for owner / admin
-                  PopupMenuButton<String>(
-                    icon: Icon(
-                      Icons.more_vert,
-                      color: Colors.grey[400],
-                      size: 20,
-                    ),
-                    onSelected: (value) async {
-                      if (value == 'delete') {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Delete Post?'),
-                            content: const Text(
-                              'This action cannot be undone.',
-                            ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Cancel'),
-                              ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text(
-                                  'Delete',
-                                  style: TextStyle(color: Colors.red),
+                              const SizedBox(width: 6),
+                              Text(
+                                timeAgo,
+                                style: TextStyle(
+                                  color: Colors.grey[400],
+                                  fontSize: 12,
                                 ),
                               ),
                             ],
                           ),
+                        ],
+                      ),
+                    ),
+                    // Share Button
+                    IconButton(
+                      icon: Icon(
+                        Icons.ios_share,
+                        color: Colors.grey[400],
+                        size: 20,
+                      ),
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(
+                              top: Radius.circular(20),
+                            ),
+                          ),
+                          builder: (context) => ShareContentSheet(
+                            itemId: post.id,
+                            itemType: 'post',
+                            itemTitle: post.title.isNotEmpty
+                                ? post.title
+                                : 'Post by ${post.authorName}',
+                            itemDescription: post.content,
+                          ),
                         );
-                        if (confirm == true) {
-                          await firestoreService.deletePost(post.id);
+                      },
+                    ),
+                    // Scrap Button
+                    StreamBuilder<app_models.User?>(
+                      stream: firestoreService.getUserStream(
+                        firestoreService.currentUserId ?? '',
+                      ),
+                      builder: (context, userSnap) {
+                        final isScrapped = post.scrappedBy.contains(
+                          firestoreService.currentUserId,
+                        );
+                        return IconButton(
+                          icon: Icon(
+                            isScrapped ? Icons.bookmark : Icons.bookmark_border,
+                            color: isScrapped ? Colors.teal : Colors.grey[400],
+                            size: 24,
+                          ),
+                          onPressed: () =>
+                              firestoreService.toggleScrapPost(post.id),
+                        );
+                      },
+                    ),
+                    // Delete menu for owner / admin
+                    PopupMenuButton<String>(
+                      icon: Icon(
+                        Icons.more_vert,
+                        color: Colors.grey[400],
+                        size: 20,
+                      ),
+                      onSelected: (value) async {
+                        if (value == 'delete') {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete Post?'),
+                              content: const Text(
+                                'This action cannot be undone.',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await firestoreService.deletePost(post.id);
+                          }
                         }
-                      }
-                    },
-                    itemBuilder: (ctx) {
-                      final isOwner = post.authorId == uid;
-                      return [
-                        if (isOwner)
+                      },
+                      itemBuilder: (ctx) {
+                        final isOwner = post.authorId == uid;
+                        return [
+                          if (isOwner)
+                            const PopupMenuItem(
+                              value: 'delete',
+                              child: Text('Delete Post'),
+                            ),
+                          // Admin check is async; for simplicity we always show if owner.
+                          // Admin deletion is handled server-side in deletePost().
                           const PopupMenuItem(
                             value: 'delete',
-                            child: Text('Delete Post'),
+                            child: Text('Report / Delete'),
                           ),
-                        // Admin check is async; for simplicity we always show if owner.
-                        // Admin deletion is handled server-side in deletePost().
-                        const PopupMenuItem(
-                          value: 'delete',
-                          child: Text('Report / Delete'),
-                        ),
-                      ];
-                    },
-                  ),
-                ],
-              );
-            },
-          ),
-          if (post.imageUrl.isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                post.imageUrl,
-                height: 200,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (context, error, stackTrace) =>
-                    const SizedBox.shrink(),
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (post.title.isNotEmpty) ...[
-            Text(
-              post.title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF1A1F36),
-                height: 1.3,
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-          Text(
-            post.content,
-            style: const TextStyle(
-              fontSize: 14,
-              color: Color(0xFF4B5563),
-              height: 1.5,
-            ),
-            maxLines: 3,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 16),
-          const Divider(height: 1, color: Color(0xFFF3F4F6)),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              GestureDetector(
-                onTap: () => firestoreService.toggleLikePost(post.id),
-                child: Row(
-                  children: [
-                    Icon(
-                      isLiked ? Icons.favorite : Icons.favorite_border,
-                      size: 20,
-                      color: isLiked ? Colors.red : const Color(0xFF9CA3AF),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${post.likes}',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
+                        ];
+                      },
                     ),
                   ],
+                );
+              },
+            ),
+            if (post.imageUrl.isNotEmpty) ...[
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  post.imageUrl,
+                  height: 200,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) =>
+                      const SizedBox.shrink(),
                 ),
               ),
-              const SizedBox(width: 16),
-              GestureDetector(
-                onTap: () =>
-                    _showCommentSheet(context, post.id, firestoreService),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.chat_bubble_outline,
-                      size: 20,
-                      color: Color(0xFF9CA3AF),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${post.comments}',
-                      style: const TextStyle(
-                        color: Color(0xFF6B7280),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 12),
             ],
-          ),
-        ],
+            if (post.title.isNotEmpty) ...[
+              Text(
+                post.title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1F36),
+                  height: 1.3,
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Text(
+              post.content,
+              style: const TextStyle(
+                fontSize: 14,
+                color: Color(0xFF4B5563),
+                height: 1.5,
+              ),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 16),
+            const Divider(height: 1, color: Color(0xFFF3F4F6)),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                GestureDetector(
+                  onTap: () => firestoreService.toggleLikePost(post.id),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isLiked ? Icons.favorite : Icons.favorite_border,
+                        size: 20,
+                        color: isLiked ? Colors.red : const Color(0xFF9CA3AF),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${post.likes}',
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                GestureDetector(
+                  onTap: () =>
+                      _showCommentSheet(context, post.id, firestoreService),
+                  child: Row(
+                    children: [
+                      const Icon(
+                        Icons.chat_bubble_outline,
+                        size: 20,
+                        color: Color(0xFF9CA3AF),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '${post.comments}',
+                        style: const TextStyle(
+                          color: Color(0xFF6B7280),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

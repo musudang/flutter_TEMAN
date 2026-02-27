@@ -10,6 +10,7 @@ import '../models/meetup_model.dart';
 import 'edit_profile_screen.dart';
 import 'conversation_list_screen.dart';
 import 'meetup_detail_screen.dart';
+import 'follow_list_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -251,7 +252,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _buildStatItem('Followers', user.followers.length),
+                            _buildStatItem(
+                              context,
+                              'Followers',
+                              user.followers.length,
+                              user.id,
+                              user.name,
+                              0,
+                            ),
                             Container(
                               height: 20,
                               width: 1,
@@ -260,7 +268,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                                 horizontal: 20,
                               ),
                             ),
-                            _buildStatItem('Following', user.following.length),
+                            _buildStatItem(
+                              context,
+                              'Following',
+                              user.following.length,
+                              user.id,
+                              user.name,
+                              1,
+                            ),
                           ],
                         ),
                         const SizedBox(height: 16),
@@ -395,19 +410,40 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildStatItem(String label, int count) {
-    return Column(
-      children: [
-        Text(
-          '$count',
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1A1F36),
+  Widget _buildStatItem(
+    BuildContext context,
+    String label,
+    int count,
+    String userId,
+    String userName,
+    int tabIndex,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => FollowListScreen(
+              userId: userId,
+              userName: userName,
+              initialTabIndex: tabIndex,
+            ),
           ),
-        ),
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-      ],
+        );
+      },
+      child: Column(
+        children: [
+          Text(
+            '$count',
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1F36),
+            ),
+          ),
+          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+        ],
+      ),
     );
   }
 
