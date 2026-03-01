@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
 import '../models/notification_model.dart';
+import 'post_detail_screen.dart';
+import 'chat_screen.dart';
+import 'user_profile_screen.dart';
+import 'meetup_detail_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -23,6 +27,58 @@ class NotificationsScreen extends StatelessWidget {
         backgroundColor: Colors.white,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep, color: Colors.red),
+            onPressed: () async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Delete All Notifications?'),
+                  content: const Text(
+                    'Are you sure you want to delete all of your notifications? This action cannot be undone.',
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text(
+                        'Delete All',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+
+              if (confirm == true && context.mounted) {
+                // Show loading indicator
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (ctx) =>
+                      const Center(child: CircularProgressIndicator()),
+                );
+
+                await firestoreService.deleteAllNotifications();
+
+                // Close loading indicator
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('All notifications deleted')),
+                  );
+                }
+              }
+            },
+          ),
+        ],
       ),
       body: StreamBuilder<List<NotificationModel>>(
         stream: firestoreService.getNotifications(),
@@ -93,6 +149,53 @@ class NotificationsScreen extends StatelessWidget {
                   ),
                   onTap: () {
                     firestoreService.markNotificationAsRead(notification.id);
+                    // Navigate to the relevant screen
+                    if (notification.relatedId.isNotEmpty) {
+                      switch (notification.type) {
+                        case 'like':
+                        case 'comment':
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => PostDetailScreen(
+                                postId: notification.relatedId,
+                              ),
+                            ),
+                          );
+                          break;
+                        case 'message':
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => ChatScreen(
+                                conversationId: notification.relatedId,
+                                chatTitle: 'Chat',
+                              ),
+                            ),
+                          );
+                          break;
+                        case 'follow':
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => UserProfileScreen(
+                                userId: notification.relatedId,
+                              ),
+                            ),
+                          );
+                          break;
+                        case 'meetup_join':
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => MeetupDetailScreen(
+                                meetupId: notification.relatedId,
+                              ),
+                            ),
+                          );
+                          break;
+                      }
+                    }
                   },
                 ),
               );

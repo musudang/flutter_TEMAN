@@ -164,10 +164,13 @@ class FirestoreService extends ChangeNotifier {
     await batch.commit();
 
     // Notify target user
+    final currentUserData = await getCurrentUser();
+    final followerName = currentUserData?.name ?? 'Someone';
+
     await sendNotification(
       userId: targetUserId,
       title: 'New Follower 👤',
-      body: 'Someone started following you!',
+      body: '$followerName started following you!',
       type: 'follow',
       relatedId: uid,
     );
@@ -1865,6 +1868,27 @@ class FirestoreService extends ChangeNotifier {
           .delete();
     } catch (e) {
       debugPrint("Error deleting notification: $e");
+    }
+  }
+
+  Future<void> deleteAllNotifications() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final snapshot = await _db
+          .collection('users')
+          .doc(user.uid)
+          .collection('notifications')
+          .get();
+
+      final batch = _db.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } catch (e) {
+      debugPrint("Error deleting all notifications: $e");
     }
   }
 
