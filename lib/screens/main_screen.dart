@@ -65,9 +65,37 @@ class _MainScreenState extends State<MainScreen> {
               activeIcon: Icon(Icons.home),
               label: 'Home',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.chat_bubble_outline),
-              activeIcon: Icon(Icons.chat_bubble),
+            BottomNavigationBarItem(
+              icon: StreamBuilder<int>(
+                stream: firestoreService.getTotalUnreadMessageCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return Badge(
+                    isLabelVisible: count > 0,
+                    label: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.chat_bubble_outline),
+                  );
+                },
+              ),
+              activeIcon: StreamBuilder<int>(
+                stream: firestoreService.getTotalUnreadMessageCount(),
+                builder: (context, snapshot) {
+                  final count = snapshot.data ?? 0;
+                  return Badge(
+                    isLabelVisible: count > 0,
+                    label: Text(
+                      count > 99 ? '99+' : '$count',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    backgroundColor: Colors.red,
+                    child: const Icon(Icons.chat_bubble),
+                  );
+                },
+              ),
               label: 'Messages',
             ),
             const BottomNavigationBarItem(

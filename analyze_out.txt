@@ -1,0 +1,7 @@
+﻿Analyzing teman_flutter_app_code...                             
+
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\services\firestore_service.dart:1197:9 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\services\firestore_service.dart:1382:11 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\services\firestore_service.dart:1383:11 - use_null_aware_elements
+   info - Use the null-aware marker '?' rather than a null check via an 'if' - lib\services\firestore_service.dart:1385:11 - use_null_aware_elements
+

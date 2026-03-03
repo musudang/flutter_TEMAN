@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
+import '../models/question_model.dart';
 
 class CreateQnaScreen extends StatefulWidget {
-  const CreateQnaScreen({super.key});
+  final Question? editingQuestion;
+  const CreateQnaScreen({super.key, this.editingQuestion});
 
   @override
   State<CreateQnaScreen> createState() => _CreateQnaScreenState();
@@ -13,6 +15,15 @@ class _CreateQnaScreenState extends State<CreateQnaScreen> {
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editingQuestion != null) {
+      _titleController.text = widget.editingQuestion!.title;
+      _contentController.text = widget.editingQuestion!.content;
+    }
+  }
 
   @override
   void dispose() {
@@ -45,13 +56,26 @@ class _CreateQnaScreenState extends State<CreateQnaScreen> {
         return;
       }
 
-      await firestoreService.addQuestion(title, content, user.id, user.name);
+      if (widget.editingQuestion != null) {
+        await firestoreService.updateQuestion(widget.editingQuestion!.id, {
+          'title': title,
+          'content': content,
+        });
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Question updated successfully!')),
+          );
+        }
+      } else {
+        await firestoreService.addQuestion(title, content, user.id, user.name);
 
-      if (mounted) {
-        Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Question posted successfully!')),
-        );
+        if (mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Question posted successfully!')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -74,7 +98,9 @@ class _CreateQnaScreenState extends State<CreateQnaScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ask Question'),
+        title: Text(
+          widget.editingQuestion != null ? 'Edit Question' : 'Ask Question',
+        ),
         actions: [
           TextButton(
             onPressed: _isSubmitting || !isValid ? null : _submitQuestion,
@@ -84,7 +110,10 @@ class _CreateQnaScreenState extends State<CreateQnaScreen> {
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : const Text('Post', style: TextStyle(fontSize: 16)),
+                : Text(
+                    widget.editingQuestion != null ? 'Update' : 'Post',
+                    style: const TextStyle(fontSize: 16),
+                  ),
           ),
         ],
       ),

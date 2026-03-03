@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../models/message_model.dart';
@@ -32,6 +33,7 @@ class _ChatScreenState extends State<ChatScreen> {
   final TextEditingController _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
   bool _initialMessageSent = false;
+  Message? _repliedMessage;
 
   @override
   void initState() {
@@ -65,8 +67,15 @@ class _ChatScreenState extends State<ChatScreen> {
       listen: false,
     );
 
+    final replyToMessageId = _repliedMessage?.id;
+    final replyToMessageText = _repliedMessage?.content;
+    final replyToMessageSender = _repliedMessage?.senderName;
+
     // Clear early for responsiveness
     _messageController.clear();
+    setState(() {
+      _repliedMessage = null;
+    });
 
     String currentConvId = widget.conversationId;
 
@@ -78,7 +87,13 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (currentConvId.isNotEmpty) {
-      firestoreService.sendDirectMessage(currentConvId, content);
+      firestoreService.sendDirectMessage(
+        currentConvId,
+        content,
+        replyToMessageId: replyToMessageId,
+        replyToMessageText: replyToMessageText,
+        replyToMessageSender: replyToMessageSender,
+      );
     }
 
     // Scroll to bottom
@@ -169,6 +184,16 @@ class _ChatScreenState extends State<ChatScreen> {
                       if (snapshot.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
+
+                      if (snapshot.hasData) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          try {
+                            firestoreService.markConversationAsRead(
+                              widget.conversationId,
+                            );
+                          } catch (_) {}
+                        });
+                      }
                       if (!snapshot.hasData || snapshot.data!.isEmpty) {
                         return const Center(
                           child: Text('No messages yet. Say hi!'),
@@ -191,6 +216,45 @@ class _ChatScreenState extends State<ChatScreen> {
                     },
                   ),
           ),
+          if (_repliedMessage != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.grey[100],
+              child: Row(
+                children: [
+                  const Icon(Icons.reply, size: 20, color: Colors.teal),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Replying to ${_repliedMessage!.senderName}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Colors.teal,
+                          ),
+                        ),
+                        Text(
+                          _repliedMessage!.content,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => setState(() => _repliedMessage = null),
+                  ),
+                ],
+              ),
+            ),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
@@ -297,140 +361,227 @@ class _ChatScreenState extends State<ChatScreen> {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isMe ? Colors.teal : Colors.grey[200],
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMe ? 16 : 4),
-                  bottomRight: Radius.circular(isMe ? 4 : 16),
-                ),
-              ),
+            child: GestureDetector(
+              onLongPress: () => _showMessageOptions(context, message, isMe),
               child: Column(
                 crossAxisAlignment: isMe
                     ? CrossAxisAlignment.end
                     : CrossAxisAlignment.start,
                 children: [
-                  if (!isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        message.senderName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[700],
-                        ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.teal : Colors.grey[200],
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
                       ),
                     ),
-                  Text(
-                    message.content,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : const Color(0xFF1A1F36),
-                      fontSize: 15,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (message.sharedPostId != null &&
-                      message.sharedPostTitle != null) ...[
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () {
-                        if (message.sharedPostType == 'meetup') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => MeetupDetailScreen(
-                                meetupId: message.sharedPostId!,
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        if (!isMe)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              message.senderName,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
                               ),
                             ),
-                          );
-                        } else if (message.sharedPostType == 'post') {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => PostDetailScreen(
-                                postId: message.sharedPostId!,
-                              ),
+                          ),
+                        if (message.replyToMessageId != null)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.teal[700] : Colors.grey[300],
+                              borderRadius: BorderRadius.circular(8),
                             ),
-                          );
-                        }
-                      },
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: isMe ? Colors.teal[600] : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        padding: const EdgeInsets.all(12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Icon(
-                                  message.sharedPostType == 'meetup'
-                                      ? Icons.groups
-                                      : Icons.article,
-                                  size: 16,
-                                  color: isMe
-                                      ? Colors.white70
-                                      : Colors.teal[600],
-                                ),
-                                const SizedBox(width: 6),
                                 Text(
-                                  message.sharedPostType == 'meetup'
-                                      ? 'Shared Meetup'
-                                      : 'Shared Post',
+                                  message.replyToMessageSender ?? 'Someone',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    color: isMe ? Colors.white70 : Colors.teal,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  message.replyToMessageText ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 12,
-                                    fontWeight: FontWeight.bold,
                                     color: isMe
                                         ? Colors.white70
-                                        : Colors.teal[700],
+                                        : Colors.black87,
                                   ),
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 6),
-                            Text(
-                              message.sharedPostTitle!,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14,
-                                color: isMe ? Colors.white : Colors.black87,
+                          ),
+                        Text(
+                          message.content,
+                          style: TextStyle(
+                            color: isMe
+                                ? Colors.white
+                                : const Color(0xFF1A1F36),
+                            fontSize: 15,
+                            height: 1.4,
+                          ),
+                        ),
+                        if (message.sharedPostId != null &&
+                            message.sharedPostTitle != null) ...[
+                          const SizedBox(height: 8),
+                          GestureDetector(
+                            onTap: () {
+                              if (message.sharedPostType == 'meetup') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => MeetupDetailScreen(
+                                      meetupId: message.sharedPostId!,
+                                    ),
+                                  ),
+                                );
+                              } else if (message.sharedPostType == 'post') {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => PostDetailScreen(
+                                      postId: message.sharedPostId!,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: isMe
+                                    ? Colors.teal[600]
+                                    : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              padding: const EdgeInsets.all(12),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        message.sharedPostType == 'meetup'
+                                            ? Icons.groups
+                                            : Icons.article,
+                                        size: 16,
+                                        color: isMe
+                                            ? Colors.white70
+                                            : Colors.teal[600],
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        message.sharedPostType == 'meetup'
+                                            ? 'Shared Meetup'
+                                            : 'Shared Post',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: isMe
+                                              ? Colors.white70
+                                              : Colors.teal[700],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    message.sharedPostTitle!,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                      color: isMe
+                                          ? Colors.white
+                                          : Colors.black87,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  if (message.sharedPostDescription !=
+                                      null) ...[
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      message.sharedPostDescription!,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: isMe
+                                            ? Colors.white70
+                                            : Colors.black54,
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
                             ),
-                            if (message.sharedPostDescription != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                message.sharedPostDescription!,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: isMe ? Colors.white70 : Colors.black54,
-                                ),
-                              ),
-                            ],
+                          ),
+                        ],
+                        const SizedBox(height: 4),
+                        Text(
+                          timeString,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isMe
+                                ? Colors.white.withValues(alpha: 0.7)
+                                : Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (message.reactions != null &&
+                      message.reactions!.isNotEmpty)
+                    Transform.translate(
+                      offset: const Offset(0, -8),
+                      child: Container(
+                        margin: EdgeInsets.only(
+                          left: isMe ? 0 : 8,
+                          right: isMe ? 8 : 0,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
                           ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: _buildReactionIcons(message.reactions!),
                         ),
                       ),
                     ),
-                  ],
-                  const SizedBox(height: 4),
-                  Text(
-                    timeString,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isMe
-                          ? Colors.white.withValues(alpha: 0.7)
-                          : Colors.grey[600],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -438,5 +589,129 @@ class _ChatScreenState extends State<ChatScreen> {
         ],
       ),
     );
+  }
+
+  void _showMessageOptions(BuildContext context, Message message, bool isMe) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildEmojiButton(context, message, '❤️'),
+                    _buildEmojiButton(context, message, '😂'),
+                    _buildEmojiButton(context, message, '😮'),
+                    _buildEmojiButton(context, message, '😢'),
+                    _buildEmojiButton(context, message, '🙏'),
+                    _buildEmojiButton(context, message, '👍'),
+                  ],
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _repliedMessage = message;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Copy Text'),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: message.content));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Message copied')),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmojiButton(
+    BuildContext context,
+    Message message,
+    String emoji,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        Provider.of<FirestoreService>(
+          context,
+          listen: false,
+        ).toggleMessageReaction(
+          conversationId: widget.conversationId,
+          messageId: message.id,
+          emoji: emoji,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color:
+              message.reactions?.containsValue(emoji) == true &&
+                  message.reactions?[Provider.of<FirestoreService>(
+                        context,
+                        listen: false,
+                      ).currentUserId] ==
+                      emoji
+              ? Colors.teal.withValues(alpha: 0.2)
+              : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Text(emoji, style: const TextStyle(fontSize: 28)),
+      ),
+    );
+  }
+
+  List<Widget> _buildReactionIcons(Map<String, String> reactions) {
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+
+    final sortedEmojis = counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+
+    return sortedEmojis.map((emoji) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 12)),
+            if (counts[emoji]! > 1)
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Text(
+                  '${counts[emoji]}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }).toList();
   }
 }

@@ -12,6 +12,8 @@ class Post {
   final String imageUrl;
   final String category;
   final String authorAvatar; // [NEW] Shared preference for avatar
+  final String? subCategory; // [NEW] Subcategories for Events & Q&A
+  final DateTime? eventDate; // [NEW] Date for Events
 
   Post({
     required this.id,
@@ -27,5 +29,7 @@ class Post {
     this.imageUrl = '',
     this.category = 'general',
     this.authorAvatar = '',
+    this.subCategory,
+    this.eventDate,
   });
 }

@@ -32,6 +32,31 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   String _selectedFilter = 'All';
+  String _selectedEventSubCategory = 'ALL';
+  String _selectedQnaSubCategory = 'ALL';
+
+  final List<String> _eventSubCategories = [
+    'ALL',
+    'CONCERT',
+    'LOCAL FESTIVAL',
+    'ACADEMIC',
+    'CAREER',
+    'EXPO',
+    'EXHIBITION',
+    'POP-UP',
+    'NETWORKING',
+    'OTHERS',
+  ];
+  final List<String> _qnaSubCategories = [
+    'ALL',
+    'IMMIGRATION',
+    'ACADEMICS',
+    'HOUSING',
+    'JOBS',
+    'DAILY LIFE',
+    'LANGUAGE',
+    'OTHERS',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +98,23 @@ class _FeedScreenState extends State<FeedScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(
-              Icons.chat_bubble_outline,
-              color: Color(0xFF1A1F36),
+            icon: StreamBuilder<int>(
+              stream: firestoreService.getTotalUnreadMessageCount(),
+              builder: (context, snapshot) {
+                final count = snapshot.data ?? 0;
+                return Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  backgroundColor: Colors.red,
+                  child: const Icon(
+                    Icons.chat_bubble_outline,
+                    color: Color(0xFF1A1F36),
+                  ),
+                );
+              },
             ),
             onPressed: () {
               Navigator.push(
@@ -164,6 +203,69 @@ class _FeedScreenState extends State<FeedScreen> {
             ),
           ),
 
+          // Sub-category Chips
+          if (_selectedFilter == 'Events' || _selectedFilter == 'Q&A')
+            Container(
+              color: Colors.white,
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children:
+                      (_selectedFilter == 'Events'
+                              ? _eventSubCategories
+                              : _qnaSubCategories)
+                          .map((sub) {
+                            final isSelected = _selectedFilter == 'Events'
+                                ? _selectedEventSubCategory == sub
+                                : _selectedQnaSubCategory == sub;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 8.0),
+                              child: ChoiceChip(
+                                label: Text(
+                                  sub,
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                                selected: isSelected,
+                                onSelected: (selected) {
+                                  if (selected) {
+                                    setState(() {
+                                      if (_selectedFilter == 'Events') {
+                                        _selectedEventSubCategory = sub;
+                                      } else {
+                                        _selectedQnaSubCategory = sub;
+                                      }
+                                    });
+                                  }
+                                },
+                                selectedColor: const Color(
+                                  0xFFFF5A5F,
+                                ).withValues(alpha: 0.15),
+                                backgroundColor: Colors.grey[100],
+                                labelStyle: TextStyle(
+                                  color: isSelected
+                                      ? const Color(0xFFFF5A5F)
+                                      : Colors.grey[700],
+                                  fontWeight: isSelected
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(20),
+                                  side: BorderSide(
+                                    color: isSelected
+                                        ? const Color(0xFFFF5A5F)
+                                        : Colors.transparent,
+                                  ),
+                                ),
+                              ),
+                            );
+                          })
+                          .toList(),
+                ),
+              ),
+            ),
+
           // Dynamic Feed or Category-specific screen
           Expanded(child: _buildBody(firestoreService)),
         ],
@@ -215,8 +317,16 @@ class _FeedScreenState extends State<FeedScreen> {
             return false;
           }
           if (_selectedFilter == 'Q&A') {
-            if (item is Post && item.category == 'qna') return true;
-            if (item is Question) return true;
+            if (item is Post && item.category == 'qna') {
+              if (_selectedQnaSubCategory != 'ALL' &&
+                  item.subCategory != _selectedQnaSubCategory) {
+                return false;
+              }
+              return true;
+            }
+            if (item is Question) {
+              return _selectedQnaSubCategory == 'ALL';
+            }
             return false;
           }
           if (_selectedFilter == 'Events') {
@@ -224,6 +334,10 @@ class _FeedScreenState extends State<FeedScreen> {
             // Explicitly exclude Meetups from this tab as per user request
             if (item is Post &&
                 (item.category == 'event' || item.category == 'events')) {
+              if (_selectedEventSubCategory != 'ALL' &&
+                  item.subCategory != _selectedEventSubCategory) {
+                return false;
+              }
               return true;
             }
             return false;
@@ -500,7 +614,10 @@ class _FeedScreenState extends State<FeedScreen> {
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
-                                  categoryLabel,
+                                  post.subCategory != null &&
+                                          post.subCategory != 'ALL'
+                                      ? '$categoryLabel \u2022 ${post.subCategory}'
+                                      : categoryLabel,
                                   style: TextStyle(
                                     color: categoryTextColor,
                                     fontSize: 11,
@@ -508,6 +625,29 @@ class _FeedScreenState extends State<FeedScreen> {
                                   ),
                                 ),
                               ),
+                              if ((post.category == 'events' ||
+                                      post.category == 'event') &&
+                                  post.eventDate != null) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    '${post.eventDate!.month}/${post.eventDate!.day}',
+                                    style: TextStyle(
+                                      color: Colors.blue[700],
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
                               const SizedBox(width: 6),
                               Text(
                                 timeAgo,
@@ -690,7 +830,7 @@ class _FeedScreenState extends State<FeedScreen> {
                 const SizedBox(width: 16),
                 GestureDetector(
                   onTap: () =>
-                      _showCommentSheet(context, post.id, firestoreService),
+                      _showCommentSheet(context, post, firestoreService),
                   child: Row(
                     children: [
                       const Icon(
@@ -720,96 +860,45 @@ class _FeedScreenState extends State<FeedScreen> {
 
   void _showCommentSheet(
     BuildContext context,
-    String postId,
+    Post post,
     FirestoreService service,
   ) {
-    final controller = TextEditingController();
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+      backgroundColor: Colors.transparent,
       builder: (ctx) {
         return Padding(
           padding: EdgeInsets.only(
             bottom: MediaQuery.of(ctx).viewInsets.bottom,
-            left: 16,
-            right: 16,
-            top: 16,
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Comments',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                height: 250,
-                child: StreamBuilder(
-                  stream: service.getComments(postId),
-                  builder: (context, snapshot) {
-                    if (!snapshot.hasData || (snapshot.data as List).isEmpty) {
-                      return const Center(child: Text('No comments yet'));
-                    }
-                    final comments = snapshot.data as List;
-                    return ListView.builder(
-                      itemCount: comments.length,
-                      itemBuilder: (context, index) {
-                        final c = comments[index];
-                        return ListTile(
-                          leading: CircleAvatar(
-                            radius: 16,
-                            backgroundColor: Colors.teal[50],
-                            child: Text(
-                              c.authorName[0].toUpperCase(),
-                              style: TextStyle(
-                                color: Colors.teal[700],
-                                fontSize: 12,
-                              ),
-                            ),
-                          ),
-                          title: Text(
-                            c.authorName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          subtitle: Text(c.content),
-                        );
-                      },
-                    );
-                  },
+          child: Container(
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+            ),
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-              ),
-              const Divider(),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: controller,
-                      decoration: const InputDecoration(
-                        hintText: 'Add a comment...',
-                        border: InputBorder.none,
-                      ),
-                    ),
+                Flexible(
+                  child: SingleChildScrollView(
+                    child: PostCommentsSection(post: post, fs: service),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.send, color: Colors.teal),
-                    onPressed: () {
-                      if (controller.text.trim().isNotEmpty) {
-                        service.addComment(postId, controller.text.trim());
-                        controller.clear();
-                      }
-                    },
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-            ],
+                ),
+              ],
+            ),
           ),
         );
       },

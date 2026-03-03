@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/post_model.dart';
+import '../models/comment_model.dart';
 import '../models/user_model.dart' as app_models;
 import '../services/firestore_service.dart';
 import 'user_profile_screen.dart';
 import 'share_content_sheet.dart';
+import 'create_post_screen.dart';
 
 class PostDetailScreen extends StatelessWidget {
   final String postId;
@@ -42,7 +44,7 @@ class PostDetailScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildPostContent(context, post, firestoreService),
-                _buildCommentsSection(context, post, firestoreService),
+                PostCommentsSection(post: post, fs: firestoreService),
               ],
             ),
           );
@@ -192,7 +194,10 @@ class PostDetailScreen extends StatelessWidget {
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
-                                categoryLabel,
+                                post.subCategory != null &&
+                                        post.subCategory != 'ALL'
+                                    ? '$categoryLabel \u2022 ${post.subCategory}'
+                                    : categoryLabel,
                                 style: TextStyle(
                                   color: categoryTextColor,
                                   fontSize: 11,
@@ -200,6 +205,29 @@ class PostDetailScreen extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            if ((post.category == 'events' ||
+                                    post.category == 'event') &&
+                                post.eventDate != null) ...[
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                margin: const EdgeInsets.only(top: 4, right: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue[50],
+                                  borderRadius: BorderRadius.circular(6),
+                                ),
+                                child: Text(
+                                  '${post.eventDate!.month}/${post.eventDate!.day}',
+                                  style: TextStyle(
+                                    color: Colors.blue[700],
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                             Text(
                               timeAgo,
                               style: TextStyle(
@@ -213,39 +241,59 @@ class PostDetailScreen extends StatelessWidget {
                     ),
                   ),
                   if (isOwner)
-                    IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.grey,
-                      ),
-                      onPressed: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (ctx) => AlertDialog(
-                            title: const Text('Delete Post?'),
-                            content: const Text(
-                              'This action cannot be undone.',
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_horiz, color: Colors.grey),
+                      onSelected: (value) async {
+                        if (value == 'edit') {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) =>
+                                  CreatePostScreen(editingPost: post),
                             ),
-                            actions: [
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, false),
-                                child: const Text('Cancel'),
+                          );
+                        } else if (value == 'delete') {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (ctx) => AlertDialog(
+                              title: const Text('Delete Post?'),
+                              content: const Text(
+                                'This action cannot be undone.',
                               ),
-                              TextButton(
-                                onPressed: () => Navigator.pop(ctx, true),
-                                child: const Text(
-                                  'Delete',
-                                  style: TextStyle(color: Colors.red),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: const Text('Cancel'),
                                 ),
-                              ),
-                            ],
-                          ),
-                        );
-                        if (confirm == true) {
-                          await fs.deletePost(post.id);
-                          if (context.mounted) Navigator.pop(context);
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: const Text(
+                                    'Delete',
+                                    style: TextStyle(color: Colors.red),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                          if (confirm == true) {
+                            await fs.deletePost(post.id);
+                            if (context.mounted) Navigator.pop(context);
+                          }
                         }
                       },
+                      itemBuilder: (ctx) => [
+                        const PopupMenuItem(
+                          value: 'edit',
+                          child: Text('Edit Post'),
+                        ),
+                        const PopupMenuItem(
+                          value: 'delete',
+                          child: Text(
+                            'Delete Post',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
                     ),
                 ],
               );
@@ -365,13 +413,247 @@ class PostDetailScreen extends StatelessWidget {
       ),
     );
   }
+}
 
-  Widget _buildCommentsSection(
-    BuildContext context,
-    Post post,
-    FirestoreService fs,
-  ) {
-    final commentController = TextEditingController();
+class PostCommentsSection extends StatefulWidget {
+  final Post post;
+  final FirestoreService fs;
+
+  const PostCommentsSection({super.key, required this.post, required this.fs});
+
+  @override
+  State<PostCommentsSection> createState() => _PostCommentsSectionState();
+}
+
+class _PostCommentsSectionState extends State<PostCommentsSection> {
+  final TextEditingController _commentController = TextEditingController();
+  final FocusNode _focusNode = FocusNode();
+  String? _replyToCommentId;
+  String? _replyToCommentText;
+  String? _replyToCommentAuthor;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _cancelReply() {
+    setState(() {
+      _replyToCommentId = null;
+      _replyToCommentText = null;
+      _replyToCommentAuthor = null;
+    });
+  }
+
+  void _handleReply(String id, String text, String author) {
+    setState(() {
+      _replyToCommentId = id;
+      _replyToCommentText = text;
+      _replyToCommentAuthor = author;
+    });
+    _focusNode.requestFocus();
+  }
+
+  void _showReactionReplySheet(Comment comment) {
+    final bool isMyComment = comment.authorId == widget.fs.currentUserId;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Emojis
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: ['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) {
+                  return GestureDetector(
+                    onTap: () {
+                      widget.fs.toggleCommentReaction(
+                        postId: widget.post.id,
+                        commentId: comment.id,
+                        emoji: emoji,
+                      );
+                      Navigator.pop(context);
+                    },
+                    child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.pop(context);
+                  _handleReply(comment.id, comment.content, comment.authorName);
+                },
+              ),
+              if (isMyComment)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      await widget.fs.deleteComment(widget.post.id, comment.id);
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Comment deleted')),
+                        );
+                      }
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to delete: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCommentItem(Comment c, {bool isReply = false}) {
+    bool hasReactions = c.reactions != null && c.reactions!.isNotEmpty;
+
+    return GestureDetector(
+      onLongPress: () => _showReactionReplySheet(c),
+      child: Container(
+        color: Colors.transparent,
+        padding: EdgeInsets.only(
+          left: isReply ? 56 : 16,
+          right: 16,
+          top: 8,
+          bottom: 8,
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CircleAvatar(
+              radius: isReply ? 14 : 18,
+              backgroundColor: Colors.teal[50],
+              child: Text(
+                c.authorName[0].toUpperCase(),
+                style: TextStyle(
+                  color: Colors.teal[700],
+                  fontSize: isReply ? 12 : 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        c.authorName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: isReply ? 13 : 14,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _formatCommentTime(c.timestamp),
+                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  if (c.replyToCommentId != null && !isReply) ...[
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        border: Border(
+                          left: BorderSide(
+                            color: Colors.teal.shade300,
+                            width: 3,
+                          ),
+                        ),
+                        borderRadius: const BorderRadius.only(
+                          topRight: Radius.circular(4),
+                          bottomRight: Radius.circular(4),
+                        ),
+                      ),
+                      child: Text(
+                        'Replying to ${c.replyToCommentAuthor}: ${c.replyToCommentText}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                      ),
+                    ),
+                  ],
+                  if (isReply && c.replyToCommentAuthor != null) ...[
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4.0),
+                      child: Text(
+                        '@${c.replyToCommentAuthor} ',
+                        style: TextStyle(
+                          color: Colors.blue[600],
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ),
+                  ],
+                  Padding(
+                    padding: EdgeInsets.only(
+                      top: (isReply && c.replyToCommentAuthor != null)
+                          ? 2.0
+                          : 4.0,
+                    ),
+                    child: Text(
+                      c.content,
+                      style: TextStyle(
+                        color: const Color(0xFF4B5563),
+                        fontSize: isReply ? 13 : 14,
+                      ),
+                    ),
+                  ),
+                  if (hasReactions)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Wrap(
+                        spacing: 4,
+                        children: _buildReactionsWidgets(c.reactions!),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
       color: Colors.white,
       child: Column(
@@ -389,7 +671,7 @@ class PostDetailScreen extends StatelessWidget {
             ),
           ),
           StreamBuilder(
-            stream: fs.getComments(post.id),
+            stream: widget.fs.getComments(widget.post.id),
             builder: (context, snapshot) {
               if (!snapshot.hasData) {
                 return const Center(
@@ -399,8 +681,8 @@ class PostDetailScreen extends StatelessWidget {
                   ),
                 );
               }
-              final comments = snapshot.data as List;
-              if (comments.isEmpty) {
+              final commentsList = snapshot.data as List;
+              if (commentsList.isEmpty) {
                 return const Padding(
                   padding: EdgeInsets.all(24),
                   child: Center(
@@ -411,47 +693,58 @@ class PostDetailScreen extends StatelessWidget {
                   ),
                 );
               }
+
+              final List<Comment> comments = commentsList.cast<Comment>();
+              final Map<String, Comment> commentLookup = {
+                for (var c in comments) c.id: c,
+              };
+
+              String getRootId(String commentId) {
+                var currentId = commentId;
+                var current = commentLookup[currentId];
+                for (int i = 0; i < 10; i++) {
+                  if (current == null || current.replyToCommentId == null)
+                    break;
+                  if (commentLookup.containsKey(current.replyToCommentId)) {
+                    currentId = current.replyToCommentId!;
+                    current = commentLookup[currentId];
+                  } else {
+                    break; // Parent might be deleted, so this becomes a root
+                  }
+                }
+                return currentId;
+              }
+
+              final List<Comment> rootComments = [];
+              final Map<String, List<Comment>> repliesMap = {};
+
+              for (var c in comments) {
+                final rId = getRootId(c.id);
+                if (rId == c.id) {
+                  rootComments.add(c);
+                } else {
+                  repliesMap.putIfAbsent(rId, () => []).add(c);
+                }
+              }
+
               return ListView.separated(
                 physics: const NeverScrollableScrollPhysics(),
                 shrinkWrap: true,
-                itemCount: comments.length,
+                itemCount: rootComments.length,
                 separatorBuilder: (ctx, i) => const Divider(height: 1),
                 itemBuilder: (ctx, index) {
-                  final c = comments[index];
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundColor: Colors.teal[50],
-                      child: Text(
-                        c.authorName[0].toUpperCase(),
-                        style: TextStyle(
-                          color: Colors.teal[700],
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
+                  final root = rootComments[index];
+                  final replies = repliesMap[root.id] ?? [];
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildCommentItem(root, isReply: false),
+                      if (replies.isNotEmpty)
+                        ...replies.map(
+                          (reply) => _buildCommentItem(reply, isReply: true),
                         ),
-                      ),
-                    ),
-                    title: Text(
-                      c.authorName,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 4.0),
-                      child: Text(
-                        c.content,
-                        style: const TextStyle(
-                          color: Color(0xFF4B5563),
-                          fontSize: 14,
-                        ),
-                      ),
-                    ),
+                    ],
                   );
                 },
               );
@@ -469,43 +762,92 @@ class PostDetailScreen extends StatelessWidget {
               border: Border(top: BorderSide(color: Colors.grey[200]!)),
             ),
             child: SafeArea(
-              child: Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: commentController,
-                      decoration: InputDecoration(
-                        hintText: 'Add a comment...',
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
+                  if (_replyToCommentId != null)
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.reply, size: 16, color: Colors.teal[600]),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Replying to $_replyToCommentAuthor',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.teal[700],
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: _cancelReply,
+                            child: const Icon(
+                              Icons.close,
+                              size: 16,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.teal,
-                    radius: 20,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                        size: 18,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _commentController,
+                          focusNode: _focusNode,
+                          decoration: InputDecoration(
+                            hintText: 'Add a comment...',
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[100],
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(24),
+                              borderSide: BorderSide.none,
+                            ),
+                          ),
+                        ),
                       ),
-                      onPressed: () {
-                        if (commentController.text.trim().isNotEmpty) {
-                          fs.addComment(post.id, commentController.text.trim());
-                          commentController.clear();
-                        }
-                      },
-                    ),
+                      const SizedBox(width: 8),
+                      CircleAvatar(
+                        backgroundColor: Colors.teal,
+                        radius: 20,
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.send,
+                            color: Colors.white,
+                            size: 18,
+                          ),
+                          onPressed: () {
+                            if (_commentController.text.trim().isNotEmpty) {
+                              widget.fs.addComment(
+                                widget.post.id,
+                                _commentController.text.trim(),
+                                replyToCommentId: _replyToCommentId,
+                                replyToCommentText: _replyToCommentText,
+                                replyToCommentAuthor: _replyToCommentAuthor,
+                              );
+                              _commentController.clear();
+                              _cancelReply();
+                            }
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -514,5 +856,41 @@ class PostDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _formatCommentTime(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inDays > 0) return '${diff.inDays}d';
+    if (diff.inHours > 0) return '${diff.inHours}h';
+    if (diff.inMinutes > 0) return '${diff.inMinutes}m';
+    return 'now';
+  }
+
+  List<Widget> _buildReactionsWidgets(Map<String, String> reactionsMap) {
+    final counts = <String, int>{};
+    for (var emoji in reactionsMap.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+    return counts.entries.map((e) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[300]!),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(e.key, style: const TextStyle(fontSize: 12)),
+            const SizedBox(width: 4),
+            Text(
+              e.value.toString(),
+              style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+            ),
+          ],
+        ),
+      );
+    }).toList();
   }
 }

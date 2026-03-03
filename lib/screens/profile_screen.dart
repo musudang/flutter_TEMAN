@@ -87,13 +87,22 @@ class _ProfileScreenState extends State<ProfileScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            const Text(
-                              'Profile',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.w800,
-                                color: Color(0xFF1A1F36),
-                              ),
+                            Row(
+                              children: [
+                                if (Navigator.canPop(context))
+                                  const Padding(
+                                    padding: EdgeInsets.only(right: 8.0),
+                                    child: BackButton(color: Color(0xFF1A1F36)),
+                                  ),
+                                const Text(
+                                  'Profile',
+                                  style: TextStyle(
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.w800,
+                                    color: Color(0xFF1A1F36),
+                                  ),
+                                ),
+                              ],
                             ),
                             Row(
                               children: [

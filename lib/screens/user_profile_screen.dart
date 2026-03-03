@@ -5,6 +5,7 @@ import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
 import 'chat_screen.dart';
 import 'follow_list_screen.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// A screen that shows another user's public profile.
 /// Accessible by tapping a participant avatar in MeetupDetailScreen, etc.
@@ -83,6 +84,51 @@ class UserProfileScreen extends StatelessWidget {
                           color: Color(0xFF1A1F36),
                         ),
                       ),
+                      if (user.instagramId.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        GestureDetector(
+                          onTap: () async {
+                            final Uri url;
+                            if (user.instagramId.startsWith('http')) {
+                              url = Uri.parse(user.instagramId);
+                            } else {
+                              url = Uri.parse(
+                                'https://instagram.com/${user.instagramId}',
+                              );
+                            }
+                            if (!await launchUrl(
+                              url,
+                              mode: LaunchMode.externalApplication,
+                            )) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not launch Instagram'),
+                                  ),
+                                );
+                              }
+                            }
+                          },
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.link,
+                                size: 16,
+                                color: Colors.pink[400],
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Instagram',
+                                style: TextStyle(
+                                  color: Colors.pink[400],
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 6),
                       // Nationality + Age badges
                       Row(

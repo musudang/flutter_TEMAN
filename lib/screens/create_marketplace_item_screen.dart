@@ -4,7 +4,9 @@ import '../models/marketplace_model.dart';
 import '../services/firestore_service.dart';
 
 class CreateMarketplaceItemScreen extends StatefulWidget {
-  const CreateMarketplaceItemScreen({super.key});
+  final MarketplaceItem? editingItem;
+
+  const CreateMarketplaceItemScreen({super.key, this.editingItem});
 
   @override
   State<CreateMarketplaceItemScreen> createState() =>
@@ -23,6 +25,18 @@ class _CreateMarketplaceItemScreenState
   bool _isLoading = false;
 
   final List<String> _conditions = ['New', 'Like New', 'Used', 'Refurbished'];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editingItem != null) {
+      _titleController.text = widget.editingItem!.title;
+      _priceController.text = widget.editingItem!.price.toString();
+      _descriptionController.text = widget.editingItem!.description;
+      _categoryController.text = widget.editingItem!.category;
+      _condition = widget.editingItem!.condition;
+    }
+  }
 
   @override
   void dispose() {
@@ -58,14 +72,34 @@ class _CreateMarketplaceItemScreenState
           postedDate: DateTime.now(),
         );
 
-        await Provider.of<FirestoreService>(
-          context,
-          listen: false,
-        ).addMarketplaceItem(item);
+        if (widget.editingItem != null) {
+          await Provider.of<FirestoreService>(
+            context,
+            listen: false,
+          ).updateMarketplaceItem(widget.editingItem!.id, {
+            'title': item.title,
+            'price': item.price,
+            'description': item.description,
+            'condition': item.condition,
+            'category': item.category,
+            // imageUrls are placeholders for now
+          });
+        } else {
+          await Provider.of<FirestoreService>(
+            context,
+            listen: false,
+          ).addMarketplaceItem(item);
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Item posted successfully!')),
+            SnackBar(
+              content: Text(
+                widget.editingItem != null
+                    ? 'Item updated successfully!'
+                    : 'Item posted successfully!',
+              ),
+            ),
           );
           Navigator.pop(context);
         }
@@ -88,7 +122,9 @@ class _CreateMarketplaceItemScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Sell an Item')),
+      appBar: AppBar(
+        title: Text(widget.editingItem != null ? 'Edit Item' : 'Sell an Item'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -185,7 +221,12 @@ class _CreateMarketplaceItemScreenState
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Post Item', style: TextStyle(fontSize: 16)),
+                    : Text(
+                        widget.editingItem != null
+                            ? 'Update Item'
+                            : 'Post Item',
+                        style: const TextStyle(fontSize: 16),
+                      ),
               ),
             ],
           ),

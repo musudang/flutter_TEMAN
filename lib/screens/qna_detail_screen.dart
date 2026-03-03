@@ -4,6 +4,7 @@ import '../models/question_model.dart';
 import '../models/answer_model.dart';
 import '../services/firestore_service.dart';
 import 'package:intl/intl.dart';
+import 'create_qna_screen.dart';
 
 class QnaDetailScreen extends StatefulWidget {
   final Question question;
@@ -64,9 +65,66 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final firestoreService = Provider.of<FirestoreService>(context);
+    final isOwner = firestoreService.currentUserId == widget.question.authorId;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Q&A Detail')),
+      appBar: AppBar(
+        title: const Text('Q&A Detail'),
+        actions: [
+          if (isOwner)
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          CreateQnaScreen(editingQuestion: widget.question),
+                    ),
+                  );
+                } else if (value == 'delete') {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete Question?'),
+                      content: const Text('This action cannot be undone.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await firestoreService.deleteQuestion(widget.question.id);
+                    if (context.mounted) Navigator.pop(context);
+                  }
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Text('Edit Question'),
+                ),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Text(
+                    'Delete Question',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                ),
+              ],
+            ),
+        ],
+      ),
       body: Column(
         children: [
           Expanded(

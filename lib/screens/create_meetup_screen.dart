@@ -10,7 +10,9 @@ import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
 
 class CreateMeetupScreen extends StatefulWidget {
-  const CreateMeetupScreen({super.key});
+  final Meetup? editingMeetup;
+
+  const CreateMeetupScreen({super.key, this.editingMeetup});
 
   @override
   State<CreateMeetupScreen> createState() => _CreateMeetupScreenState();
@@ -28,6 +30,22 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   MeetupCategory _selectedCategory = MeetupCategory.other;
   int _maxParticipants = 5;
   bool _requiresApproval = false; // [NEW] Accept/Decline toggle
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editingMeetup != null) {
+      _titleController.text = widget.editingMeetup!.title;
+      _descriptionController.text = widget.editingMeetup!.description;
+      _locationController.text = widget.editingMeetup!.location;
+      _imageUrlController.text = widget.editingMeetup!.imageUrl;
+      _selectedDate = widget.editingMeetup!.dateTime;
+      _selectedTime = TimeOfDay.fromDateTime(widget.editingMeetup!.dateTime);
+      _selectedCategory = widget.editingMeetup!.category;
+      _maxParticipants = widget.editingMeetup!.maxParticipants;
+      _requiresApproval = widget.editingMeetup!.requiresApproval;
+    }
+  }
 
   // Image Upload State
   Uint8List? _imageBytes;
@@ -141,69 +159,90 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
         );
 
         // --- Check if user already has an active meetup ---
-        try {
-          // Force block if they already have *any* meetup where they are the host
-          final querySnapshot = await FirebaseFirestore.instance
-              .collection('meetups')
-              .where('hostId', isEqualTo: user.id)
-              .get();
+        if (widget.editingMeetup == null) {
+          try {
+            // Force block if they already have *any* meetup where they are the host
+            final querySnapshot = await FirebaseFirestore.instance
+                .collection('meetups')
+                .where('hostId', isEqualTo: user.id)
+                .get();
 
-          if (querySnapshot.docs.isNotEmpty) {
-            if (mounted) {
-              showDialog(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('주최 제한 안내'),
-                  content: const Text(
-                    '이미 개설하신 모임이 있습니다.\n기존 모임을 삭제한 후 새 모임을 개설해주세요.\n(1인당 1개의 모임만 개설 가능합니다)',
-                  ),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('확인'),
+            if (querySnapshot.docs.isNotEmpty) {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('주최 제한 안내'),
+                    content: const Text(
+                      '이미 개설하신 모임이 있습니다.\n기존 모임을 삭제한 후 새 모임을 개설해주세요.\n(1인당 1개의 모임만 개설 가능합니다)',
                     ),
-                  ],
-                ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('확인'),
+                      ),
+                    ],
+                  ),
+                );
+                setState(() => _isSubmitting = false);
+              }
+              return;
+            }
+          } catch (e) {
+            debugPrint('Error checking existing meetups: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to verify meetup limit: $e')),
               );
               setState(() => _isSubmitting = false);
             }
-            return;
+            return; // Block on error to prevent bypassing
           }
-        } catch (e) {
-          debugPrint('Error checking existing meetups: $e');
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Failed to verify meetup limit: $e')),
-            );
-            setState(() => _isSubmitting = false);
-          }
-          return; // Block on error to prevent bypassing
         }
         // --------------------------------------------------------
 
-        final newMeetup = Meetup(
-          id: const Uuid().v4(),
-          title: _titleController.text,
-          description: _descriptionController.text,
-          location: _locationController.text,
-          dateTime: dateTime,
-          category:
-              _selectedCategory, // This works because I added the picker earlier
-          maxParticipants: _maxParticipants,
-          requiresApproval: _requiresApproval, // [NEW] Accept/Decline toggle
-          host: user,
-          participantIds: [user.id],
-          imageUrl: finalImageUrl,
-          createdAt: DateTime.now(),
-        );
-
-        await firestoreService.addMeetup(newMeetup);
-
-        if (mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Meetup created successfully!')),
+        if (widget.editingMeetup != null) {
+          await firestoreService.updateMeetup(widget.editingMeetup!.id, {
+            'title': _titleController.text,
+            'description': _descriptionController.text,
+            'location': _locationController.text,
+            'dateTime': Timestamp.fromDate(dateTime),
+            'category': _selectedCategory.name,
+            'maxParticipants': _maxParticipants,
+            'requiresApproval': _requiresApproval,
+            'imageUrl': finalImageUrl,
+          });
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Meetup updated successfully!')),
+            );
+          }
+        } else {
+          final newMeetup = Meetup(
+            id: const Uuid().v4(),
+            title: _titleController.text,
+            description: _descriptionController.text,
+            location: _locationController.text,
+            dateTime: dateTime,
+            category:
+                _selectedCategory, // This works because I added the picker earlier
+            maxParticipants: _maxParticipants,
+            requiresApproval: _requiresApproval, // [NEW] Accept/Decline toggle
+            host: user,
+            participantIds: [user.id],
+            imageUrl: finalImageUrl,
+            createdAt: DateTime.now(),
           );
+
+          await firestoreService.addMeetup(newMeetup);
+
+          if (mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Meetup created successfully!')),
+            );
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -219,7 +258,11 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Create Meetup')),
+      appBar: AppBar(
+        title: Text(
+          widget.editingMeetup != null ? 'Edit Meetup' : 'Create Meetup',
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -468,9 +511,11 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                           width: 24,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                      : const Text(
-                          'Create Meetup',
-                          style: TextStyle(fontSize: 18),
+                      : Text(
+                          widget.editingMeetup != null
+                              ? 'Update Meetup'
+                              : 'Create Meetup',
+                          style: const TextStyle(fontSize: 18),
                         ),
                 ),
               ),

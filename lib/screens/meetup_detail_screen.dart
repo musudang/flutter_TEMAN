@@ -8,6 +8,7 @@ import 'meetup_chat_screen.dart';
 import 'user_profile_screen.dart';
 import 'meetup_comments_sheet.dart';
 import 'share_content_sheet.dart';
+import 'create_meetup_screen.dart';
 
 class MeetupDetailScreen extends StatelessWidget {
   final String meetupId;
@@ -68,7 +69,15 @@ class MeetupDetailScreen extends StatelessWidget {
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   onSelected: (value) async {
-                    if (value == 'delete') {
+                    if (value == 'edit') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              CreateMeetupScreen(editingMeetup: meetup),
+                        ),
+                      );
+                    } else if (value == 'delete') {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (ctx) => AlertDialog(
@@ -116,6 +125,10 @@ class MeetupDetailScreen extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit Meetup'),
+                    ),
                     const PopupMenuItem(
                       value: 'delete',
                       child: Text(

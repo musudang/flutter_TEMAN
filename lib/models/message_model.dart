@@ -10,6 +10,12 @@ class Message {
   final String? sharedPostTitle;
   final String? sharedPostDescription;
 
+  // New fields
+  final String? replyToMessageId;
+  final String? replyToMessageText;
+  final String? replyToMessageSender;
+  final Map<String, String>? reactions;
+
   Message({
     required this.id,
     required this.senderId,
@@ -21,5 +27,9 @@ class Message {
     this.sharedPostType,
     this.sharedPostTitle,
     this.sharedPostDescription,
+    this.replyToMessageId,
+    this.replyToMessageText,
+    this.replyToMessageSender,
+    this.reactions,
   });
 }

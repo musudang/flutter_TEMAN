@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/message_model.dart';
@@ -21,6 +22,7 @@ class MeetupChatScreen extends StatefulWidget {
 class _MeetupChatScreenState extends State<MeetupChatScreen> {
   final _messageController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+  Message? _repliedMessage;
 
   @override
   void dispose() {
@@ -33,14 +35,27 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
     final content = _messageController.text.trim();
     if (content.isEmpty) return;
 
-    _messageController.clear();
-
     final firestoreService = Provider.of<FirestoreService>(
       context,
       listen: false,
     );
 
-    await firestoreService.sendMeetupMessage(widget.meetupId, content);
+    final replyToMessageId = _repliedMessage?.id;
+    final replyToMessageText = _repliedMessage?.content;
+    final replyToMessageSender = _repliedMessage?.senderName;
+
+    _messageController.clear();
+    setState(() {
+      _repliedMessage = null;
+    });
+
+    await firestoreService.sendMeetupMessage(
+      widget.meetupId,
+      content,
+      replyToMessageId: replyToMessageId,
+      replyToMessageText: replyToMessageText,
+      replyToMessageSender: replyToMessageSender,
+    );
 
     // Scroll to bottom after sending
     if (_scrollController.hasClients) {
@@ -150,6 +165,14 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
                   return const Center(child: CircularProgressIndicator());
                 }
 
+                if (snapshot.hasData) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    try {
+                      firestoreService.markConversationAsRead(widget.meetupId);
+                    } catch (_) {}
+                  });
+                }
+
                 final messages = snapshot.data ?? [];
                 if (messages.isEmpty) {
                   return const Center(
@@ -175,6 +198,45 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
               },
             ),
           ),
+          if (_repliedMessage != null)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.grey[100],
+              child: Row(
+                children: [
+                  const Icon(Icons.reply, size: 20, color: Colors.blue),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Replying to ${_repliedMessage!.senderName}',
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          _repliedMessage!.content,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => setState(() => _repliedMessage = null),
+                  ),
+                ],
+              ),
+            ),
           _buildMessageInput(),
         ],
       ),
@@ -228,51 +290,129 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
             const SizedBox(width: 8),
           ],
           Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: isMe ? Colors.blue : Colors.grey[200],
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(16),
-                  topRight: const Radius.circular(16),
-                  bottomLeft: Radius.circular(isMe ? 16 : 4),
-                  bottomRight: Radius.circular(isMe ? 4 : 16),
-                ),
-              ),
+            child: GestureDetector(
+              onLongPress: () => _showMessageOptions(context, message, isMe),
               child: Column(
                 crossAxisAlignment: isMe
                     ? CrossAxisAlignment.end
                     : CrossAxisAlignment.start,
                 children: [
-                  if (!isMe)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 4),
-                      child: Text(
-                        message.senderName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.grey[700],
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isMe ? Colors.blue : Colors.grey[200],
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(16),
+                        topRight: const Radius.circular(16),
+                        bottomLeft: Radius.circular(isMe ? 16 : 4),
+                        bottomRight: Radius.circular(isMe ? 4 : 16),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: isMe
+                          ? CrossAxisAlignment.end
+                          : CrossAxisAlignment.start,
+                      children: [
+                        if (!isMe)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 4),
+                            child: Text(
+                              message.senderName,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.grey[700],
+                              ),
+                            ),
+                          ),
+                        if (message.replyToMessageId != null)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.blue[700] : Colors.grey[300],
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  message.replyToMessageSender ?? 'Someone',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    color: isMe ? Colors.white70 : Colors.blue,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  message.replyToMessageText ?? '',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: isMe
+                                        ? Colors.white70
+                                        : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        Text(
+                          message.content,
+                          style: TextStyle(
+                            color: isMe ? Colors.white : Colors.black87,
+                            fontSize: 15,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          timeString,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: isMe
+                                ? Colors.white.withValues(alpha: 0.7)
+                                : Colors.grey[600],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (message.reactions != null &&
+                      message.reactions!.isNotEmpty)
+                    Transform.translate(
+                      offset: const Offset(0, -8),
+                      child: Container(
+                        margin: EdgeInsets.only(
+                          left: isMe ? 0 : 8,
+                          right: isMe ? 8 : 0,
+                        ),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!),
+                          boxShadow: const [
+                            BoxShadow(
+                              color: Colors.black12,
+                              blurRadius: 2,
+                              offset: Offset(0, 1),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: _buildReactionIcons(message.reactions!),
                         ),
                       ),
                     ),
-                  Text(
-                    message.content,
-                    style: TextStyle(
-                      color: isMe ? Colors.white : Colors.black87,
-                      fontSize: 15,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    timeString,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: isMe
-                          ? Colors.white.withValues(alpha: 0.7)
-                          : Colors.grey[600],
-                    ),
-                  ),
                 ],
               ),
             ),
@@ -280,6 +420,130 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
         ],
       ),
     );
+  }
+
+  void _showMessageOptions(BuildContext context, Message message, bool isMe) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    _buildEmojiButton(context, message, '❤️'),
+                    _buildEmojiButton(context, message, '😂'),
+                    _buildEmojiButton(context, message, '😮'),
+                    _buildEmojiButton(context, message, '😢'),
+                    _buildEmojiButton(context, message, '🙏'),
+                    _buildEmojiButton(context, message, '👍'),
+                  ],
+                ),
+              ),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.pop(context);
+                  setState(() {
+                    _repliedMessage = message;
+                  });
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.copy),
+                title: const Text('Copy Text'),
+                onTap: () {
+                  Clipboard.setData(ClipboardData(text: message.content));
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Message copied')),
+                  );
+                },
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmojiButton(
+    BuildContext context,
+    Message message,
+    String emoji,
+  ) {
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        Provider.of<FirestoreService>(
+          context,
+          listen: false,
+        ).toggleMessageReaction(
+          conversationId: widget.meetupId,
+          messageId: message.id,
+          emoji: emoji,
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(
+          color:
+              message.reactions?.containsValue(emoji) == true &&
+                  message.reactions?[Provider.of<FirestoreService>(
+                        context,
+                        listen: false,
+                      ).currentUserId] ==
+                      emoji
+              ? Colors.blue.withValues(alpha: 0.2)
+              : Colors.transparent,
+          shape: BoxShape.circle,
+        ),
+        child: Text(emoji, style: const TextStyle(fontSize: 28)),
+      ),
+    );
+  }
+
+  List<Widget> _buildReactionIcons(Map<String, String> reactions) {
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+
+    final sortedEmojis = counts.keys.toList()
+      ..sort((a, b) => counts[b]!.compareTo(counts[a]!));
+
+    return sortedEmojis.map((emoji) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(emoji, style: const TextStyle(fontSize: 12)),
+            if (counts[emoji]! > 1)
+              Padding(
+                padding: const EdgeInsets.only(left: 2),
+                child: Text(
+                  '${counts[emoji]}',
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.blue,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      );
+    }).toList();
   }
 
   Widget _buildMessageInput() {

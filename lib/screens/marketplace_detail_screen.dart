@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import 'user_profile_screen.dart';
 import 'profile_screen.dart';
 import 'chat_screen.dart';
+import 'create_marketplace_item_screen.dart';
 
 class MarketplaceDetailScreen extends StatefulWidget {
   final MarketplaceItem item;
@@ -62,7 +63,59 @@ class _MarketplaceDetailScreenState extends State<MarketplaceDetailScreen> {
     final currencyFormat = NumberFormat.currency(locale: 'ko_KR', symbol: '₩');
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Item Details')),
+      appBar: AppBar(
+        title: const Text('Item Details'),
+        actions: [
+          if (isOwnListing)
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) =>
+                          CreateMarketplaceItemScreen(editingItem: widget.item),
+                    ),
+                  );
+                } else if (value == 'delete') {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete Item?'),
+                      content: const Text('This action cannot be undone.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await firestoreService.deleteMarketplaceItem(
+                      widget.item.id,
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  }
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'edit', child: Text('Edit Item')),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Delete Item'),
+                ),
+              ],
+            ),
+        ],
+      ),
       body: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
@@ -10,11 +11,13 @@ import '../models/meetup_model.dart';
 import '../models/marketplace_model.dart';
 import '../models/job_model.dart';
 import '../models/user_model.dart' as app_models;
+import '../models/post_model.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final String? initialPostText;
+  final Post? editingPost;
 
-  const CreatePostScreen({super.key, this.initialPostText});
+  const CreatePostScreen({super.key, this.initialPostText, this.editingPost});
 
   @override
   State<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -112,11 +115,67 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     'Freelance',
   ];
 
+  // Event-specific fields
+  String _eventSubCategory = 'ALL';
+  final List<String> _eventSubCategories = [
+    'ALL',
+    'CONCERT',
+    'LOCAL FESTIVAL',
+    'ACADEMIC',
+    'CAREER',
+    'EXPO',
+    'EXHIBITION',
+    'POP-UP',
+    'NETWORKING',
+    'OTHERS',
+  ];
+  DateTime? _eventDate;
+
+  // Q&A-specific fields
+  String _qnaSubCategory = 'ALL';
+  final List<String> _qnaSubCategories = [
+    'ALL',
+    'IMMIGRATION',
+    'ACADEMICS',
+    'HOUSING',
+    'JOBS',
+    'DAILY LIFE',
+    'LANGUAGE',
+    'OTHERS',
+  ];
+
   @override
   void initState() {
     super.initState();
     if (widget.initialPostText != null) {
       _contentController.text = widget.initialPostText!;
+    }
+    if (widget.editingPost != null) {
+      _titleController.text = widget.editingPost!.title;
+      _contentController.text = widget.editingPost!.content;
+      _imageUrlController.text = widget.editingPost!.imageUrl;
+      switch (widget.editingPost!.category) {
+        case 'qna':
+          _selectedCategory = 'Q&A';
+          _qnaSubCategory = widget.editingPost!.subCategory ?? 'ALL';
+          break;
+        case 'meetups':
+          _selectedCategory = 'Meetup';
+          break;
+        case 'market':
+          _selectedCategory = 'Market';
+          break;
+        case 'jobs':
+          _selectedCategory = 'Job';
+          break;
+        case 'events':
+          _selectedCategory = 'Event';
+          _eventSubCategory = widget.editingPost!.subCategory ?? 'ALL';
+          _eventDate = widget.editingPost!.eventDate;
+          break;
+        default:
+          _selectedCategory = 'General';
+      }
     }
   }
 
@@ -175,23 +234,55 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         setState(() => _isUploadingImage = false);
       }
 
-      if (_selectedCategory == 'Meetup') {
-        await _submitMeetup(firestoreService, user);
-      } else if (_selectedCategory == 'Market') {
-        await _submitMarketItem(firestoreService, user);
-      } else if (_selectedCategory == 'Job') {
-        await _submitJob(firestoreService, user);
+      if (widget.editingPost != null &&
+          widget.editingPost!.category == 'general' &&
+          _selectedCategory == 'General') {
+        await firestoreService.updatePost(widget.editingPost!.id, {
+          'title': _titleController.text.trim(),
+          'content': _contentController.text.trim(),
+          'imageUrl': _imageUrlController.text.trim(),
+          'category': _firestoreCategory,
+          'subCategory': null,
+          'eventDate': null,
+        });
       } else {
-        // General, Q&A, Event → standard post with correct category
-        await firestoreService.addPost(
-          _titleController.text.trim(),
-          _contentController.text.trim(),
-          user.id,
-          user.name,
-          imageUrl: _imageUrlController.text.trim(),
-          category: _firestoreCategory,
-          authorAvatar: user.avatarUrl,
-        );
+        if (_selectedCategory == 'Meetup') {
+          await _submitMeetup(firestoreService, user);
+        } else if (_selectedCategory == 'Market') {
+          await _submitMarketItem(firestoreService, user);
+        } else if (_selectedCategory == 'Job') {
+          await _submitJob(firestoreService, user);
+        } else {
+          // General, Q&A, Event → standard post with correct category
+          if (widget.editingPost != null) {
+            await firestoreService.updatePost(widget.editingPost!.id, {
+              'title': _titleController.text.trim(),
+              'content': _contentController.text.trim(),
+              'imageUrl': _imageUrlController.text.trim(),
+              'category': _firestoreCategory,
+              'subCategory': _selectedCategory == 'Event'
+                  ? _eventSubCategory
+                  : (_selectedCategory == 'Q&A' ? _qnaSubCategory : null),
+              'eventDate': _selectedCategory == 'Event' && _eventDate != null
+                  ? Timestamp.fromDate(_eventDate!)
+                  : null,
+            });
+          } else {
+            await firestoreService.addPost(
+              _titleController.text.trim(),
+              _contentController.text.trim(),
+              user.id,
+              user.name,
+              imageUrl: _imageUrlController.text.trim(),
+              category: _firestoreCategory,
+              authorAvatar: user.avatarUrl,
+              subCategory: _selectedCategory == 'Event'
+                  ? _eventSubCategory
+                  : (_selectedCategory == 'Q&A' ? _qnaSubCategory : null),
+              eventDate: _selectedCategory == 'Event' ? _eventDate : null,
+            );
+          }
+        }
       }
 
       if (mounted) {
@@ -312,9 +403,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        title: const Text(
-          'Create',
-          style: TextStyle(fontWeight: FontWeight.w700),
+        title: Text(
+          widget.editingPost != null ? 'Edit Post' : 'Create',
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.white,
         foregroundColor: const Color(0xFF1A1F36),
@@ -330,9 +421,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       height: 20,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Text(
-                      'Post',
-                      style: TextStyle(
+                  : Text(
+                      widget.editingPost != null ? 'Update' : 'Post',
+                      style: const TextStyle(
                         color: Colors.teal,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -698,6 +789,53 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   label: 'Location',
                   hint: 'e.g. Seoul, Gangnam',
                   icon: Icons.location_on_outlined,
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Q&A-specific fields ──
+              if (_selectedCategory == 'Q&A') ...[
+                _buildDropdown(
+                  label: 'Q&A Category',
+                  value: _qnaSubCategory,
+                  items: _qnaSubCategories,
+                  onChanged: (v) =>
+                      setState(() => _qnaSubCategory = v ?? 'ALL'),
+                ),
+                const SizedBox(height: 16),
+              ],
+
+              // ── Event-specific fields ──
+              if (_selectedCategory == 'Event') ...[
+                _buildDropdown(
+                  label: 'Event Category',
+                  value: _eventSubCategory,
+                  items: _eventSubCategories,
+                  onChanged: (v) =>
+                      setState(() => _eventSubCategory = v ?? 'ALL'),
+                ),
+                const SizedBox(height: 16),
+                GestureDetector(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _eventDate ?? DateTime.now(),
+                      firstDate: DateTime.now().subtract(
+                        const Duration(days: 365),
+                      ),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (picked != null) {
+                      setState(() => _eventDate = picked);
+                    }
+                  },
+                  child: _buildReadonlyField(
+                    label: 'Event Date',
+                    value: _eventDate != null
+                        ? '${_eventDate!.month}/${_eventDate!.day}/${_eventDate!.year}'
+                        : 'Select Date',
+                    icon: Icons.calendar_today_outlined,
+                  ),
                 ),
                 const SizedBox(height: 16),
               ],

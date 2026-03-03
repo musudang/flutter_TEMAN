@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/job_model.dart';
+import '../services/firestore_service.dart';
 import 'package:intl/intl.dart';
+import 'create_job_screen.dart';
 
 class JobDetailScreen extends StatelessWidget {
   final Job job;
@@ -9,8 +12,57 @@ class JobDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final isOwner = fs.currentUserId == job.authorId;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Job Details')),
+      appBar: AppBar(
+        title: const Text('Job Details'),
+        actions: [
+          if (isOwner)
+            PopupMenuButton<String>(
+              onSelected: (value) async {
+                if (value == 'edit') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => CreateJobScreen(editingJob: job),
+                    ),
+                  );
+                } else if (value == 'delete') {
+                  final confirm = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      title: const Text('Delete Job?'),
+                      content: const Text('This action cannot be undone.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: const Text('Cancel'),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text(
+                            'Delete',
+                            style: TextStyle(color: Colors.red),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                  if (confirm == true) {
+                    await fs.deleteJob(job.id);
+                    if (context.mounted) Navigator.pop(context);
+                  }
+                }
+              },
+              itemBuilder: (ctx) => [
+                const PopupMenuItem(value: 'edit', child: Text('Edit Job')),
+                const PopupMenuItem(value: 'delete', child: Text('Delete Job')),
+              ],
+            ),
+        ],
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(

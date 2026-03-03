@@ -137,7 +137,126 @@ class FirestoreService extends ChangeNotifier {
     if (personalInfo != null) data['personalInfo'] = personalInfo;
     if (instagramId != null) data['instagramId'] = instagramId;
 
-    await _db.collection('users').doc(uid).update(data);
+    // We use a WriteBatch to update the user profile AND propagate changes to their posts
+    final batch = _db.batch();
+    final userRef = _db.collection('users').doc(uid);
+    batch.update(userRef, data);
+
+    // Prepare shared data for propagation
+    final Map<String, dynamic> postUpdateData = {'authorName': name};
+    if (avatarUrl != null) postUpdateData['authorAvatar'] = avatarUrl;
+
+    final Map<String, dynamic> jobUpdateData = {'employerName': name};
+    if (avatarUrl != null) jobUpdateData['employerAvatar'] = avatarUrl;
+
+    final Map<String, dynamic> marketplaceUpdateData = {'sellerName': name};
+    if (avatarUrl != null) marketplaceUpdateData['sellerAvatar'] = avatarUrl;
+
+    try {
+      // 1. Update Posts
+      try {
+        final postsSnap = await _db
+            .collection('posts')
+            .where('authorId', isEqualTo: uid)
+            .get();
+        for (var doc in postsSnap.docs) {
+          batch.update(doc.reference, postUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating posts profile: $e');
+      }
+
+      // 2. Update Meetups
+      try {
+        final meetupsSnap = await _db
+            .collection('meetups')
+            .where('hostId', isEqualTo: uid)
+            .get();
+        for (var doc in meetupsSnap.docs) {
+          final Map<String, dynamic> hostUpdateData = {'hostName': name};
+          if (avatarUrl != null) hostUpdateData['hostAvatar'] = avatarUrl;
+          batch.update(doc.reference, hostUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating meetups profile: $e');
+      }
+
+      // 3. Update Jobs
+      try {
+        final jobsSnap = await _db
+            .collection('jobs')
+            .where('authorId', isEqualTo: uid)
+            .get();
+        for (var doc in jobsSnap.docs) {
+          batch.update(doc.reference, jobUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating jobs profile: $e');
+      }
+
+      // 4. Update Marketplace
+      try {
+        final marketSnap = await _db
+            .collection('marketplace')
+            .where('sellerId', isEqualTo: uid)
+            .get();
+        for (var doc in marketSnap.docs) {
+          batch.update(doc.reference, marketplaceUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating marketplace profile: $e');
+      }
+
+      // 5. Update QnA Questions
+      try {
+        final qnaSnap = await _db
+            .collection('questions')
+            .where('authorId', isEqualTo: uid)
+            .get();
+        for (var doc in qnaSnap.docs) {
+          batch.update(doc.reference, postUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating questions profile: $e');
+      }
+
+      // 6. Update Comments (Collection Group)
+      try {
+        final commentsSnap = await _db
+            .collectionGroup('comments')
+            .where('authorId', isEqualTo: uid)
+            .get();
+        for (var doc in commentsSnap.docs) {
+          batch.update(doc.reference, postUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating comments profile (might need index): $e');
+      }
+
+      // 7. Update QNA Answers (Collection Group)
+      try {
+        final answersSnap = await _db
+            .collectionGroup('answers')
+            .where('authorId', isEqualTo: uid)
+            .get();
+        for (var doc in answersSnap.docs) {
+          batch.update(doc.reference, postUpdateData);
+        }
+      } catch (e) {
+        debugPrint('Error updating answers profile (might need index): $e');
+      }
+
+      await batch.commit();
+    } catch (e) {
+      debugPrint('Error during final batch commit: $e');
+    } finally {
+      // Even if propagating fails, we still want to ensure the user doc tries to update
+      try {
+        await userRef.update(data);
+      } catch (e) {
+        debugPrint('Error updating main user doc: $e');
+      }
+    }
   }
 
   Future<bool> isAdmin() async {
@@ -644,6 +763,21 @@ class FirestoreService extends ChangeNotifier {
     }
   }
 
+  Future<void> updateMeetup(String meetupId, Map<String, dynamic> data) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docSnapshot = await _db.collection('meetups').doc(meetupId).get();
+    if (!docSnapshot.exists) return;
+
+    final meetupData = docSnapshot.data();
+    if (meetupData != null && meetupData['hostId'] == uid) {
+      await _db.collection('meetups').doc(meetupId).update(data);
+    } else {
+      throw Exception('Only the host can update this meetup');
+    }
+  }
+
   Meetup _meetupFromDocument(DocumentSnapshot doc) {
     return _fromDocument(doc);
   }
@@ -1023,6 +1157,8 @@ class FirestoreService extends ChangeNotifier {
       category: data['category'] ?? 'general',
       scrappedBy: List<String>.from(data['scrappedBy'] ?? []),
       authorAvatar: data['authorAvatar'] ?? '',
+      subCategory: data['subCategory'],
+      eventDate: (data['eventDate'] as Timestamp?)?.toDate(),
     );
   }
 
@@ -1034,6 +1170,8 @@ class FirestoreService extends ChangeNotifier {
     String? imageUrl,
     String category = 'general',
     String authorAvatar = '',
+    String? subCategory,
+    DateTime? eventDate,
   }) async {
     if (_auth.currentUser == null) {
       debugPrint('Error: User must be logged in to write to Firestore');
@@ -1056,6 +1194,8 @@ class FirestoreService extends ChangeNotifier {
         'imageUrl': imageUrl ?? '',
         'category': category,
         'authorAvatar': authorAvatar,
+        if (subCategory != null) 'subCategory': subCategory,
+        if (eventDate != null) 'eventDate': Timestamp.fromDate(eventDate),
       });
       debugPrint("Post saved successfully!");
     } catch (e) {
@@ -1080,6 +1220,22 @@ class FirestoreService extends ChangeNotifier {
       debugPrint("Post $postId deleted.");
     } else {
       debugPrint("Permission denied: cannot delete post $postId");
+    }
+  }
+
+  Future<void> updatePost(String postId, Map<String, dynamic> data) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('posts').doc(postId).get();
+    if (!doc.exists) return;
+
+    final postData = doc.data()!;
+    if (postData['authorId'] == uid) {
+      await _db.collection('posts').doc(postId).update(data);
+      debugPrint("Post $postId updated.");
+    } else {
+      debugPrint("Permission denied: cannot update post $postId");
     }
   }
 
@@ -1189,12 +1345,24 @@ class FirestoreService extends ChangeNotifier {
               authorAvatar: data['authorAvatar'] ?? '',
               timestamp:
                   (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+              replyToCommentId: data['replyToCommentId'],
+              replyToCommentText: data['replyToCommentText'],
+              replyToCommentAuthor: data['replyToCommentAuthor'],
+              reactions: (data['reactions'] as Map<String, dynamic>?)?.map(
+                (k, v) => MapEntry(k, v.toString()),
+              ),
             );
           }).toList();
         });
   }
 
-  Future<void> addComment(String postId, String content) async {
+  Future<void> addComment(
+    String postId,
+    String content, {
+    String? replyToCommentId,
+    String? replyToCommentText,
+    String? replyToCommentAuthor,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Must be logged in to comment');
 
@@ -1211,6 +1379,12 @@ class FirestoreService extends ChangeNotifier {
           'authorName': userData?.name ?? 'Unknown',
           'authorAvatar': userData?.avatarUrl ?? '',
           'timestamp': FieldValue.serverTimestamp(),
+          if (replyToCommentId != null) 'replyToCommentId': replyToCommentId,
+          if (replyToCommentText != null)
+            'replyToCommentText': replyToCommentText,
+          if (replyToCommentAuthor != null)
+            'replyToCommentAuthor': replyToCommentAuthor,
+          'reactions': {},
         });
 
         transaction.update(postRef, {'comments': FieldValue.increment(1)});
@@ -1233,6 +1407,74 @@ class FirestoreService extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error adding comment: $e");
       rethrow;
+    }
+  }
+
+  Future<void> deleteComment(String postId, String commentId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Must be logged in to delete a comment');
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final commentRef = _db
+            .collection('posts')
+            .doc(postId)
+            .collection('comments')
+            .doc(commentId);
+
+        final snapshot = await transaction.get(commentRef);
+        if (!snapshot.exists) throw Exception('Comment not found');
+
+        final data = snapshot.data();
+        if (data?['authorId'] != user.uid) {
+          throw Exception('Not authorized to delete this comment');
+        }
+
+        final postRef = _db.collection('posts').doc(postId);
+
+        transaction.delete(commentRef);
+        transaction.update(postRef, {'comments': FieldValue.increment(-1)});
+      });
+    } catch (e) {
+      debugPrint("Error deleting comment: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> toggleCommentReaction({
+    required String postId,
+    required String commentId,
+    required String emoji,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _db
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId);
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final reactions = Map<String, String>.from(
+          data['reactions'] as Map<dynamic, dynamic>? ?? {},
+        );
+
+        if (reactions[uid] == emoji) {
+          reactions.remove(uid); // Toggle off if same emoji
+        } else {
+          reactions[uid] = emoji; // Add or change emoji
+        }
+
+        transaction.update(docRef, {'reactions': reactions});
+      });
+    } catch (e) {
+      debugPrint("Error toggling comment reaction: $e");
     }
   }
 
@@ -1278,6 +1520,39 @@ class FirestoreService extends ChangeNotifier {
       'timestamp': FieldValue.serverTimestamp(),
       'answersCount': 0,
     });
+  }
+
+  Future<void> updateQuestion(
+    String questionId,
+    Map<String, dynamic> data,
+  ) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('questions').doc(questionId).get();
+    if (!doc.exists) return;
+
+    final docData = doc.data()!;
+    if (docData['authorId'] == uid) {
+      await _db.collection('questions').doc(questionId).update(data);
+    } else {
+      throw Exception('Permission denied');
+    }
+  }
+
+  Future<void> deleteQuestion(String questionId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('questions').doc(questionId).get();
+    if (!doc.exists) return;
+
+    final docData = doc.data()!;
+    if (docData['authorId'] == uid) {
+      await _db.collection('questions').doc(questionId).delete();
+    } else {
+      throw Exception('Permission denied');
+    }
   }
 
   // ===================== ANSWERS =====================
@@ -1344,7 +1619,13 @@ class FirestoreService extends ChangeNotifier {
     return getChatMessages(meetupId);
   }
 
-  Future<void> sendMeetupMessage(String meetupId, String content) async {
+  Future<void> sendMeetupMessage(
+    String meetupId,
+    String content, {
+    String? replyToMessageId,
+    String? replyToMessageText,
+    String? replyToMessageSender,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -1390,13 +1671,27 @@ class FirestoreService extends ChangeNotifier {
         'senderAvatar': userData?.avatarUrl ?? '',
         'content': content,
         'timestamp': FieldValue.serverTimestamp(),
+        'replyToMessageId': replyToMessageId,
+        'replyToMessageText': replyToMessageText,
+        'replyToMessageSender': replyToMessageSender,
       });
 
       // Update conversation
-      await convRef.update({
+      final docToUpdate = await convRef.get();
+      final participantsList = docToUpdate.exists
+          ? List<String>.from(docToUpdate.data()?['participantIds'] ?? [])
+          : <String>[];
+      final updates = <String, dynamic>{
         'lastMessage': content,
         'lastMessageTime': FieldValue.serverTimestamp(),
-      });
+      };
+      for (final pid in participantsList) {
+        if (pid != user.uid) {
+          updates['unreadCounts.$pid'] = FieldValue.increment(1);
+        }
+      }
+
+      await convRef.update(updates);
     } catch (e) {
       debugPrint("❌ Error sending meetup message: $e");
       rethrow;
@@ -1439,6 +1734,36 @@ class FirestoreService extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error adding job: $e");
       rethrow;
+    }
+  }
+
+  Future<void> updateJob(String jobId, Map<String, dynamic> data) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('jobs').doc(jobId).get();
+    if (!doc.exists) return;
+
+    final docData = doc.data()!;
+    if (docData['authorId'] == uid) {
+      await _db.collection('jobs').doc(jobId).update(data);
+    } else {
+      throw Exception('Permission denied');
+    }
+  }
+
+  Future<void> deleteJob(String jobId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('jobs').doc(jobId).get();
+    if (!doc.exists) return;
+
+    final docData = doc.data()!;
+    if (docData['authorId'] == uid) {
+      await _db.collection('jobs').doc(jobId).delete();
+    } else {
+      throw Exception('Permission denied');
     }
   }
 
@@ -1515,6 +1840,39 @@ class FirestoreService extends ChangeNotifier {
     }
   }
 
+  Future<void> updateMarketplaceItem(
+    String itemId,
+    Map<String, dynamic> data,
+  ) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('marketplace').doc(itemId).get();
+    if (!doc.exists) return;
+
+    final docData = doc.data()!;
+    if (docData['sellerId'] == uid) {
+      await _db.collection('marketplace').doc(itemId).update(data);
+    } else {
+      throw Exception('Permission denied');
+    }
+  }
+
+  Future<void> deleteMarketplaceItem(String itemId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final doc = await _db.collection('marketplace').doc(itemId).get();
+    if (!doc.exists) return;
+
+    final docData = doc.data()!;
+    if (docData['sellerId'] == uid) {
+      await _db.collection('marketplace').doc(itemId).delete();
+    } else {
+      throw Exception('Permission denied');
+    }
+  }
+
   MarketplaceItem _marketplaceItemFromDocument(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return MarketplaceItem(
@@ -1579,6 +1937,42 @@ class FirestoreService extends ChangeNotifier {
           );
           return conversations;
         });
+  }
+
+  Stream<int> getTotalUnreadMessageCount() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(0);
+
+    return _db
+        .collection('conversations')
+        .where('participantIds', arrayContains: uid)
+        .snapshots()
+        .map((snapshot) {
+          int total = 0;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final unreads = data['unreadCounts'];
+            if (unreads != null && unreads is Map) {
+              final count = unreads[uid];
+              if (count is num) {
+                total += count.toInt();
+              }
+            }
+          }
+          return total;
+        });
+  }
+
+  Future<void> markConversationAsRead(String conversationId) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      await _db.collection('conversations').doc(conversationId).update({
+        'unreadCounts.$uid': 0,
+      });
+    } catch (e) {
+      debugPrint("Error marking conversation as read: $e");
+    }
   }
 
   Future<String> getOrCreateConversation(String otherUserId) async {
@@ -1665,6 +2059,12 @@ class FirestoreService extends ChangeNotifier {
               sharedPostType: data['sharedPostType'],
               sharedPostTitle: data['sharedPostTitle'],
               sharedPostDescription: data['sharedPostDescription'],
+              replyToMessageId: data['replyToMessageId'],
+              replyToMessageText: data['replyToMessageText'],
+              replyToMessageSender: data['replyToMessageSender'],
+              reactions: data['reactions'] != null
+                  ? Map<String, String>.from(data['reactions'])
+                  : null,
             );
           }).toList();
         });
@@ -1677,6 +2077,9 @@ class FirestoreService extends ChangeNotifier {
     String? sharedPostType,
     String? sharedPostTitle,
     String? sharedPostDescription,
+    String? replyToMessageId,
+    String? replyToMessageText,
+    String? replyToMessageSender,
   }) async {
     final user = await getCurrentUser();
     if (user == null || content.trim().isEmpty) return;
@@ -1693,6 +2096,9 @@ class FirestoreService extends ChangeNotifier {
       'sharedPostType': sharedPostType,
       'sharedPostTitle': sharedPostTitle,
       'sharedPostDescription': sharedPostDescription,
+      'replyToMessageId': replyToMessageId,
+      'replyToMessageText': replyToMessageText,
+      'replyToMessageSender': replyToMessageSender,
     };
 
     try {
@@ -1700,13 +2106,27 @@ class FirestoreService extends ChangeNotifier {
         final conversationRef = _db
             .collection('conversations')
             .doc(conversationId);
+
+        final snapshot = await transaction.get(conversationRef);
+        final participants = snapshot.exists
+            ? List<String>.from(snapshot.data()?['participantIds'] ?? [])
+            : <String>[];
+
         final messageRef = conversationRef.collection('messages').doc();
 
-        transaction.set(messageRef, messageData);
-        transaction.update(conversationRef, {
+        final updates = <String, dynamic>{
           'lastMessage': content,
           'lastMessageTime': FieldValue.serverTimestamp(),
-        });
+        };
+
+        for (final pid in participants) {
+          if (pid != user.id) {
+            updates['unreadCounts.$pid'] = FieldValue.increment(1);
+          }
+        }
+
+        transaction.set(messageRef, messageData);
+        transaction.update(conversationRef, updates);
       });
 
       // Send notification to other participants
@@ -1733,6 +2153,47 @@ class FirestoreService extends ChangeNotifier {
     } catch (e) {
       debugPrint("Error sending DM: $e");
       rethrow;
+    }
+  }
+
+  Future<void> toggleMessageReaction({
+    required String conversationId,
+    required String messageId,
+    required String emoji,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final messageRef = _db
+        .collection('conversations')
+        .doc(conversationId)
+        .collection('messages')
+        .doc(messageId);
+
+    try {
+      await _db.runTransaction((transaction) async {
+        final snapshot = await transaction.get(messageRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data();
+        if (data == null) return;
+
+        final reactions = data['reactions'] != null
+            ? Map<String, dynamic>.from(data['reactions'])
+            : <String, dynamic>{};
+
+        if (reactions[uid] == emoji) {
+          // If the user taps the same emoji again, remove it
+          reactions.remove(uid);
+        } else {
+          // Add or replace user's reaction
+          reactions[uid] = emoji;
+        }
+
+        transaction.update(messageRef, {'reactions': reactions});
+      });
+    } catch (e) {
+      debugPrint("Error toggling message reaction: $e");
     }
   }
 

@@ -4,7 +4,9 @@ import '../models/job_model.dart';
 import '../services/firestore_service.dart';
 
 class CreateJobScreen extends StatefulWidget {
-  const CreateJobScreen({super.key});
+  final Job? editingJob;
+
+  const CreateJobScreen({super.key, this.editingJob});
 
   @override
   State<CreateJobScreen> createState() => _CreateJobScreenState();
@@ -21,6 +23,20 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   final _contactInfoController = TextEditingController();
 
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.editingJob != null) {
+      _titleController.text = widget.editingJob!.title;
+      _companyNameController.text = widget.editingJob!.companyName;
+      _locationController.text = widget.editingJob!.location;
+      _salaryController.text = widget.editingJob!.salary;
+      _descriptionController.text = widget.editingJob!.description;
+      _requirementsController.text = widget.editingJob!.requirements.join('\n');
+      _contactInfoController.text = widget.editingJob!.contactInfo;
+    }
+  }
 
   @override
   void dispose() {
@@ -57,11 +73,35 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
           postedDate: DateTime.now(),
         );
 
-        await Provider.of<FirestoreService>(context, listen: false).addJob(job);
+        if (widget.editingJob != null) {
+          await Provider.of<FirestoreService>(
+            context,
+            listen: false,
+          ).updateJob(widget.editingJob!.id, {
+            'title': job.title,
+            'companyName': job.companyName,
+            'location': job.location,
+            'salary': job.salary,
+            'description': job.description,
+            'requirements': job.requirements,
+            'contactInfo': job.contactInfo,
+          });
+        } else {
+          await Provider.of<FirestoreService>(
+            context,
+            listen: false,
+          ).addJob(job);
+        }
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Job posted successfully!')),
+            SnackBar(
+              content: Text(
+                widget.editingJob != null
+                    ? 'Job updated successfully!'
+                    : 'Job posted successfully!',
+              ),
+            ),
           );
           Navigator.pop(context);
         }
@@ -84,7 +124,9 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Post a Job')),
+      appBar: AppBar(
+        title: Text(widget.editingJob != null ? 'Edit Job' : 'Post a Job'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -180,7 +222,10 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                 ),
                 child: _isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('Post Job', style: TextStyle(fontSize: 16)),
+                    : Text(
+                        widget.editingJob != null ? 'Update Job' : 'Post Job',
+                        style: const TextStyle(fontSize: 16),
+                      ),
               ),
             ],
           ),

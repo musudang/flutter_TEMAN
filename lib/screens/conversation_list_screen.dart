@@ -123,11 +123,41 @@ class ConversationListScreen extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(color: Colors.grey[500], fontSize: 13),
                     ),
-                    trailing: Text(
-                      DateFormat(
-                        'MM/dd HH:mm',
-                      ).format(conversation.lastMessageTime),
-                      style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+                    trailing: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          DateFormat(
+                            'MM/dd HH:mm',
+                          ).format(conversation.lastMessageTime),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                        if (conversation.unreadCounts[currentUserId] != null &&
+                            conversation.unreadCounts[currentUserId]! > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4.0),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.red,
+                              ),
+                              child: Text(
+                                '${conversation.unreadCounts[currentUserId]}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
                     onTap: () {
                       Navigator.push(
@@ -206,9 +236,37 @@ class ConversationListScreen extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
         style: TextStyle(color: Colors.grey[500], fontSize: 13),
       ),
-      trailing: Text(
-        DateFormat('MM/dd HH:mm').format(conversation.lastMessageTime),
-        style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+      trailing: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Text(
+            DateFormat('MM/dd HH:mm').format(conversation.lastMessageTime),
+            style: TextStyle(fontSize: 12, color: Colors.grey[400]),
+          ),
+          if (conversation.unreadCounts[firestoreService.currentUserId] !=
+                  null &&
+              conversation.unreadCounts[firestoreService.currentUserId]! > 0)
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.red,
+                ),
+                child: Text(
+                  '${conversation.unreadCounts[firestoreService.currentUserId]}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+        ],
       ),
       onTap: () {
         Navigator.push(
