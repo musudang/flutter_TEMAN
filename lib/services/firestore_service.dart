@@ -86,6 +86,9 @@ class FirestoreService extends ChangeNotifier {
           : null,
       age: data['age'] as int?,
       personalInfo: data['personalInfo'] ?? '',
+      nickname: data['nickname'] ?? '',
+      phoneNumber: data['phoneNumber'] ?? '',
+      interests: List<String>.from(data['interests'] ?? []),
       instagramId: data['instagramId'] ?? '',
       followers: List<String>.from(data['followers'] ?? []),
       following: List<String>.from(data['following'] ?? []),
@@ -335,6 +338,42 @@ class FirestoreService extends ChangeNotifier {
               .map((doc) => _userFromData(doc.data(), doc.id))
               .toList();
         });
+  }
+
+  Future<String?> getUserEmailByName(String name) async {
+    try {
+      final querySnapshot = await _db
+          .collection('users')
+          .where('name', isEqualTo: name)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final data = querySnapshot.docs.first.data();
+        return data['email'] as String?;
+      }
+    } catch (e) {
+      debugPrint("Error fetching user email by name: $e");
+    }
+    return null;
+  }
+
+  Future<String?> getUserNicknameByEmail(String email) async {
+    try {
+      final querySnapshot = await _db
+          .collection('users')
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+
+      if (querySnapshot.docs.isNotEmpty) {
+        final data = querySnapshot.docs.first.data();
+        return data['nickname'] as String?;
+      }
+    } catch (e) {
+      debugPrint("Error fetching user nickname by email: $e");
+    }
+    return null;
   }
 
   // ===================== MEETUPS =====================
@@ -1194,7 +1233,7 @@ class FirestoreService extends ChangeNotifier {
         'imageUrl': imageUrl ?? '',
         'category': category,
         'authorAvatar': authorAvatar,
-        if (subCategory != null) 'subCategory': subCategory,
+        'subCategory': ?subCategory,
         if (eventDate != null) 'eventDate': Timestamp.fromDate(eventDate),
       });
       debugPrint("Post saved successfully!");
@@ -1379,11 +1418,9 @@ class FirestoreService extends ChangeNotifier {
           'authorName': userData?.name ?? 'Unknown',
           'authorAvatar': userData?.avatarUrl ?? '',
           'timestamp': FieldValue.serverTimestamp(),
-          if (replyToCommentId != null) 'replyToCommentId': replyToCommentId,
-          if (replyToCommentText != null)
-            'replyToCommentText': replyToCommentText,
-          if (replyToCommentAuthor != null)
-            'replyToCommentAuthor': replyToCommentAuthor,
+          'replyToCommentId': ?replyToCommentId,
+          'replyToCommentText': ?replyToCommentText,
+          'replyToCommentAuthor': ?replyToCommentAuthor,
           'reactions': {},
         });
 

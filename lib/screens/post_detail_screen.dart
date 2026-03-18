@@ -510,13 +510,13 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                     Navigator.pop(context);
                     try {
                       await widget.fs.deleteComment(widget.post.id, comment.id);
-                      if (mounted) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(content: Text('Comment deleted')),
                         );
                       }
                     } catch (e) {
-                      if (mounted) {
+                      if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(content: Text('Failed to delete: $e')),
                         );
@@ -703,8 +703,9 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                 var currentId = commentId;
                 var current = commentLookup[currentId];
                 for (int i = 0; i < 10; i++) {
-                  if (current == null || current.replyToCommentId == null)
+                  if (current == null || current.replyToCommentId == null) {
                     break;
+                  }
                   if (commentLookup.containsKey(current.replyToCommentId)) {
                     currentId = current.replyToCommentId!;
                     current = commentLookup[currentId];

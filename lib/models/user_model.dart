@@ -9,6 +9,9 @@ class User {
   final DateTime? createdAt;
   final int? age;
   final String personalInfo;
+  final String nickname;
+  final String phoneNumber;
+  final List<String> interests;
 
   final String instagramId;
   final List<String> followers;
@@ -25,6 +28,9 @@ class User {
     this.createdAt,
     this.age,
     this.personalInfo = '',
+    this.nickname = '',
+    this.phoneNumber = '',
+    this.interests = const [],
     this.instagramId = '',
     this.followers = const [],
     this.following = const [],
