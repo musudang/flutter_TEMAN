@@ -60,13 +60,14 @@ class _SignupScreenState extends State<SignupScreen> {
         interests: _selectedInterests,
       );
 
+      if (!mounted) return;
       setState(() => _isLoading = false);
 
-      if (error != null && mounted) {
+      if (error != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(error), backgroundColor: Colors.red),
         );
-      } else if (mounted) {
+      } else {
         Navigator.pop(context);
       }
     }
@@ -270,12 +271,13 @@ class _SignupScreenState extends State<SignupScreen> {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
                     final error = await authService.signInWithGoogle();
+                    if (!mounted) return;
                     setState(() => _isLoading = false);
-                    if (error != null && mounted) {
+                    if (error != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text(error), backgroundColor: Colors.red),
                       );
-                    } else if (mounted) {
+                    } else {
                       Navigator.pop(context);
                     }
                   },
@@ -299,12 +301,13 @@ class _SignupScreenState extends State<SignupScreen> {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
                     final error = await authService.signInWithApple();
+                    if (!mounted) return;
                     setState(() => _isLoading = false);
-                    if (error != null && mounted) {
+                    if (error != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(content: Text(error), backgroundColor: Colors.red),
                       );
-                    } else if (mounted) {
+                    } else {
                       Navigator.pop(context);
                     }
                   },

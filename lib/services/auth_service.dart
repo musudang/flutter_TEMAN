@@ -69,9 +69,9 @@ class AuthService extends ChangeNotifier {
 
       return null; // Success
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      return _getKoreanErrorMessage(e);
     } catch (e) {
-      return e.toString();
+      return '알 수 없는 오류가 발생했습니다.';
     }
   }
 
@@ -84,9 +84,9 @@ class AuthService extends ChangeNotifier {
       await _auth.signInWithEmailAndPassword(email: email, password: password);
       return null; // Success
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      return _getKoreanErrorMessage(e);
     } catch (e) {
-      return e.toString();
+      return '알 수 없는 오류가 발생했습니다.';
     }
   }
 
@@ -99,9 +99,7 @@ class AuthService extends ChangeNotifier {
   Future<String?> signInWithGoogle() async {
     try {
       await GoogleSignIn.instance.initialize();
-      final GoogleSignInAccount? googleUser =
-          await GoogleSignIn.instance.authenticate();
-      if (googleUser == null) return "Google sign in cancelled";
+      final googleUser = await GoogleSignIn.instance.authenticate();
 
       final GoogleSignInAuthentication googleAuth = googleUser.authentication;
       final AuthCredential credential = GoogleAuthProvider.credential(
@@ -137,9 +135,9 @@ class AuthService extends ChangeNotifier {
 
       return null;
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      return _getKoreanErrorMessage(e);
     } catch (e) {
-      return e.toString();
+      return '알 수 없는 오류가 발생했습니다.';
     }
   }
 
@@ -198,9 +196,9 @@ class AuthService extends ChangeNotifier {
 
       return null;
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      return _getKoreanErrorMessage(e);
     } catch (e) {
-      return e.toString();
+      return '알 수 없는 오류가 발생했습니다.';
     }
   }
 
@@ -210,9 +208,34 @@ class AuthService extends ChangeNotifier {
       await _auth.sendPasswordResetEmail(email: email);
       return null;
     } on FirebaseAuthException catch (e) {
-      return e.message;
+      return _getKoreanErrorMessage(e);
     } catch (e) {
-      return e.toString();
+      return '알 수 없는 오류가 발생했습니다.';
+    }
+  }
+
+  String _getKoreanErrorMessage(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        return '가입되지 않은 이메일이거나 사용자 정보가 없습니다.';
+      case 'wrong-password':
+        return '비밀번호가 틀렸습니다.';
+      case 'invalid-email':
+        return '이메일 형식이 올바르지 않습니다.';
+      case 'user-disabled':
+        return '정지된 계정입니다. 관리자에게 문의하세요.';
+      case 'email-already-in-use':
+        return '이미 가입된 이메일입니다.';
+      case 'weak-password':
+        return '비밀번호는 6자리 이상이어야 합니다.';
+      case 'invalid-credential':
+        return '이메일 또는 비밀번호가 올바르지 않습니다.';
+      case 'operation-not-allowed':
+        return '이 로그인 방식이 비활성화되어 있습니다.';
+      case 'too-many-requests':
+        return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.';
+      default:
+        return '로그인 오류가 발생했습니다: ${e.message}';
     }
   }
 }
