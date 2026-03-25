@@ -167,15 +167,23 @@ class AuthService extends ChangeNotifier {
     String? photoUrl,
   }) async {
     try {
+      final url = '$_baseUrl/login/social';
+      final payload = {
+        'provider': 'GOOGLE',
+        'token': idToken,
+      };
+      debugPrint('[GoogleSignIn] 요청 시작: POST $url');
+      debugPrint('[GoogleSignIn] Payload: ${jsonEncode(payload)}');
+      
       final response = await http.post(
-        Uri.parse('$_baseUrl/login/social'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'provider': 'GOOGLE',
-          'token': idToken,
-        }),
+        body: jsonEncode(payload),
       );
 
+      debugPrint('[GoogleSignIn] 응답 코드: ${response.statusCode}');
+      debugPrint('[GoogleSignIn] 응답 본문: ${response.body}');
+      
       final body = response.body.isNotEmpty ? _safeDecode(response.body) : null;
 
       if (response.statusCode == 200) {
@@ -207,7 +215,9 @@ class AuthService extends ChangeNotifier {
 
       final msg = body is Map && body['message'] != null ? body['message'].toString() : 'Google sign in failed';
       return SocialLoginResult(isNewUser: false, error: msg);
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[GoogleSignIn] 예외 발생: $e');
+      debugPrint('[GoogleSignIn] Stack trace: $st');
       return SocialLoginResult(isNewUser: false, error: e.toString());
     }
   }
@@ -224,28 +234,38 @@ class AuthService extends ChangeNotifier {
     List<String> interests = const [],
   }) async {
     try {
+      final url = '$_baseUrl/signup/social';
+      final payload = {
+        'email': email,
+        'socialId': socialId,
+        'provider': provider,
+        'loginId': loginId,
+        'fullName': fullName,
+        'age': age,
+        'countryEnum': _mapCountry(countryEnum),
+        'phone': phone,
+        'interests': interests,
+      };
+      debugPrint('[SocialSignup] 요청 시작: POST $url');
+      debugPrint('[SocialSignup] Payload: ${jsonEncode(payload)}');
+      
       final response = await http.post(
-        Uri.parse('$_baseUrl/signup/social'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'email': email,
-          'socialId': socialId,
-          'provider': provider,
-          'loginId': loginId,
-          'fullName': fullName,
-          'age': age,
-          'countryEnum': _mapCountry(countryEnum),
-          'phone': phone,
-          'interests': interests,
-        }),
+        body: jsonEncode(payload),
       );
+      
+      debugPrint('[SocialSignup] 응답 코드: ${response.statusCode}');
+      debugPrint('[SocialSignup] 응답 본문: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         return null;
       }
       final msg = _safeDecode(response.body);
       return msg is Map && msg['message'] != null ? msg['message'].toString() : 'Social sign up failed (${response.statusCode})';
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[SocialSignup] 예외 발생: $e');
+      debugPrint('[SocialSignup] Stack trace: $st');
       return e.toString();
     }
   }
@@ -253,14 +273,17 @@ class AuthService extends ChangeNotifier {
   // Sign In with Apple
   Future<String?> signInWithApple(String identityToken) async {
     try {
+      final url = '$_baseUrl/login/social';
+      debugPrint('[AppleSignIn] 요청 시작: POST $url');
       final response = await http.post(
-        Uri.parse('$_baseUrl/login/social'),
+        Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'provider': 'APPLE',
           'token': identityToken,
         }),
       );
+      debugPrint('[AppleSignIn] 응답 코드: ${response.statusCode}');
 
       if (response.statusCode == 200) {
         final body = _safeDecode(response.body);
@@ -274,7 +297,9 @@ class AuthService extends ChangeNotifier {
         final msg = _safeDecode(response.body);
         return msg is Map && msg['message'] != null ? msg['message'].toString() : 'Apple sign in failed';
       }
-    } catch (e) {
+    } catch (e, st) {
+      debugPrint('[AppleSignIn] 예외 발생: $e');
+      debugPrint('[AppleSignIn] Stack trace: $st');
       return e.toString();
     }
   }
