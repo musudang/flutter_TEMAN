@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Teman App",
+      "request": "launch",
+      "type": "dart",
+      "args": [
+        "-d", "chrome",
+        "--web-port", "47294" 
+      ]
+    }
+  ]
+}

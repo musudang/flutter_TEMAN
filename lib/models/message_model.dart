@@ -32,4 +32,46 @@ class Message {
     this.replyToMessageSender,
     this.reactions,
   });
+
+  factory Message.fromJson(Map<String, dynamic> json) {
+    return Message(
+      id: json['id']?.toString() ?? '',
+      senderId: json['senderId']?.toString() ?? '',
+      senderName: json['senderName'] ?? '',
+      senderAvatar: json['senderAvatar'] ?? '',
+      content: json['content'] ?? '',
+      timestamp: json['timestamp'] != null
+          ? DateTime.parse(json['timestamp'])
+          : DateTime.now(),
+      sharedPostId: json['sharedPostId']?.toString(),
+      sharedPostType: json['sharedPostType'],
+      sharedPostTitle: json['sharedPostTitle'],
+      sharedPostDescription: json['sharedPostDescription'],
+      replyToMessageId: json['replyToMessageId']?.toString(),
+      replyToMessageText: json['replyToMessageText'],
+      replyToMessageSender: json['replyToMessageSender'],
+      reactions: json['reactions'] != null
+          ? Map<String, String>.from(json['reactions'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'senderId': senderId,
+      'senderName': senderName,
+      'senderAvatar': senderAvatar,
+      'content': content,
+      'timestamp': timestamp.toIso8601String(),
+      'sharedPostId': sharedPostId,
+      'sharedPostType': sharedPostType,
+      'sharedPostTitle': sharedPostTitle,
+      'sharedPostDescription': sharedPostDescription,
+      'replyToMessageId': replyToMessageId,
+      'replyToMessageText': replyToMessageText,
+      'replyToMessageSender': replyToMessageSender,
+      'reactions': reactions,
+    };
+  }
 }

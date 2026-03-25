@@ -1,28 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'firebase_options.dart';
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
-import 'services/firestore_service.dart';
+import 'screens/reset_password_screen.dart';
+import 'services/api_service.dart';
 import 'services/auth_service.dart';
+import 'services/google_sign_in_client.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-  runApp(const MyApp());
+  await ensureGoogleSignInInitialized();
+  final authService = AuthService();
+  await authService.init();
+  final apiService = ApiService(authService);
+  runApp(MyApp(authService: authService, apiService: apiService));
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+  final AuthService authService;
+  final ApiService apiService;
+
+  const MyApp({super.key, required this.authService, required this.apiService});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => FirestoreService()),
-        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider.value(value: apiService),
+        ChangeNotifierProvider.value(value: authService),
       ],
       child: MaterialApp(
         title: 'Teman Community',
@@ -46,7 +51,24 @@ class MyApp extends StatelessWidget {
             iconTheme: IconThemeData(color: Colors.black87),
           ),
         ),
-        home: const AuthWrapper(),
+        // home을 사용하면 deep link에서 initial route가 무시되는 경우가 있어 onGenerateRoute로 처리
+        onGenerateRoute: (settings) {
+          final uri = Uri.parse(settings.name ?? '/');
+          if (uri.path == '/reset-password') {
+            final token = uri.queryParameters['token'];
+            return MaterialPageRoute(
+              builder: (_) => ResetPasswordScreen(token: token),
+              settings: settings,
+            );
+          }
+          return MaterialPageRoute(
+            builder: (_) => const AuthWrapper(),
+            settings: settings,
+          );
+        },
+        onUnknownRoute: (settings) {
+          return MaterialPageRoute(builder: (_) => const AuthWrapper());
+        }
       ),
     );
   }
@@ -57,16 +79,9 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final authService = Provider.of<AuthService>(context);
-
-    return StreamBuilder<User?>(
-      stream: authService.authStateChanges,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.active) {
-          final User? user = snapshot.data;
-          return user == null ? const LoginScreen() : const MainScreen();
-        }
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    return Consumer<AuthService>(
+      builder: (context, auth, _) {
+        return auth.isLoggedIn ? const MainScreen() : const LoginScreen();
       },
     );
   }

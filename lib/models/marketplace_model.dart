@@ -26,4 +26,42 @@ class MarketplaceItem {
     required this.postedDate,
     this.isSold = false,
   });
+
+  factory MarketplaceItem.fromJson(Map<String, dynamic> json) {
+    return MarketplaceItem(
+      id: json['id']?.toString() ?? '',
+      title: json['title'] ?? '',
+      price: (json['price'] is int)
+          ? (json['price'] as int).toDouble()
+          : (json['price'] ?? 0.0).toDouble(),
+      description: json['description'] ?? '',
+      condition: json['condition'] ?? '',
+      category: json['category'] ?? '',
+      imageUrls: List<String>.from(json['imageUrls'] ?? []),
+      sellerId: json['sellerId']?.toString() ?? '',
+      sellerName: json['sellerName'] ?? '',
+      sellerAvatar: json['sellerAvatar'] ?? '',
+      postedDate: json['postedDate'] != null
+          ? DateTime.parse(json['postedDate'])
+          : DateTime.now(),
+      isSold: json['isSold'] ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'title': title,
+      'price': price,
+      'description': description,
+      'condition': condition,
+      'category': category,
+      'imageUrls': imageUrls,
+      'sellerId': sellerId,
+      'sellerName': sellerName,
+      'sellerAvatar': sellerAvatar,
+      'postedDate': postedDate.toIso8601String(),
+      'isSold': isSold,
+    };
+  }
 }

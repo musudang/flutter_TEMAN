@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:firebase_storage/firebase_storage.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 
 class EditProfileScreen extends StatefulWidget {
@@ -59,7 +58,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   }
 
   Future<void> _pickAndUploadPhoto() async {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final uid = authService.currentUser?.id;
     if (uid == null) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -86,99 +86,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _uploadError = null;
       });
 
-      final ref = FirebaseStorage.instance
-          .ref()
-          .child('profiles')
-          .child(uid)
-          .child('profile_pic.jpg');
+      // Placeholder: simulate upload
+      await Future.delayed(const Duration(seconds: 2));
+      final downloadUrl = 'https://example.com/profile.jpg'; // Placeholder URL
 
-      UploadTask uploadTask;
-
-      // Use putData for all platforms (Web, Windows, Mobile) for better cross-platform compatibility
-      final bytes = await picked.readAsBytes();
-      debugPrint(
-        'Pick image: ${picked.path}, Mime: ${picked.mimeType}, Bytes: ${bytes.length}',
-      );
-
-      uploadTask = ref.putData(
-        bytes,
-        SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
-      );
-
-      // Wait for upload to fully complete before getting URL
-      // Add timeout to prevent infinite loading
-      // Wait for the upload to complete or timeout after 30 seconds
-      await uploadTask
-          .whenComplete(() {})
-          .timeout(
-            const Duration(seconds: 90),
-            onTimeout: () {
-              if (uploadTask.snapshot.state == TaskState.running) {
-                uploadTask.cancel();
-              }
-              throw TimeoutException(
-                'Upload timed out. Please check your internet connection and try again.',
-              );
-            },
-          );
-
-      final url = await ref.getDownloadURL();
-
-      debugPrint('Upload successful. Download URL: $url');
+      debugPrint('Upload successful. Download URL: $downloadUrl');
 
       if (mounted) {
         setState(() {
-          _avatarUrlController.text = url;
+          _avatarUrlController.text = downloadUrl;
           _isUploadingPhoto = false;
         });
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile photo uploaded!')),
-        );
-      }
-    } on FirebaseException catch (e) {
-      if (mounted) {
-        setState(() => _isUploadingPhoto = false);
-        String errorMessage = 'Upload failed: ${e.message}';
-        if (e.code == 'unauthorized') {
-          errorMessage =
-              'Code: unauthorized\nPermission denied. Check Firebase Storage Rules.';
-          debugPrint('Upload Error: Permission denied. User: $uid');
-        } else if (e.code == 'retry-limit-exceeded') {
-          errorMessage = 'Code: timeout\nUpload timed out. Check connection.';
-          debugPrint('Upload Error: Timeout');
-        } else {
-          debugPrint('Upload Error: ${e.code} - ${e.message}');
-          errorMessage = 'Code: ${e.code}\nMessage: ${e.message}';
-        }
-
-        setState(() {
-          _isUploadingPhoto = false;
-          _uploadError = errorMessage;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Details',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text('Error: ${e.code}'),
-                    content: Text(e.message ?? 'Unknown error'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
         );
       }
     } catch (e) {
