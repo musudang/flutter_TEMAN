@@ -375,7 +375,7 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
                           style: TextStyle(
                             fontSize: 10,
                             color: isMe
-                                ? Colors.white.withValues(alpha: 0.7)
+                                ? Colors.white.withOpacity(0.7)
                                 : Colors.grey[600],
                           ),
                         ),
@@ -503,7 +503,7 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
                         listen: false,
                       ).currentUserId] ==
                       emoji
-              ? Colors.blue.withValues(alpha: 0.2)
+              ? Colors.blue.withOpacity(0.2)
               : Colors.transparent,
           shape: BoxShape.circle,
         ),
@@ -558,7 +558,7 @@ class _MeetupChatScreenState extends State<MeetupChatScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: Colors.black.withOpacity(0.05),
             blurRadius: 5,
             offset: const Offset(0, -2),
           ),

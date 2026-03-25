@@ -240,7 +240,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                 },
                                 selectedColor: const Color(
                                   0xFFFF5A5F,
-                                ).withValues(alpha: 0.15),
+                                ).withOpacity(0.15),
                                 backgroundColor: Colors.grey[100],
                                 labelStyle: TextStyle(
                                   color: isSelected
@@ -510,7 +510,7 @@ class _FeedScreenState extends State<FeedScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -920,7 +920,7 @@ class _FeedScreenState extends State<FeedScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -935,7 +935,7 @@ class _FeedScreenState extends State<FeedScreen> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: Colors.teal.withValues(alpha: 0.1),
+                    color: Colors.teal.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.business, color: Colors.teal),
@@ -1030,7 +1030,7 @@ class _FeedScreenState extends State<FeedScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
+              color: Colors.black.withOpacity(0.03),
               blurRadius: 15,
               offset: const Offset(0, 5),
             ),
@@ -1152,7 +1152,7 @@ class _FeedScreenState extends State<FeedScreen> {
         border: Border.all(color: const Color(0xFFE3F2FD), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.withValues(alpha: 0.05),
+            color: Colors.blue.withOpacity(0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

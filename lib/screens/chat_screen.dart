@@ -261,7 +261,7 @@ class _ChatScreenState extends State<ChatScreen> {
               color: Colors.white,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
+                  color: Colors.black.withOpacity(0.05),
                   offset: const Offset(0, -2),
                   blurRadius: 5,
                 ),
@@ -544,7 +544,7 @@ class _ChatScreenState extends State<ChatScreen> {
                           style: TextStyle(
                             fontSize: 10,
                             color: isMe
-                                ? Colors.white.withValues(alpha: 0.7)
+                                ? Colors.white.withOpacity(0.7)
                                 : Colors.grey[600],
                           ),
                         ),
@@ -672,7 +672,7 @@ class _ChatScreenState extends State<ChatScreen> {
                         listen: false,
                       ).currentUserId] ==
                       emoji
-              ? Colors.teal.withValues(alpha: 0.2)
+              ? Colors.teal.withOpacity(0.2)
               : Colors.transparent,
           shape: BoxShape.circle,
         ),
