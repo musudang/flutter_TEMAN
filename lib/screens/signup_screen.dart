@@ -271,7 +271,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
                     final error = await authService.signInWithGoogle();
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     setState(() => _isLoading = false);
                     if (error != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -301,7 +301,7 @@ class _SignupScreenState extends State<SignupScreen> {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
                     final error = await authService.signInWithApple();
-                    if (!mounted) return;
+                    if (!context.mounted) return;
                     setState(() => _isLoading = false);
                     if (error != null) {
                       ScaffoldMessenger.of(context).showSnackBar(
