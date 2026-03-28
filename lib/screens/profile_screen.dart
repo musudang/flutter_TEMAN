@@ -136,63 +136,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                                             listen: false,
                                           );
                                       await authService.signOut();
-                                    } else if (value == 'reset') {
-                                      final confirm = await showDialog<bool>(
-                                        context: context,
-                                        builder: (ctx) => AlertDialog(
-                                          title: const Text('Reset App Data?'),
-                                          content: const Text(
-                                            'WARNING: This will delete ALL posts, meetups, and user data. This cannot be undone.',
-                                          ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, false),
-                                              child: const Text('Cancel'),
-                                            ),
-                                            TextButton(
-                                              onPressed: () =>
-                                                  Navigator.pop(ctx, true),
-                                              child: const Text(
-                                                'RESET EVERYTHING',
-                                                style: TextStyle(
-                                                  color: Colors.red,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      );
-                                      if (confirm == true) {
-                                        await firestoreService.resetAppData();
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Data reset complete.',
-                                              ),
-                                            ),
-                                          );
-                                          // Force reload or sign out might be needed to clear local state visually
-                                          setState(() {});
-                                        }
-                                      }
                                     }
                                   },
                                   itemBuilder: (ctx) => [
                                     const PopupMenuItem(
-                                      value: 'reset',
-                                      child: Text(
-                                        'Reset App Data',
-                                        style: TextStyle(color: Colors.red),
-                                      ),
-                                    ),
-                                    const PopupMenuItem(
                                       value: 'logout',
-                                      child: Text('Sign Out'),
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.logout, size: 18, color: Colors.grey),
+                                          SizedBox(width: 8),
+                                          Text('Sign Out'),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),

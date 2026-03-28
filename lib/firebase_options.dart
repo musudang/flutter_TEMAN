@@ -44,39 +44,39 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyDkTJlG-4g35nZ4Tgf942MEd_bayGVOkSI',
-    appId: '1:191190218355:web:feaf71c82dd882f3431c06',
-    messagingSenderId: '191190218355',
-    projectId: 'teman-flutter',
-    authDomain: 'teman-flutter.firebaseapp.com',
-    storageBucket: 'teman-flutter.firebasestorage.app',
-    measurementId: 'G-84QKF92HQ6',
+    apiKey: 'AIzaSyCgLlUCel--oF5Rew87oo77Qdt06oOKck0',
+    appId: '1:1065473302917:web:0323dd56f822ecea4f64ec',
+    messagingSenderId: '1065473302917',
+    projectId: 'teman-flutter-2',
+    authDomain: 'teman-flutter-2.firebaseapp.com',
+    storageBucket: 'teman-flutter-2.firebasestorage.app',
+    measurementId: 'G-Y11JQTN0XL',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAG19soj7l2LRBsHWWpInTFpP9W8wdjDII',
-    appId: '1:191190218355:android:0d4be9c1b516f797431c06',
-    messagingSenderId: '191190218355',
-    projectId: 'teman-flutter',
-    storageBucket: 'teman-flutter.firebasestorage.app',
+    apiKey: 'AIzaSyDjTCNI8oL2zBw1b4Dc1A5WlWOGDZX5yvU',
+    appId: '1:1065473302917:android:6fbef37c281ac8904f64ec',
+    messagingSenderId: '1065473302917',
+    projectId: 'teman-flutter-2',
+    storageBucket: 'teman-flutter-2.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyBaqEdyAKmdW2BUBdzXu0rkoeKhAU9npV4',
-    appId: '1:191190218355:ios:9e4a7840a52e7f3a431c06',
-    messagingSenderId: '191190218355',
-    projectId: 'teman-flutter',
-    storageBucket: 'teman-flutter.firebasestorage.app',
+    apiKey: 'AIzaSyD-3DydQb377tNkqX_oGjFDRvhbjLRlH08',
+    appId: '1:1065473302917:ios:c78cfff7dff278894f64ec',
+    messagingSenderId: '1065473302917',
+    projectId: 'teman-flutter-2',
+    storageBucket: 'teman-flutter-2.firebasestorage.app',
     iosBundleId: 'com.example.temanFlutterAppCode',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyDkTJlG-4g35nZ4Tgf942MEd_bayGVOkSI',
-    appId: '1:191190218355:web:bcc294e60a3de129431c06',
-    messagingSenderId: '191190218355',
-    projectId: 'teman-flutter',
-    authDomain: 'teman-flutter.firebaseapp.com',
-    storageBucket: 'teman-flutter.firebasestorage.app',
-    measurementId: 'G-3TWCEKNHB7',
+    apiKey: 'AIzaSyCgLlUCel--oF5Rew87oo77Qdt06oOKck0',
+    appId: '1:1065473302917:web:0323dd56f822ecea4f64ec',
+    messagingSenderId: '1065473302917',
+    projectId: 'teman-flutter-2',
+    authDomain: 'teman-flutter-2.firebaseapp.com',
+    storageBucket: 'teman-flutter-2.firebasestorage.app',
+    measurementId: 'G-Y11JQTN0XL',
   );
 }

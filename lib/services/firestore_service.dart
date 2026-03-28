@@ -126,6 +126,10 @@ class FirestoreService extends ChangeNotifier {
     int? age,
     String? personalInfo,
     String? instagramId,
+    String? nickname,
+    String? phoneNumber,
+    String? email,
+    List<String>? interests,
   }) async {
     final uid = currentUserId;
     if (uid == null) return;
@@ -139,6 +143,10 @@ class FirestoreService extends ChangeNotifier {
     if (age != null) data['age'] = age;
     if (personalInfo != null) data['personalInfo'] = personalInfo;
     if (instagramId != null) data['instagramId'] = instagramId;
+    if (nickname != null) data['nickname'] = nickname;
+    if (phoneNumber != null) data['phoneNumber'] = phoneNumber;
+    if (email != null) data['email'] = email;
+    if (interests != null) data['interests'] = interests;
 
     // We use a WriteBatch to update the user profile AND propagate changes to their posts
     final batch = _db.batch();

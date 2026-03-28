@@ -49,7 +49,10 @@ class _SignupScreenState extends State<SignupScreen> {
       setState(() => _isLoading = true);
 
       final authService = Provider.of<AuthService>(context, listen: false);
-      final error = await authService.signUp(
+      final messenger = ScaffoldMessenger.of(context);
+      final navigator = Navigator.of(context);
+
+      final result = await authService.signUp(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
         name: _nameController.text.trim(),
@@ -62,12 +65,12 @@ class _SignupScreenState extends State<SignupScreen> {
 
       setState(() => _isLoading = false);
 
-      if (error != null && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
+      if (!result.isSuccess) {
+        messenger.showSnackBar(
+          SnackBar(content: Text(result.errorMessage ?? 'Signup failed'), backgroundColor: Colors.red),
         );
-      } else if (mounted) {
-        Navigator.pop(context);
+      } else {
+        navigator.pop();
       }
     }
   }
@@ -269,13 +272,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   onPressed: _isLoading ? null : () async {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
-                    final error = await authService.signInWithGoogle();
+                    final result = await authService.signInWithGoogle();
                     setState(() => _isLoading = false);
-                    if (error != null && mounted) {
+                    if (!result.isSuccess) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error), backgroundColor: Colors.red),
+                        SnackBar(content: Text(result.errorMessage ?? 'Signup failed'), backgroundColor: Colors.red),
                       );
-                    } else if (mounted) {
+                    } else {
+                      if (!context.mounted) return;
                       Navigator.pop(context);
                     }
                   },
@@ -298,13 +303,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   onPressed: _isLoading ? null : () async {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
-                    final error = await authService.signInWithApple();
+                    final result = await authService.signInWithApple();
                     setState(() => _isLoading = false);
-                    if (error != null && mounted) {
+                    if (!result.isSuccess) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error), backgroundColor: Colors.red),
+                        SnackBar(content: Text(result.errorMessage ?? 'Signup failed'), backgroundColor: Colors.red),
                       );
-                    } else if (mounted) {
+                    } else {
+                      if (!context.mounted) return;
                       Navigator.pop(context);
                     }
                   },

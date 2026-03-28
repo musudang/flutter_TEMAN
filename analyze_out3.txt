@@ -1,0 +1,12 @@
+﻿Analyzing teman_flutter_app_code...                             
+
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\login_screen.dart:164:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\login_screen.dart:191:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\signup_screen.dart:275:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\signup_screen.dart:279:37 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\signup_screen.dart:304:44 - use_build_context_synchronously
+   info - Don't use 'BuildContext's across async gaps, guarded by an unrelated 'mounted' check - lib\screens\signup_screen.dart:308:37 - use_build_context_synchronously
+  error - The class 'GoogleSignIn' doesn't have an unnamed constructor - lib\services\auth_service.dart:115:41 - new_with_undefined_constructor_default
+  error - The method 'signIn' isn't defined for the type 'GoogleSignIn' - lib\services\auth_service.dart:116:66 - undefined_method
+   info - Uses 'await' on an instance of 'GoogleSignInAuthentication', which is not a subtype of 'Future' - lib\services\auth_service.dart:119:53 - await_only_futures
+

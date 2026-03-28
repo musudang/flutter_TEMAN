@@ -81,21 +81,21 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     });
 
     final authService = Provider.of<AuthService>(context, listen: false);
-    final error = await authService.sendPasswordResetEmail(email);
+    final result = await authService.sendPasswordResetEmail(email);
 
     setState(() {
       _isLoadingEmail = false;
     });
 
     if (mounted) {
-      if (error == null) {
+      if (result.isSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Password reset email sent! Please check your inbox.'), backgroundColor: Colors.green),
         );
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
+          SnackBar(content: Text(result.errorMessage ?? 'An error occurred'), backgroundColor: Colors.red),
         );
       }
     }

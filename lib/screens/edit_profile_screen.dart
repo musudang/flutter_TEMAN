@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
+import '../widgets/interest_selection_sheet.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final app_models.User user;
@@ -18,12 +19,17 @@ class EditProfileScreen extends StatefulWidget {
 
 class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _nameController;
+  late TextEditingController _nicknameController;
   late TextEditingController _bioController;
   late TextEditingController _nationalityController;
   late TextEditingController _ageController;
   late TextEditingController _personalInfoController;
   late TextEditingController _avatarUrlController;
   late TextEditingController _instagramController;
+  late TextEditingController _phoneController;
+  late TextEditingController _emailController;
+  late List<String> _selectedInterests;
+
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
   String? _uploadError;
@@ -32,29 +38,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   void initState() {
     super.initState();
     _nameController = TextEditingController(text: widget.user.name);
+    _nicknameController = TextEditingController(text: widget.user.nickname);
     _bioController = TextEditingController(text: widget.user.bio);
-    _nationalityController = TextEditingController(
-      text: widget.user.nationality,
-    );
-    _ageController = TextEditingController(
-      text: widget.user.age?.toString() ?? '',
-    );
-    _personalInfoController = TextEditingController(
-      text: widget.user.personalInfo,
-    );
+    _nationalityController = TextEditingController(text: widget.user.nationality);
+    _ageController = TextEditingController(text: widget.user.age?.toString() ?? '');
+    _personalInfoController = TextEditingController(text: widget.user.personalInfo);
     _avatarUrlController = TextEditingController(text: widget.user.avatarUrl);
     _instagramController = TextEditingController(text: widget.user.instagramId);
+    _phoneController = TextEditingController(text: widget.user.phoneNumber);
+    _emailController = TextEditingController(text: widget.user.email);
+    _selectedInterests = List<String>.from(widget.user.interests);
   }
 
   @override
   void dispose() {
     _nameController.dispose();
+    _nicknameController.dispose();
     _bioController.dispose();
     _nationalityController.dispose();
     _ageController.dispose();
     _personalInfoController.dispose();
     _avatarUrlController.dispose();
     _instagramController.dispose();
+    _phoneController.dispose();
+    _emailController.dispose();
     super.dispose();
   }
 
@@ -62,9 +69,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Please sign in first')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please sign in first')),
+        );
       }
       return;
     }
@@ -92,39 +99,23 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           .child(uid)
           .child('profile_pic.jpg');
 
-      UploadTask uploadTask;
-
-      // Use putData for all platforms (Web, Windows, Mobile) for better cross-platform compatibility
       final bytes = await picked.readAsBytes();
-      debugPrint(
-        'Pick image: ${picked.path}, Mime: ${picked.mimeType}, Bytes: ${bytes.length}',
-      );
-
-      uploadTask = ref.putData(
+      final uploadTask = ref.putData(
         bytes,
         SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
       );
 
-      // Wait for upload to fully complete before getting URL
-      // Add timeout to prevent infinite loading
-      // Wait for the upload to complete or timeout after 30 seconds
-      await uploadTask
-          .whenComplete(() {})
-          .timeout(
-            const Duration(seconds: 90),
-            onTimeout: () {
-              if (uploadTask.snapshot.state == TaskState.running) {
-                uploadTask.cancel();
-              }
-              throw TimeoutException(
-                'Upload timed out. Please check your internet connection and try again.',
-              );
-            },
-          );
+      await uploadTask.whenComplete(() {}).timeout(
+        const Duration(seconds: 90),
+        onTimeout: () {
+          if (uploadTask.snapshot.state == TaskState.running) {
+            uploadTask.cancel();
+          }
+          throw TimeoutException('Upload timed out. Please check your internet connection and try again.');
+        },
+      );
 
       final url = await ref.getDownloadURL();
-
-      debugPrint('Upload successful. Download URL: $url');
 
       if (mounted) {
         setState(() {
@@ -137,65 +128,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } on FirebaseException catch (e) {
       if (mounted) {
-        setState(() => _isUploadingPhoto = false);
-        String errorMessage = 'Upload failed: ${e.message}';
-        if (e.code == 'unauthorized') {
-          errorMessage =
-              'Code: unauthorized\nPermission denied. Check Firebase Storage Rules.';
-          debugPrint('Upload Error: Permission denied. User: $uid');
-        } else if (e.code == 'retry-limit-exceeded') {
-          errorMessage = 'Code: timeout\nUpload timed out. Check connection.';
-          debugPrint('Upload Error: Timeout');
-        } else {
-          debugPrint('Upload Error: ${e.code} - ${e.message}');
-          errorMessage = 'Code: ${e.code}\nMessage: ${e.message}';
-        }
-
         setState(() {
           _isUploadingPhoto = false;
-          _uploadError = errorMessage;
+          _uploadError = 'Upload failed: ${e.message}';
         });
-
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMessage),
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'Details',
-              onPressed: () {
-                showDialog(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: Text('Error: ${e.code}'),
-                    content: Text(e.message ?? 'Unknown error'),
-                    actions: [
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx),
-                        child: const Text('OK'),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
+          SnackBar(content: Text('Upload failed: ${e.message}')),
         );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUploadingPhoto = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Unexpected error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Unexpected error: $e')),
+        );
       }
     }
   }
 
   Future<void> _save() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Name cannot be empty')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot be empty')),
+      );
       return;
     }
 
@@ -205,12 +160,16 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final service = Provider.of<FirestoreService>(context, listen: false);
       await service.updateUserProfile(
         name: _nameController.text.trim(),
+        nickname: _nicknameController.text.trim(),
         bio: _bioController.text.trim(),
         nationality: _nationalityController.text.trim(),
         avatarUrl: _avatarUrlController.text.trim(),
         age: int.tryParse(_ageController.text.trim()),
         personalInfo: _personalInfoController.text.trim(),
         instagramId: _instagramController.text.trim(),
+        phoneNumber: _phoneController.text.trim(),
+        email: _emailController.text.trim(),
+        interests: _selectedInterests,
       );
 
       if (mounted) {
@@ -224,12 +183,26 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  void _openInterestSheet() async {
+    final result = await showModalBottomSheet<List<String>>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => InterestSelectionSheet(
+        initialInterests: _selectedInterests,
+      ),
+    );
+    if (result != null) {
+      setState(() => _selectedInterests = result);
     }
   }
 
@@ -267,27 +240,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // ── 프로필 사진 ──
             Center(
               child: Stack(
                 children: [
-                  const SizedBox(height: 24),
                   CircleAvatar(
                     radius: 48,
                     backgroundColor: Colors.teal[50],
-                    backgroundImage:
-                        _avatarUrlController.text.trim().isNotEmpty &&
+                    backgroundImage: _avatarUrlController.text.trim().isNotEmpty &&
                             _avatarUrlController.text.trim().startsWith('http')
                         ? NetworkImage(_avatarUrlController.text.trim())
                         : null,
-                    onBackgroundImageError:
-                        _avatarUrlController.text.trim().isNotEmpty &&
-                            _avatarUrlController.text.trim().startsWith('http')
-                        ? (exception, stackTrace) {
-                            debugPrint('Image load error: $exception');
-                          }
-                        : null,
-                    child:
-                        _avatarUrlController.text.trim().isEmpty ||
+                    child: _avatarUrlController.text.trim().isEmpty ||
                             !_avatarUrlController.text.trim().startsWith('http')
                         ? Text(
                             _nameController.text.isNotEmpty
@@ -322,11 +286,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(
-                                Icons.camera_alt,
-                                size: 16,
-                                color: Colors.white,
-                              ),
+                            : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
                       ),
                     ),
                   ),
@@ -344,43 +304,37 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 24),
-            _buildLabel('Profile Image URL'),
-            const SizedBox(height: 8),
-            _buildTextField(
-              _avatarUrlController,
-              'Paste image URL or upload above',
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
 
-            _buildLabel('Display Name'),
+            // ── 공개 정보 섹션 ──
+            _buildSectionHeader(Icons.public, '공개 정보', '다른 사용자에게 보이는 정보'),
+            const SizedBox(height: 16),
+
+            _buildLabel('Display Name *'),
             const SizedBox(height: 8),
             _buildTextField(_nameController, 'Your name'),
 
-            const SizedBox(height: 24),
-            _buildLabel('Bio'),
+            const SizedBox(height: 20),
+            _buildLabel('Nickname'),
             const SizedBox(height: 8),
-            _buildTextField(
-              _bioController,
-              'Tell us about yourself...',
-              maxLines: 3,
-            ),
+            _buildTextField(_nicknameController, 'e.g. cooluser123'),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             _buildLabel('Nationality'),
             const SizedBox(height: 8),
             _buildTextField(_nationalityController, 'e.g. KR 🇰🇷'),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             _buildLabel('Age'),
             const SizedBox(height: 8),
-            _buildTextField(
-              _ageController,
-              'e.g. 25',
-              keyboardType: TextInputType.number,
-            ),
+            _buildTextField(_ageController, 'e.g. 25', keyboardType: TextInputType.number),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            _buildLabel('Bio'),
+            const SizedBox(height: 8),
+            _buildTextField(_bioController, 'Tell us about yourself...', maxLines: 3),
+
+            const SizedBox(height: 20),
             _buildLabel('About Me'),
             const SizedBox(height: 8),
             _buildTextField(
@@ -389,7 +343,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               maxLines: 3,
             ),
 
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
             _buildLabel('Instagram ID / Link'),
             const SizedBox(height: 8),
             _buildTextField(
@@ -397,15 +351,113 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               'e.g. username or https://instagram.com/...',
             ),
 
-            const SizedBox(height: 24),
-            _buildLabel('Avatar URL (or use camera button above)'),
+            const SizedBox(height: 20),
+            _buildLabel('Interests'),
+            const SizedBox(height: 8),
+            _buildInterestsSelector(),
+
+            const SizedBox(height: 32),
+
+            // ── 개인정보 섹션 ──
+            _buildSectionHeader(Icons.lock_outline, '개인 정보', '나에게만 보이는 정보 (타인에게 비공개)'),
+            const SizedBox(height: 16),
+
+            _buildLabel('Email'),
             const SizedBox(height: 8),
             _buildTextField(
-              _avatarUrlController,
-              'https://example.com/photo.jpg',
+              _emailController,
+              'your@email.com',
+              keyboardType: TextInputType.emailAddress,
             ),
+
+            const SizedBox(height: 20),
+            _buildLabel('Phone Number'),
+            const SizedBox(height: 8),
+            _buildTextField(
+              _phoneController,
+              '+82 10-0000-0000',
+              keyboardType: TextInputType.phone,
+            ),
+
+            const SizedBox(height: 40),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSectionHeader(IconData icon, String title, String subtitle) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.teal.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.teal.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: Colors.teal, size: 20),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                  color: Color(0xFF1A1F36),
+                ),
+              ),
+              Text(
+                subtitle,
+                style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInterestsSelector() {
+    return GestureDetector(
+      onTap: _openInterestSheet,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey[200]!),
+        ),
+        child: _selectedInterests.isEmpty
+            ? Text(
+                'Tap to select interests...',
+                style: TextStyle(color: Colors.grey[400]),
+              )
+            : Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                children: _selectedInterests
+                    .map((interest) => Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.teal[50],
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            interest,
+                            style: TextStyle(
+                              color: Colors.teal[700],
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ))
+                    .toList(),
+              ),
       ),
     );
   }
@@ -448,10 +500,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.teal, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 14,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
   }

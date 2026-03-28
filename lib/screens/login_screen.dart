@@ -31,16 +31,17 @@ class _LoginScreenState extends State<LoginScreen> {
       setState(() => _isLoading = true);
 
       final authService = Provider.of<AuthService>(context, listen: false);
-      final error = await authService.signIn(
+      final result = await authService.signIn(
         email: _emailController.text.trim(),
         password: _passwordController.text.trim(),
       );
 
       setState(() => _isLoading = false);
 
-      if (error != null && mounted) {
+      if (!result.isSuccess) {
+        if (!context.mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(error), backgroundColor: Colors.red),
+          SnackBar(content: Text(result.errorMessage ?? 'Login failed'), backgroundColor: Colors.red),
         );
       }
       // Navigation is handled by authStateChanges stream in main.dart
@@ -158,11 +159,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _isLoading ? null : () async {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
-                    final error = await authService.signInWithGoogle();
+                    final result = await authService.signInWithGoogle();
                     setState(() => _isLoading = false);
-                    if (error != null && mounted) {
+                    if (!result.isSuccess) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error), backgroundColor: Colors.red),
+                        SnackBar(content: Text(result.errorMessage ?? 'Login failed'), backgroundColor: Colors.red),
                       );
                     }
                   },
@@ -185,11 +187,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: _isLoading ? null : () async {
                     setState(() => _isLoading = true);
                     final authService = Provider.of<AuthService>(context, listen: false);
-                    final error = await authService.signInWithApple();
+                    final result = await authService.signInWithApple();
                     setState(() => _isLoading = false);
-                    if (error != null && mounted) {
+                    if (!result.isSuccess) {
+                      if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(error), backgroundColor: Colors.red),
+                        SnackBar(content: Text(result.errorMessage ?? 'Login failed'), backgroundColor: Colors.red),
                       );
                     }
                   },
