@@ -32,46 +32,4 @@ class Post {
     this.subCategory,
     this.eventDate,
   });
-
-  factory Post.fromJson(Map<String, dynamic> json) {
-    return Post(
-      id: json['id']?.toString() ?? '',
-      authorId: json['authorId']?.toString() ?? '',
-      authorName: json['authorName'] ?? '',
-      title: json['title'] ?? '',
-      content: json['content'] ?? '',
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'])
-          : DateTime.now(),
-      likes: json['likes'] ?? 0,
-      comments: json['comments'] ?? 0,
-      likedBy: List<String>.from(json['likedBy'] ?? []),
-      scrappedBy: List<String>.from(json['scrappedBy'] ?? []),
-      imageUrl: json['imageUrl'] ?? '',
-      category: json['category'] ?? 'general',
-      authorAvatar: json['authorAvatar'] ?? '',
-      subCategory: json['subCategory'],
-      eventDate: json['eventDate'] != null ? DateTime.parse(json['eventDate']) : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'authorId': authorId,
-      'authorName': authorName,
-      'title': title,
-      'content': content,
-      'timestamp': timestamp.toIso8601String(),
-      'likes': likes,
-      'comments': comments,
-      'likedBy': likedBy,
-      'scrappedBy': scrappedBy,
-      'imageUrl': imageUrl,
-      'category': category,
-      'authorAvatar': authorAvatar,
-      'subCategory': subCategory,
-      'eventDate': eventDate?.toIso8601String(),
-    };
-  }
 }

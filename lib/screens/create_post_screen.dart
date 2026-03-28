@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:uuid/uuid.dart';
 import 'dart:typed_data';
 import '../services/firestore_service.dart';
-import '../services/auth_service.dart';
 import '../models/meetup_model.dart';
 import '../models/marketplace_model.dart';
 import '../models/job_model.dart';
@@ -200,12 +202,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         context,
         listen: false,
       );
-      final authService = Provider.of<AuthService>(
-        context,
-        listen: false,
-      );
       final user = await firestoreService.getCurrentUser();
-      final currentUser = authService.currentUser;
+      final currentUser = FirebaseAuth.instance.currentUser;
 
       if (user == null || currentUser == null) {
         if (mounted) {
@@ -218,13 +216,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         return;
       }
 
-      // Upload image if selected (placeholder)
-      List<String> imageUrls = [];
+      // Upload image if selected
       if (_imageBytes != null) {
         setState(() => _isUploadingImage = true);
-        // Placeholder: simulate upload
-        await Future.delayed(const Duration(seconds: 1));
-        imageUrls = ['https://example.com/image.jpg'];
+        final ref = FirebaseStorage.instance
+            .ref()
+            .child('post_images')
+            .child('${const Uuid().v4()}.jpg');
+
+        final uploadTask = ref.putData(
+          _imageBytes!,
+          SettableMetadata(contentType: 'image/jpeg'),
+        );
+        await uploadTask;
+        final url = await ref.getDownloadURL();
+        _imageUrlController.text = url;
         setState(() => _isUploadingImage = false);
       }
 
@@ -258,7 +264,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ? _eventSubCategory
                   : (_selectedCategory == 'Q&A' ? _qnaSubCategory : null),
               'eventDate': _selectedCategory == 'Event' && _eventDate != null
-                  ? _eventDate
+                  ? Timestamp.fromDate(_eventDate!)
                   : null,
             });
           } else {
@@ -462,7 +468,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? (cat['color'] as Color).withOpacity(0.15)
+                                ? (cat['color'] as Color).withValues(
+                                    alpha: 0.15,
+                                  )
                                 : Colors.white,
                             borderRadius: BorderRadius.circular(16),
                             border: Border.all(
@@ -546,10 +554,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     height: 56,
                     width: 56,
                     decoration: BoxDecoration(
-                      color: Colors.teal.withOpacity(0.1),
+                      color: Colors.teal.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.teal.withOpacity(0.3),
+                        color: Colors.teal.withValues(alpha: 0.3),
                       ),
                     ),
                     child: _isUploadingImage

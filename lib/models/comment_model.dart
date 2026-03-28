@@ -26,40 +26,4 @@ class Comment {
     this.replyToCommentAuthor,
     this.reactions,
   });
-
-  factory Comment.fromJson(Map<String, dynamic> json) {
-    return Comment(
-      id: json['id']?.toString() ?? '',
-      postId: json['postId']?.toString() ?? '',
-      content: json['content'] ?? '',
-      authorId: json['authorId']?.toString() ?? '',
-      authorName: json['authorName'] ?? '',
-      authorAvatar: json['authorAvatar'] ?? '',
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'])
-          : DateTime.now(),
-      replyToCommentId: json['replyToCommentId']?.toString(),
-      replyToCommentText: json['replyToCommentText'],
-      replyToCommentAuthor: json['replyToCommentAuthor'],
-      reactions: json['reactions'] != null
-          ? Map<String, String>.from(json['reactions'])
-          : null,
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'postId': postId,
-      'content': content,
-      'authorId': authorId,
-      'authorName': authorName,
-      'authorAvatar': authorAvatar,
-      'timestamp': timestamp.toIso8601String(),
-      'replyToCommentId': replyToCommentId,
-      'replyToCommentText': replyToCommentText,
-      'replyToCommentAuthor': replyToCommentAuthor,
-      'reactions': reactions,
-    };
-  }
 }

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'dart:typed_data';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
 
@@ -29,67 +31,88 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   int _maxParticipants = 5;
   bool _requiresApproval = false; // [NEW] Accept/Decline toggle
 
-  // Image Upload State
-  Uint8List? _imageBytes;
-  bool _isUploadingImage = false;
-  bool _isSubmitting = false;
-
   @override
   void initState() {
     super.initState();
-    final meetup = widget.editingMeetup;
-    if (meetup != null) {
-      _titleController.text = meetup.title;
-      _descriptionController.text = meetup.description;
-      _locationController.text = meetup.location;
-      _imageUrlController.text = meetup.imageUrl;
-      _selectedDate = meetup.dateTime;
-      _selectedTime = TimeOfDay.fromDateTime(meetup.dateTime);
-      _selectedCategory = meetup.category;
-      _maxParticipants = meetup.maxParticipants;
-      _requiresApproval = meetup.requiresApproval;
+    if (widget.editingMeetup != null) {
+      _titleController.text = widget.editingMeetup!.title;
+      _descriptionController.text = widget.editingMeetup!.description;
+      _locationController.text = widget.editingMeetup!.location;
+      _imageUrlController.text = widget.editingMeetup!.imageUrl;
+      _selectedDate = widget.editingMeetup!.dateTime;
+      _selectedTime = TimeOfDay.fromDateTime(widget.editingMeetup!.dateTime);
+      _selectedCategory = widget.editingMeetup!.category;
+      _maxParticipants = widget.editingMeetup!.maxParticipants;
+      _requiresApproval = widget.editingMeetup!.requiresApproval;
     }
   }
 
+  // Image Upload State
+  Uint8List? _imageBytes;
+  bool _isUploadingImage = false;
+
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200, imageQuality: 70);
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    if (!mounted) return;
-    setState(() {
-      _imageBytes = bytes;
-      _imageUrlController.text = '';
-    });
+    final picked = await picker.pickImage(
+      source: ImageSource.gallery,
+      maxWidth: 800,
+      imageQuality: 70,
+    );
+    if (picked != null) {
+      final bytes = await picked.readAsBytes();
+      setState(() {
+        _imageBytes = bytes;
+        _imageUrlController.clear(); // Clear URL if local image picked
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _locationController.dispose();
+    _imageUrlController.dispose(); // Dispose
+    super.dispose();
   }
 
   Future<void> _selectDate(BuildContext context) async {
-    final picked = await showDatePicker(
+    final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _selectedDate,
-      firstDate: DateTime.now().subtract(const Duration(days: 1)),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2101),
     );
-    if (picked != null && mounted) {
-      setState(() => _selectedDate = picked);
+    if (picked != null && picked != _selectedDate) {
+      setState(() {
+        _selectedDate = picked;
+      });
     }
   }
 
   Future<void> _selectTime(BuildContext context) async {
-    final picked = await showTimePicker(
+    final TimeOfDay? picked = await showTimePicker(
       context: context,
       initialTime: _selectedTime,
     );
-    if (picked != null && mounted) {
-      setState(() => _selectedTime = picked);
+    if (picked != null && picked != _selectedTime) {
+      setState(() {
+        _selectedTime = picked;
+      });
     }
   }
+
+  bool _isSubmitting = false;
 
   Future<void> _submitForm() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isSubmitting = true);
+
       try {
-        final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+        final firestoreService = Provider.of<FirestoreService>(
+          context,
+          listen: false,
+        );
         final user = await firestoreService.getCurrentUser();
 
         if (user == null) {
@@ -107,9 +130,17 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
         // Upload image if selected
         if (_imageBytes != null) {
           setState(() => _isUploadingImage = true);
-          // Placeholder: simulate upload
-          await Future.delayed(const Duration(seconds: 2));
-          final url = 'https://example.com/meetup.jpg'; // Placeholder URL
+          final ref = FirebaseStorage.instance
+              .ref()
+              .child('meetup_images')
+              .child('${const Uuid().v4()}.jpg');
+
+          final uploadTask = ref.putData(
+            _imageBytes!,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+          await uploadTask;
+          final url = await ref.getDownloadURL();
           _imageUrlController.text = url;
           setState(() => _isUploadingImage = false);
         }
@@ -127,12 +158,55 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           _selectedTime.minute,
         );
 
+        // --- Check if user already has an active meetup ---
+        if (widget.editingMeetup == null) {
+          try {
+            // Force block if they already have *any* meetup where they are the host
+            final querySnapshot = await FirebaseFirestore.instance
+                .collection('meetups')
+                .where('hostId', isEqualTo: user.id)
+                .get();
+
+            if (querySnapshot.docs.isNotEmpty) {
+              if (mounted) {
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('주최 제한 안내'),
+                    content: const Text(
+                      '이미 개설하신 모임이 있습니다.\n기존 모임을 삭제한 후 새 모임을 개설해주세요.\n(1인당 1개의 모임만 개설 가능합니다)',
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('확인'),
+                      ),
+                    ],
+                  ),
+                );
+                setState(() => _isSubmitting = false);
+              }
+              return;
+            }
+          } catch (e) {
+            debugPrint('Error checking existing meetups: $e');
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Failed to verify meetup limit: $e')),
+              );
+              setState(() => _isSubmitting = false);
+            }
+            return; // Block on error to prevent bypassing
+          }
+        }
+        // --------------------------------------------------------
+
         if (widget.editingMeetup != null) {
           await firestoreService.updateMeetup(widget.editingMeetup!.id, {
             'title': _titleController.text,
             'description': _descriptionController.text,
             'location': _locationController.text,
-            'dateTime': dateTime.toIso8601String(),
+            'dateTime': Timestamp.fromDate(dateTime),
             'category': _selectedCategory.name,
             'maxParticipants': _maxParticipants,
             'requiresApproval': _requiresApproval,
@@ -151,9 +225,10 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
             description: _descriptionController.text,
             location: _locationController.text,
             dateTime: dateTime,
-            category: _selectedCategory,
+            category:
+                _selectedCategory, // This works because I added the picker earlier
             maxParticipants: _maxParticipants,
-            requiresApproval: _requiresApproval,
+            requiresApproval: _requiresApproval, // [NEW] Accept/Decline toggle
             host: user,
             participantIds: [user.id],
             imageUrl: finalImageUrl,
@@ -171,12 +246,11 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error creating meetup: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error creating meetup: $e')));
+          setState(() => _isSubmitting = false);
         }
-      } finally {
-        if (mounted) setState(() => _isSubmitting = false);
       }
     }
   }
@@ -216,7 +290,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                     height: 58,
                     width: 58,
                     decoration: BoxDecoration(
-                      color: Colors.teal.withOpacity(0.1),
+                      color: Colors.teal.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(4),
                       border: Border.all(color: Colors.grey),
                     ),

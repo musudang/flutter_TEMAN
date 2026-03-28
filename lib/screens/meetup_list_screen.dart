@@ -146,7 +146,7 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
     return Card(
       elevation: 4, // Higher elevation for shadow
       margin: const EdgeInsets.only(bottom: 20.0), // More spacing
-      shadowColor: Colors.black.withOpacity(0.2), // Subtle shadow
+      shadowColor: Colors.black.withValues(alpha: 0.2), // Subtle shadow
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -187,7 +187,7 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
                       borderRadius: BorderRadius.circular(20),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
+                          color: Colors.black.withValues(alpha: 0.2),
                           blurRadius: 4,
                           offset: const Offset(0, 2),
                         ),

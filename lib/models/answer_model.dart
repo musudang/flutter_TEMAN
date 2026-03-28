@@ -16,30 +16,4 @@ class Answer {
     required this.authorAvatar,
     required this.timestamp,
   });
-
-  factory Answer.fromJson(Map<String, dynamic> json) {
-    return Answer(
-      id: json['id']?.toString() ?? '',
-      questionId: json['questionId']?.toString() ?? '',
-      content: json['content'] ?? '',
-      authorId: json['authorId']?.toString() ?? '',
-      authorName: json['authorName'] ?? '',
-      authorAvatar: json['authorAvatar'] ?? '',
-      timestamp: json['timestamp'] != null
-          ? DateTime.parse(json['timestamp'])
-          : DateTime.now(),
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'questionId': questionId,
-      'content': content,
-      'authorId': authorId,
-      'authorName': authorName,
-      'authorAvatar': authorAvatar,
-      'timestamp': timestamp.toIso8601String(),
-    };
-  }
 }

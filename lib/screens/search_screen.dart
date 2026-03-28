@@ -138,13 +138,13 @@ class _SearchScreenState extends State<SearchScreen>
     if (_query.isEmpty) {
       return const Center(child: Text('Enter a search term'));
     }
-    return FutureBuilder<List<Post>>(
-      future: service.searchPosts(_query),
+    return StreamBuilder<List<Post>>(
+      stream: service.searchPosts(_query),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No posts found'));
         }
         return ListView.builder(
@@ -169,13 +169,13 @@ class _SearchScreenState extends State<SearchScreen>
     if (_query.isEmpty) {
       return const Center(child: Text('Enter a search term'));
     }
-    return FutureBuilder<List<Meetup>>(
-      future: service.searchMeetups(_query),
+    return StreamBuilder<List<Meetup>>(
+      stream: service.searchMeetups(_query),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No meetups found'));
         }
         return ListView.builder(
@@ -211,13 +211,13 @@ class _SearchScreenState extends State<SearchScreen>
     if (_query.isEmpty) {
       return const Center(child: Text('Enter a search term'));
     }
-    return FutureBuilder<List<Question>>(
-      future: service.searchQuestions(_query),
+    return StreamBuilder<List<Question>>(
+      stream: service.searchQuestions(_query),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No questions found'));
         }
         return ListView.builder(
@@ -251,13 +251,13 @@ class _SearchScreenState extends State<SearchScreen>
     if (_query.isEmpty) {
       return const Center(child: Text('Enter a search term'));
     }
-    return FutureBuilder<List<Job>>(
-      future: service.searchJobs(_query),
+    return StreamBuilder<List<Job>>(
+      stream: service.searchJobs(_query),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No jobs found'));
         }
         return ListView.builder(
@@ -295,13 +295,13 @@ class _SearchScreenState extends State<SearchScreen>
     if (_query.isEmpty) {
       return const Center(child: Text('Enter a search term'));
     }
-    return FutureBuilder<List<MarketplaceItem>>(
-      future: service.searchMarketplace(_query),
+    return StreamBuilder<List<MarketplaceItem>>(
+      stream: service.searchMarketplace(_query),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+        if (snapshot.data!.isEmpty) {
           return const Center(child: Text('No items found'));
         }
         return ListView.builder(
@@ -342,10 +342,10 @@ class _SearchScreenState extends State<SearchScreen>
     if (_query.isEmpty) {
       return const Center(child: Text('Enter a search term'));
     }
-    return FutureBuilder<List<Meetup>>(
-      future: service.searchMeetups(_query),
+    return StreamBuilder<List<Meetup>>(
+      stream: service.searchMeetups(_query),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.data!.isEmpty) {
