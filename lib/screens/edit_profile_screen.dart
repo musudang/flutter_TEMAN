@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../widgets/interest_selection_sheet.dart';
 
@@ -23,12 +24,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _bioController;
   late TextEditingController _nationalityController;
   late TextEditingController _ageController;
-  late TextEditingController _personalInfoController;
   late TextEditingController _avatarUrlController;
   late TextEditingController _instagramController;
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
   late List<String> _selectedInterests;
+
+  // 비밀번호 변경
+  final _currentPasswordController = TextEditingController();
+  final _newPasswordController = TextEditingController();
+  final _confirmNewPasswordController = TextEditingController();
+  bool _isChangingPassword = false;
+  bool _showCurrentPw = false;
+  bool _showNewPw = false;
+  bool _showConfirmPw = false;
 
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
@@ -42,7 +51,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _bioController = TextEditingController(text: widget.user.bio);
     _nationalityController = TextEditingController(text: widget.user.nationality);
     _ageController = TextEditingController(text: widget.user.age?.toString() ?? '');
-    _personalInfoController = TextEditingController(text: widget.user.personalInfo);
     _avatarUrlController = TextEditingController(text: widget.user.avatarUrl);
     _instagramController = TextEditingController(text: widget.user.instagramId);
     _phoneController = TextEditingController(text: widget.user.phoneNumber);
@@ -57,11 +65,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _bioController.dispose();
     _nationalityController.dispose();
     _ageController.dispose();
-    _personalInfoController.dispose();
     _avatarUrlController.dispose();
     _instagramController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _currentPasswordController.dispose();
+    _newPasswordController.dispose();
+    _confirmNewPasswordController.dispose();
     super.dispose();
   }
 
@@ -165,7 +175,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         nationality: _nationalityController.text.trim(),
         avatarUrl: _avatarUrlController.text.trim(),
         age: int.tryParse(_ageController.text.trim()),
-        personalInfo: _personalInfoController.text.trim(),
+        personalInfo: '',
         instagramId: _instagramController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
         email: _emailController.text.trim(),
@@ -306,8 +316,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ),
             const SizedBox(height: 32),
 
-            // ── 공개 정보 섹션 ──
-            _buildSectionHeader(Icons.public, '공개 정보', '다른 사용자에게 보이는 정보'),
+            // ── Public Info Section ──
+            _buildSectionHeader(Icons.public, 'Public Info', 'Visible to other users'),
             const SizedBox(height: 16),
 
             _buildLabel('Display Name *'),
@@ -335,15 +345,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             _buildTextField(_bioController, 'Tell us about yourself...', maxLines: 3),
 
             const SizedBox(height: 20),
-            _buildLabel('About Me'),
-            const SizedBox(height: 8),
-            _buildTextField(
-              _personalInfoController,
-              'Hobbies, interests, what you do...',
-              maxLines: 3,
-            ),
-
-            const SizedBox(height: 20),
             _buildLabel('Instagram ID / Link'),
             const SizedBox(height: 8),
             _buildTextField(
@@ -358,8 +359,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
             const SizedBox(height: 32),
 
-            // ── 개인정보 섹션 ──
-            _buildSectionHeader(Icons.lock_outline, '개인 정보', '나에게만 보이는 정보 (타인에게 비공개)'),
+            // ── Private Info Section ──
+            _buildSectionHeader(Icons.lock_outline, 'Private Info', 'Only visible to you'),
             const SizedBox(height: 16),
 
             _buildLabel('Email'),
@@ -378,6 +379,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               '+82 10-0000-0000',
               keyboardType: TextInputType.phone,
             ),
+
+            // ── 비밀번호 변경 섹션 (이메일 로그인 사용자만) ──
+            if (Provider.of<AuthService>(context, listen: false).isEmailPasswordUser) ..._buildPasswordChangeSection(),
 
             const SizedBox(height: 40),
           ],
@@ -503,5 +507,194 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
+  }
+
+  // ── 비밀번호 변경 섹션 ──
+  List<Widget> _buildPasswordChangeSection() {
+    return [
+      const SizedBox(height: 32),
+      _buildSectionHeader(Icons.key_outlined, 'Change Password', 'Verify current password to set a new one'),
+      const SizedBox(height: 16),
+
+      // Current password
+      _buildLabel('Current Password'),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _currentPasswordController,
+        obscureText: !_showCurrentPw,
+        decoration: InputDecoration(
+          hintText: 'Enter current password',
+          hintStyle: TextStyle(color: Colors.grey[400]),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.teal, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          suffixIcon: IconButton(
+            icon: Icon(_showCurrentPw ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+            onPressed: () => setState(() => _showCurrentPw = !_showCurrentPw),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 20),
+
+      // New password
+      _buildLabel('New Password'),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _newPasswordController,
+        obscureText: !_showNewPw,
+        decoration: InputDecoration(
+          hintText: 'New password (min. 6 characters)',
+          hintStyle: TextStyle(color: Colors.grey[400]),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.teal, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          suffixIcon: IconButton(
+            icon: Icon(_showNewPw ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+            onPressed: () => setState(() => _showNewPw = !_showNewPw),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 20),
+
+      // Confirm new password
+      _buildLabel('Confirm New Password'),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _confirmNewPasswordController,
+        obscureText: !_showConfirmPw,
+        decoration: InputDecoration(
+          hintText: 'Re-enter new password',
+          hintStyle: TextStyle(color: Colors.grey[400]),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: BorderSide(color: Colors.grey[200]!),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(12),
+            borderSide: const BorderSide(color: Colors.teal, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          suffixIcon: IconButton(
+            icon: Icon(_showConfirmPw ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+            onPressed: () => setState(() => _showConfirmPw = !_showConfirmPw),
+          ),
+        ),
+      ),
+
+      const SizedBox(height: 20),
+
+      // 비밀번호 변경 버튼
+      SizedBox(
+        width: double.infinity,
+        child: ElevatedButton.icon(
+          onPressed: _isChangingPassword ? null : _changePassword,
+          icon: _isChangingPassword
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                )
+              : const Icon(Icons.lock_reset, size: 18),
+          label: Text(_isChangingPassword ? 'Changing...' : 'Change Password'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 14),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
+    ];
+  }
+
+  Future<void> _changePassword() async {
+    final current = _currentPasswordController.text.trim();
+    final newPw = _newPasswordController.text.trim();
+    final confirm = _confirmNewPasswordController.text.trim();
+
+    if (current.isEmpty || newPw.isEmpty || confirm.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all password fields.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    if (newPw.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New password must be at least 6 characters.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    if (newPw != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('New passwords do not match.'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    setState(() => _isChangingPassword = true);
+
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    final result = await authService.changePassword(
+      currentPassword: current,
+      newPassword: newPw,
+    );
+
+    if (!mounted) return;
+    setState(() => _isChangingPassword = false);
+
+    if (result.isSuccess) {
+      _currentPasswordController.clear();
+      _newPasswordController.clear();
+      _confirmNewPasswordController.clear();
+      scaffoldMessenger.showSnackBar(
+        const SnackBar(
+          content: Text('✅ Password changed successfully!'),
+          backgroundColor: Colors.teal,
+        ),
+      );
+    } else {
+      scaffoldMessenger.showSnackBar(
+        SnackBar(
+          content: Text(result.errorMessage ?? 'Failed to change password.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 }

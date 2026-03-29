@@ -22,6 +22,7 @@ import 'user_profile_screen.dart';
 import 'profile_screen.dart';
 import 'post_detail_screen.dart';
 import 'share_content_sheet.dart';
+import '../widgets/teman_logo.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -74,14 +75,21 @@ class _FeedScreenState extends State<FeedScreen> {
               _selectedFilter = 'All';
             });
           },
-          child: const Text(
-            'TEMAN',
-            style: TextStyle(
-              fontWeight: FontWeight.w800,
-              fontSize: 24,
-              color: Color(0xFF1A1F36),
-              letterSpacing: -0.5,
-            ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const TemanLogoWidget(size: 28),
+              const SizedBox(width: 8),
+              const Text(
+                'TEMAN',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 24,
+                  color: Color(0xFF1E56C8),
+                  letterSpacing: -0.5,
+                ),
+              ),
+            ],
           ),
         ),
         centerTitle: false,

@@ -5,6 +5,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
+import 'screens/onboarding_screen.dart';
 import 'services/firestore_service.dart';
 import 'services/auth_service.dart';
 import 'models/auth_result.dart';
@@ -26,11 +27,10 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthService()),
       ],
       child: MaterialApp(
-        title: 'Teman Community',
+        title: 'TEMAN Community',
         theme: ThemeData(
-          // Use a more vibrant color scheme as requested
           colorScheme: ColorScheme.fromSeed(
-            seedColor: Colors.teal,
+            seedColor: const Color(0xFF1E56C8),
             secondary: Colors.orangeAccent,
           ),
           useMaterial3: true,
@@ -53,6 +53,9 @@ class MyApp extends StatelessWidget {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// AuthWrapper: routes to Login, Onboarding, or MainScreen
+// ──────────────────────────────────────────────────────────────────────────────
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -63,12 +66,51 @@ class AuthWrapper extends StatelessWidget {
     return StreamBuilder<AuthUser?>(
       stream: authService.authStateChanges,
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.active) {
-          final AuthUser? user = snapshot.data;
-          return user == null ? const LoginScreen() : const MainScreen();
+        // While waiting for auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _SplashScreen();
         }
-        return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
+        final AuthUser? user = snapshot.data;
+
+        // Not logged in → Login screen
+        if (user == null) {
+          return const LoginScreen();
+        }
+
+        // Logged in → check if onboarding is complete
+        return FutureBuilder<bool>(
+          future: authService.isNewUser(),
+          builder: (context, onboardingSnapshot) {
+            if (onboardingSnapshot.connectionState == ConnectionState.waiting) {
+              return const _SplashScreen();
+            }
+            final needsOnboarding = onboardingSnapshot.data ?? false;
+            if (needsOnboarding) {
+              return const OnboardingScreen();
+            }
+            return const MainScreen();
+          },
+        );
       },
+    );
+  }
+}
+
+// Simple splash while checking auth state
+class _SplashScreen extends StatelessWidget {
+  const _SplashScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation(Color(0xFF1E56C8)),
+          strokeWidth: 3,
+        ),
+      ),
     );
   }
 }
