@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/firestore_service.dart';
-import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
 import '../models/meetup_model.dart';
@@ -16,6 +15,7 @@ import 'marketplace_detail_screen.dart';
 import '../models/job_model.dart';
 import '../models/marketplace_model.dart';
 import 'post_detail_screen.dart';
+import 'settings_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -123,33 +123,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     });
                                   },
                                 ),
-                                PopupMenuButton<String>(
+                                IconButton(
                                   icon: const Icon(
                                     Icons.settings_outlined,
                                     color: Colors.grey,
                                   ),
-                                  onSelected: (value) async {
-                                    if (value == 'logout') {
-                                      final authService =
-                                          Provider.of<AuthService>(
-                                            context,
-                                            listen: false,
-                                          );
-                                      await authService.signOut();
-                                    }
-                                  },
-                                  itemBuilder: (ctx) => [
-                                    const PopupMenuItem(
-                                      value: 'logout',
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.logout, size: 18, color: Colors.grey),
-                                          SizedBox(width: 8),
-                                          Text('Sign Out'),
-                                        ],
+                                  onPressed: () {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => SettingsScreen(user: user),
                                       ),
-                                    ),
-                                  ],
+                                    );
+                                  },
                                 ),
                               ],
                             ),
