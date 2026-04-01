@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import '../models/user_model.dart' as app_models;
+import '../services/firestore_service.dart';
 
 class ContactUsScreen extends StatefulWidget {
   final app_models.User? currentUser;
@@ -51,46 +51,30 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
       return;
     }
 
-    // Prepare email content
+    // Prepare content
     final String content = _contentController.text.trim();
     final String email = _emailController.text.trim();
     final String userId = _userIdController.text.trim();
     final String school = _schoolController.text.trim();
 
-    final String subject = Uri.encodeComponent('TEMAN Inquiry from $userId');
-    final String body = Uri.encodeComponent(
-'''Content:
-$content
-
----
-Contact Email: $email
-User ID: $userId
-School: $school
-'''
-    );
-
-    final Uri emailLaunchUri = Uri(
-      scheme: 'mailto',
-      path: 'temancommunity@gmail.com',
-      query: 'subject=$subject&body=$body',
-    );
-
     try {
-      if (!await launchUrl(emailLaunchUri)) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Could not launch the email application.')),
-          );
-        }
-      } else {
-        if (mounted) {
-          Navigator.pop(context);
-        }
+      await FirestoreService().submitContactInquiry(
+        email: email,
+        userId: userId,
+        school: school,
+        content: content,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Inquiry submitted successfully.')),
+        );
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error launching email client: $e')),
+          SnackBar(content: Text('Error submitting inquiry: $e')),
         );
       }
     }

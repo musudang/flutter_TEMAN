@@ -7,6 +7,7 @@ import '../services/firestore_service.dart';
 import 'user_profile_screen.dart';
 import 'share_content_sheet.dart';
 import 'create_post_screen.dart';
+import '../widgets/report_dialog.dart';
 
 class PostDetailScreen extends StatelessWidget {
   final String postId;
@@ -276,8 +277,16 @@ class PostDetailScreen extends StatelessWidget {
                             ),
                           );
                           if (confirm == true) {
-                            await fs.deletePost(post.id);
-                            if (context.mounted) Navigator.pop(context);
+                            try {
+                              await fs.deletePost(post.id);
+                              if (context.mounted) Navigator.pop(context);
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Failed to delete post: $e')),
+                                );
+                              }
+                            }
                           }
                         }
                       },
@@ -294,6 +303,14 @@ class PostDetailScreen extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  if (!isOwner)
+                    IconButton(
+                      icon: const Icon(Icons.flag_outlined, color: Colors.orange),
+                      tooltip: 'Report Post',
+                      onPressed: () {
+                        showReportPostDialog(context, post.id);
+                      },
                     ),
                 ],
               );

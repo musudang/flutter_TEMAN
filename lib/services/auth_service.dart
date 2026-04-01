@@ -152,7 +152,38 @@ class AuthService extends ChangeNotifier {
     required String password,
   }) async {
     try {
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final credential = await _auth.signInWithEmailAndPassword(email: email, password: password);
+      final uid = credential.user?.uid;
+      if (uid != null) {
+        // Check if account is soft-deleted
+        final userDoc = await _db.collection('users').doc(uid).get();
+        if (userDoc.exists) {
+          final data = userDoc.data()!;
+          if (data['status'] == 'deleted') {
+            final deletedAt = (data['deletedAt'] as Timestamp?)?.toDate();
+            final scheduledDelete = (data['scheduledPermanentDeleteAt'] as Timestamp?)?.toDate();
+            final now = DateTime.now();
+            if (deletedAt != null && scheduledDelete != null && now.isBefore(scheduledDelete)) {
+              // Within grace period — sign out and return special result
+              await _auth.signOut();
+              return AuthResult.deletedAccount(
+                deletedAt: deletedAt,
+                scheduledPermanentDeleteAt: scheduledDelete,
+                uid: uid,
+                email: email,
+                password: password,
+              );
+            } else {
+              // Grace period expired
+              await _auth.signOut();
+              return AuthResult.failure(
+                'This account has been permanently deleted.',
+                'account-permanently-deleted',
+              );
+            }
+          }
+        }
+      }
       return AuthResult.success();
     } on firebase_auth.FirebaseAuthException catch (e) {
       return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
@@ -274,6 +305,32 @@ class AuthService extends ChangeNotifier {
             'personalInfo': '',
             'createdAt': FieldValue.serverTimestamp(),
           });
+        } else {
+          // Check if account is soft-deleted
+          final data = doc.data()!;
+          if (data['status'] == 'deleted') {
+            final deletedAt = (data['deletedAt'] as Timestamp?)?.toDate();
+            final scheduledDelete = (data['scheduledPermanentDeleteAt'] as Timestamp?)?.toDate();
+            final now = DateTime.now();
+            if (deletedAt != null && scheduledDelete != null && now.isBefore(scheduledDelete)) {
+              await _auth.signOut();
+              try { await _googleSignIn.disconnect(); } catch (_) {}
+              return AuthResult.deletedAccount(
+                deletedAt: deletedAt,
+                scheduledPermanentDeleteAt: scheduledDelete,
+                uid: user.uid,
+                email: user.email ?? '',
+                password: '',
+              );
+            } else {
+              await _auth.signOut();
+              try { await _googleSignIn.disconnect(); } catch (_) {}
+              return AuthResult.failure(
+                'This account has been permanently deleted.',
+                'account-permanently-deleted',
+              );
+            }
+          }
         }
       }
 
@@ -421,6 +478,121 @@ class AuthService extends ChangeNotifier {
   Future<AuthResult> sendPasswordResetEmail(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email);
+      return AuthResult.success();
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
+  // Delete Account (soft delete — 14-day grace period recovery via re-login)
+  Future<AuthResult> deleteAccount({String? currentPassword}) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return AuthResult.failure('Not logged in.');
+
+      // Reauthenticate if email/password user
+      if (currentPassword != null && user.email != null) {
+        final credential = firebase_auth.EmailAuthProvider.credential(
+          email: user.email!,
+          password: currentPassword,
+        );
+        await user.reauthenticateWithCredential(credential);
+      }
+
+      final uid = user.uid;
+      final now = DateTime.now();
+      final scheduledDelete = now.add(const Duration(days: 14));
+
+      // Fetch current user data for backup
+      final userDoc = await _db.collection('users').doc(uid).get();
+      final userData = userDoc.data() ?? {};
+
+      // 1. Mark user as deleted in main users collection
+      await _db.collection('users').doc(uid).update({
+        'status': 'deleted',
+        'deletedAt': FieldValue.serverTimestamp(),
+        'scheduledPermanentDeleteAt': Timestamp.fromDate(scheduledDelete),
+      });
+
+      // 2. Back up to deleted_users for admin review
+      await _db.collection('deleted_users').doc(uid).set({
+        ...userData,
+        'status': 'deleted',
+        'deletedAt': FieldValue.serverTimestamp(),
+        'scheduledPermanentDeleteAt': Timestamp.fromDate(scheduledDelete),
+      });
+
+      // 3. Sign out
+      await signOut();
+
+      return AuthResult.success();
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
+  // Recover deleted account (restore status to 'active') — email/password users
+  Future<AuthResult> recoverAccount({
+    required String email,
+    required String password,
+    required String uid,
+  }) async {
+    try {
+      // Re-login first
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
+
+      // Restore status
+      await _db.collection('users').doc(uid).update({
+        'status': 'active',
+        'deletedAt': FieldValue.delete(),
+        'scheduledPermanentDeleteAt': FieldValue.delete(),
+      });
+
+      // Clean up deleted_users backup entry
+      try {
+        await _db.collection('deleted_users').doc(uid).delete();
+      } catch (_) {}
+
+      return AuthResult.success();
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
+  // Recover deleted account — Google / social users.
+  // Signs in with Google again and immediately restores account status.
+  Future<AuthResult> recoverGoogleAccount({required String uid}) async {
+    try {
+      final google_sign_in.GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      if (googleUser == null) return AuthResult.failure('Google sign in cancelled');
+
+      final google_sign_in.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      final firebase_auth.AuthCredential credential =
+          firebase_auth.GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      await _auth.signInWithCredential(credential);
+
+      // Restore status immediately after sign-in (while authenticated)
+      await _db.collection('users').doc(uid).update({
+        'status': 'active',
+        'deletedAt': FieldValue.delete(),
+        'scheduledPermanentDeleteAt': FieldValue.delete(),
+      });
+
+      // Clean up deleted_users backup entry
+      try {
+        await _db.collection('deleted_users').doc(uid).delete();
+      } catch (_) {}
+
       return AuthResult.success();
     } on firebase_auth.FirebaseAuthException catch (e) {
       return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);

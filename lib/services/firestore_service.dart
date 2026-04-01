@@ -1263,11 +1263,57 @@ class FirestoreService extends ChangeNotifier {
     final admin = await isAdmin();
 
     if (authorId == uid || admin) {
+      // Soft delete: back up to admin_deleted_posts before removing original
+      final now = DateTime.now();
+      await _db.collection('admin_deleted_posts').doc(postId).set({
+        ...data,
+        'originalPostId': postId,
+        'deletedAt': FieldValue.serverTimestamp(),
+        'deletedBy': uid,
+        'scheduledPermanentDeleteAt': Timestamp.fromDate(
+          now.add(const Duration(days: 4)),
+        ),
+      });
       await _db.collection('posts').doc(postId).delete();
-      debugPrint("Post $postId deleted.");
+      debugPrint("Post $postId soft-deleted (backed up to admin_deleted_posts).");
     } else {
       debugPrint("Permission denied: cannot delete post $postId");
     }
+  }
+
+  /// Report a post — saves to the 'admin_reports' collection for admin review.
+  Future<void> reportPost(String postId, {String reason = 'Inappropriate content', String details = ''}) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    await _db.collection('admin_reports').add({
+      'postId': postId,
+      'reportedBy': uid,
+      'reason': reason,
+      'details': details,
+      'type': 'post',
+      'reportedAt': FieldValue.serverTimestamp(),
+      'status': 'pending',
+    });
+    debugPrint("Post $postId reported by $uid.");
+  }
+
+  /// Submit Contact Inquiry — saves to 'admin_contact_inquiries'.
+  Future<void> submitContactInquiry({
+    required String email,
+    required String userId,
+    required String school,
+    required String content,
+  }) async {
+    await _db.collection('admin_contact_inquiries').add({
+      'email': email,
+      'userId': userId,
+      'school': school,
+      'content': content,
+      'submittedAt': FieldValue.serverTimestamp(),
+      'status': 'pending',
+    });
+    debugPrint("Contact inquiry submitted successfully.");
   }
 
   Future<void> updatePost(String postId, Map<String, dynamic> data) async {

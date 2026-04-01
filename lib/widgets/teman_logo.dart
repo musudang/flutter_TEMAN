@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 class TemanLogoWidget extends StatelessWidget {
   final double size;
-  const TemanLogoWidget({Key? key, required this.size}) : super(key: key);
+  const TemanLogoWidget({super.key, required this.size});
 
   @override
   Widget build(BuildContext context) {

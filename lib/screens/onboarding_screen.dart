@@ -115,7 +115,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             ),
             if (_isSavingExtras)
               Container(
-                color: Colors.white.withOpacity(0.8),
+                color: Colors.white.withValues(alpha: 0.8),
                 child: const Center(
                   child: CircularProgressIndicator(
                     valueColor: AlwaysStoppedAnimation(Color(0xFF1E56C8)),
@@ -1346,7 +1346,7 @@ class _WelcomeStepState extends State<_WelcomeStep>
                     borderRadius: BorderRadius.circular(28),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF1E56C8).withOpacity(0.35),
+                        color: const Color(0xFF1E56C8).withValues(alpha: 0.35),
                         blurRadius: 24,
                         offset: const Offset(0, 8),
                       ),
@@ -1401,7 +1401,7 @@ class _WelcomeStepState extends State<_WelcomeStep>
                 elevation: 0,
                 shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(14)),
-                shadowColor: const Color(0xFF1E56C8).withOpacity(0.4),
+                shadowColor: const Color(0xFF1E56C8).withValues(alpha: 0.4),
               ),
               child: const Text(
                 'Let\'s Go! 🚀',

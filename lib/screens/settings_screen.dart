@@ -1,18 +1,159 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import 'contact_us_screen.dart';
-
-class SettingsScreen extends StatelessWidget {
+import 'notices_screen.dart';
+class SettingsScreen extends StatefulWidget {
   final app_models.User user;
 
   const SettingsScreen({super.key, required this.user});
 
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
   void _showComingSoon(BuildContext context) {
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('This feature is coming soon.')),
     );
+  }
+
+  /// Step 1 confirmation dialog
+  Future<void> _showDeleteAccountDialog(BuildContext context) async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final isEmailUser = authService.isEmailPasswordUser;
+
+    // Step 1: Warning dialog
+    final step1Confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Text('Delete Account', style: TextStyle(color: Colors.red)),
+          ],
+        ),
+        content: const Text(
+          'Your account will be deactivated immediately.\n\n'
+          'You have 14 days to recover your account by logging in again.\n'
+          'After that, your data will be permanently deleted.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Continue', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (step1Confirmed != true) return;
+    if (!context.mounted) return;
+
+    // Step 2: Password confirmation (email users) or final confirmation (social users)
+    if (isEmailUser) {
+      await _showPasswordConfirmDialog(context, authService);
+    } else {
+      await _performDelete(context, authService, null);
+    }
+  }
+
+  Future<void> _showPasswordConfirmDialog(
+    BuildContext context,
+    AuthService authService,
+  ) async {
+    final passwordController = TextEditingController();
+    bool obscure = true;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Confirm Your Password'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Enter your password to confirm account deletion.'),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: passwordController,
+                  obscureText: obscure,
+                  decoration: InputDecoration(
+                    labelText: 'Password',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                      onPressed: () => setDialogState(() => obscure = !obscure),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    await _performDelete(context, authService, passwordController.text.trim());
+    passwordController.dispose();
+  }
+
+  Future<void> _performDelete(
+    BuildContext context,
+    AuthService authService,
+    String? password,
+  ) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final result = await authService.deleteAccount(
+      currentPassword: password,
+    );
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop(); // Close loading
+
+    if (result.isSuccess) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your account has been deactivated. You have 14 days to recover it.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.errorMessage ?? 'Failed to delete account.')),
+      );
+    }
   }
 
   @override
@@ -37,17 +178,6 @@ class SettingsScreen extends StatelessWidget {
         padding: const EdgeInsets.all(16.0),
         children: [
           _buildSectionGroup(
-            'Account',
-            [
-              _buildSettingItem(
-                context,
-                title: 'Change Password',
-                onTap: () => _showComingSoon(context),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _buildSectionGroup(
             'Community',
             [
               _buildSettingItem(
@@ -58,7 +188,13 @@ class SettingsScreen extends StatelessWidget {
               _buildSettingItem(
                 context,
                 title: 'Community Guidelines',
-                onTap: () => _showComingSoon(context),
+                onTap: () async {
+                  final url = Uri.parse(
+                      'https://iris-tank-0cf.notion.site/333d16a0171980e2a20fc9975656021e?source=copy_link');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  }
+                },
               ),
             ],
           ),
@@ -73,7 +209,7 @@ class SettingsScreen extends StatelessWidget {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => ContactUsScreen(currentUser: user),
+                      builder: (context) => ContactUsScreen(currentUser: widget.user),
                     ),
                   );
                 },
@@ -81,22 +217,36 @@ class SettingsScreen extends StatelessWidget {
               _buildSettingItem(
                 context,
                 title: 'Notices',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => NoticesScreen(isAdmin: widget.user.isAdmin),
+                    ),
+                  );
+                },
               ),
               _buildSettingItem(
                 context,
                 title: 'Terms of Service',
-                onTap: () => _showComingSoon(context),
+                onTap: () async {
+                  final url = Uri.parse(
+                      'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  }
+                },
               ),
               _buildSettingItem(
                 context,
                 title: 'Privacy Policy',
-                onTap: () => _showComingSoon(context),
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Youth Protection Policy',
-                onTap: () => _showComingSoon(context),
+                onTap: () async {
+                  final url = Uri.parse(
+                      'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link');
+                  if (await canLaunchUrl(url)) {
+                    await launchUrl(url);
+                  }
+                },
               ),
             ],
           ),
@@ -112,7 +262,8 @@ class SettingsScreen extends StatelessWidget {
               _buildSettingItem(
                 context,
                 title: 'Delete Account',
-                onTap: () => _showComingSoon(context),
+                onTap: () => _showDeleteAccountDialog(context),
+                textColor: Colors.red,
               ),
               _buildSettingItem(
                 context,
@@ -121,6 +272,7 @@ class SettingsScreen extends StatelessWidget {
                   final authService =
                       Provider.of<AuthService>(context, listen: false);
                   await authService.signOut();
+                  // ignore: use_build_context_synchronously
                   if (context.mounted) {
                     Navigator.of(context).pop(); // Pop settings screen
                   }

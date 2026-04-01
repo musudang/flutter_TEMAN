@@ -71,13 +71,13 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if true; // Profiles are public
       
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow delete: if isAuthenticated() && isOwner(userId);
       // A user can fully update their own profile
       // OR another user can ONLY update the 'followers' and 'following' lists
-      allow write: if isAuthenticated() && (
+      allow update: if isAuthenticated() && (
         isOwner(userId) ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following'])
-        )
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following'])
       );
       
       // Allow anyone logged in to send a notification to others
@@ -99,6 +99,28 @@ service cloud.firestore {
         // We rely on parent conversation access mostly, but can double check
         allow read, write: if isAuthenticated();
       }
+    }
+
+    // ==========================================================
+    // DELETED / REPORTED CONTENT
+    // ==========================================================
+    
+    match /deleted_users/{userId} {
+      // Users can backup their own data before deleting their account
+      allow create, update: if request.auth != null && request.auth.uid == userId;
+      allow read, delete: if false;
+    }
+
+    match /deleted_posts/{postId} {
+      // Users can backup their own posts before deleting
+      allow create, update: if request.auth != null && request.auth.uid == request.resource.data.deletedBy;
+      allow read, delete: if false;
+    }
+
+    match /reports/{reportId} {
+      // Any authenticated user can submit a report
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
     }
 
     // ==========================================================

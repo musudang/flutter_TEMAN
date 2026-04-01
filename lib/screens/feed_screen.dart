@@ -23,6 +23,7 @@ import 'profile_screen.dart';
 import 'post_detail_screen.dart';
 import 'share_content_sheet.dart';
 import '../widgets/teman_logo.dart';
+import '../widgets/report_dialog.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -716,7 +717,7 @@ class _FeedScreenState extends State<FeedScreen> {
                         );
                       },
                     ),
-                    // Delete menu for owner / admin
+                    // 3-dot menu: owner → Delete, others → Report
                     PopupMenuButton<String>(
                       icon: Icon(
                         Icons.more_vert,
@@ -750,23 +751,36 @@ class _FeedScreenState extends State<FeedScreen> {
                           if (confirm == true) {
                             await firestoreService.deletePost(post.id);
                           }
+                        } else if (value == 'report') {
+                          showReportPostDialog(context, post.id);
                         }
                       },
                       itemBuilder: (ctx) {
                         final isOwner = post.authorId == uid;
-                        return [
-                          if (isOwner)
+                        if (isOwner) {
+                          return [
                             const PopupMenuItem(
                               value: 'delete',
-                              child: Text('Delete Post'),
+                              child: Text(
+                                'Delete Post',
+                                style: TextStyle(color: Colors.red),
+                              ),
                             ),
-                          // Admin check is async; for simplicity we always show if owner.
-                          // Admin deletion is handled server-side in deletePost().
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Text('Report / Delete'),
-                          ),
-                        ];
+                          ];
+                        } else {
+                          return [
+                            const PopupMenuItem(
+                              value: 'report',
+                              child: Row(
+                                children: [
+                                  Icon(Icons.flag_outlined, color: Colors.orange, size: 20),
+                                  SizedBox(width: 8),
+                                  Text('Report Post'),
+                                ],
+                              ),
+                            ),
+                          ];
+                        }
                       },
                     ),
                   ],
