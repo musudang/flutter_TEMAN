@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Question {
   final String id;
   final String title;
@@ -16,4 +18,17 @@ class Question {
     required this.timestamp,
     this.answersCount = 0,
   });
+
+  factory Question.fromFirestore(DocumentSnapshot doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    return Question(
+      id: doc.id,
+      title: data['title'] ?? '',
+      content: data['content'] ?? '',
+      authorId: data['authorId'] ?? '',
+      authorName: data['authorName'] ?? 'Unknown',
+      timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      answersCount: data['answersCount'] ?? 0,
+    );
+  }
 }

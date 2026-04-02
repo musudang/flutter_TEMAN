@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class MarketplaceItem {
   final String id;
   final String title;
@@ -26,4 +28,22 @@ class MarketplaceItem {
     required this.postedDate,
     this.isSold = false,
   });
+
+  factory MarketplaceItem.fromFirestore(DocumentSnapshot doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    return MarketplaceItem(
+      id: doc.id,
+      title: data['title'] ?? '',
+      price: (data['price'] ?? 0).toDouble(),
+      description: data['description'] ?? '',
+      condition: data['condition'] ?? 'Used',
+      category: data['category'] ?? 'Other',
+      imageUrls: List<String>.from(data['imageUrls'] ?? []),
+      sellerId: data['sellerId'] ?? '',
+      sellerName: data['sellerName'] ?? 'Unknown',
+      sellerAvatar: data['sellerAvatar'] ?? '',
+      postedDate: (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isSold: data['isSold'] ?? false,
+    );
+  }
 }

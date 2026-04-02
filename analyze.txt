@@ -1,0 +1,110 @@
+﻿Analyzing services...                                           
+
+warning - Unused import: 'package:cloud_firestore/cloud_firestore.dart' - lib\services\firestore_service_new.dart:2:8 - unused_import
+warning - Unused import: 'package:firebase_auth/firebase_auth.dart' - lib\services\firestore_service_new.dart:3:8 - unused_import
+   info - Unnecessary override - lib\services\firestore_service_new.dart:32:28 - unnecessary_overrides
+   info - Unnecessary override - lib\services\firestore_service_new.dart:35:24 - unnecessary_overrides
+   info - Unnecessary override - lib\services\firestore_service_new.dart:38:26 - unnecessary_overrides
+   info - Unnecessary override - lib\services\firestore_service_new.dart:41:16 - unnecessary_overrides
+   info - Unnecessary override - lib\services\firestore_service_new.dart:44:21 - unnecessary_overrides
+   info - Unnecessary override - lib\services\firestore_service_new.dart:47:33 - unnecessary_overrides
+   info - Unnecessary override - lib\services\firestore_service_new.dart:50:16 - unnecessary_overrides
+warning - Unused import: '../../models/meetup_model.dart' - lib\services\mixins\dev_service.dart:4:8 - unused_import
+warning - Unused import: '../../models/user_model.dart' - lib\services\mixins\dev_service.dart:5:8 - unused_import
+warning - Unused import: '../../models/post_model.dart' - lib\services\mixins\dev_service.dart:6:8 - unused_import
+warning - Unused import: '../../models/question_model.dart' - lib\services\mixins\dev_service.dart:7:8 - unused_import
+warning - Unused import: '../../models/answer_model.dart' - lib\services\mixins\dev_service.dart:8:8 - unused_import
+warning - Unused import: '../../models/message_model.dart' - lib\services\mixins\dev_service.dart:9:8 - unused_import
+warning - Unused import: '../../models/job_model.dart' - lib\services\mixins\dev_service.dart:10:8 - unused_import
+warning - Unused import: '../../models/marketplace_model.dart' - lib\services\mixins\dev_service.dart:11:8 - unused_import
+warning - Unused import: '../../models/conversation_model.dart' - lib\services\mixins\dev_service.dart:12:8 - unused_import
+warning - Unused import: '../../models/notification_model.dart' - lib\services\mixins\dev_service.dart:13:8 - unused_import
+warning - Unused import: '../../models/comment_model.dart' - lib\services\mixins\dev_service.dart:14:8 - unused_import
+warning - Unused import: '../../constants/app_constants.dart' - lib\services\mixins\dev_service.dart:15:8 - unused_import
+warning - Unused import: 'package:rxdart/rxdart.dart' - lib\services\mixins\dev_service.dart:17:8 - unused_import
+warning - Unused import: 'package:uuid/uuid.dart' - lib\services\mixins\dev_service.dart:18:8 - unused_import
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\dev_service.dart:31:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\dev_service.dart:31:71 - dead_code
+  error - Expected to find '}' - lib\services\mixins\dev_service.dart:70:1 - expected_token
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\job_service.dart:9:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\job_service.dart:9:71 - dead_code
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\marketplace_service.dart:10:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\marketplace_service.dart:10:71 - dead_code
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\meetup_service.dart:10:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\meetup_service.dart:10:71 - dead_code
+warning - Unused import: '../../models/user_model.dart' - lib\services\mixins\misc_service.dart:5:8 - unused_import
+warning - Unused import: '../../models/post_model.dart' - lib\services\mixins\misc_service.dart:6:8 - unused_import
+warning - Unused import: '../../models/job_model.dart' - lib\services\mixins\misc_service.dart:10:8 - unused_import
+warning - Unused import: '../../models/marketplace_model.dart' - lib\services\mixins\misc_service.dart:11:8 - unused_import
+warning - Unused import: '../../models/notification_model.dart' - lib\services\mixins\misc_service.dart:13:8 - unused_import
+warning - Unused import: '../../models/comment_model.dart' - lib\services\mixins\misc_service.dart:14:8 - unused_import
+warning - Unused import: '../../constants/app_constants.dart' - lib\services\mixins\misc_service.dart:15:8 - unused_import
+warning - Unused import: 'package:rxdart/rxdart.dart' - lib\services\mixins\misc_service.dart:17:8 - unused_import
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\misc_service.dart:31:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\misc_service.dart:31:71 - dead_code
+  error - The method 'getCurrentUser' isn't defined for the type 'MiscService' - lib\services\mixins\misc_service.dart:142:28 - undefined_method
+  error - The method 'getCurrentUser' isn't defined for the type 'MiscService' - lib\services\mixins\misc_service.dart:183:28 - undefined_method
+  error - The method 'getCurrentUser' isn't defined for the type 'MiscService' - lib\services\mixins\misc_service.dart:428:24 - undefined_method
+  error - The method 'sendNotification' isn't defined for the type 'MiscService' - lib\services\mixins\misc_service.dart:487:19 - undefined_method
+  error - The method '_meetupFromDocument' isn't defined for the type 'MiscService' - lib\services\mixins\misc_service.dart:583:29 - undefined_method
+  error - The property 'dateTime' can't be unconditionally accessed because the receiver can be 'null' - lib\services\mixins\misc_service.dart:585:36 - unchecked_use_of_nullable_value
+  error - The property 'dateTime' can't be unconditionally accessed because the receiver can be 'null' - lib\services\mixins\misc_service.dart:585:57 - unchecked_use_of_nullable_value
+warning - Unused import: '../../models/meetup_model.dart' - lib\services\mixins\notification_service.dart:4:8 - unused_import
+warning - Unused import: '../../models/user_model.dart' - lib\services\mixins\notification_service.dart:5:8 - unused_import
+warning - Unused import: '../../models/post_model.dart' - lib\services\mixins\notification_service.dart:6:8 - unused_import
+warning - Unused import: '../../models/question_model.dart' - lib\services\mixins\notification_service.dart:7:8 - unused_import
+warning - Unused import: '../../models/answer_model.dart' - lib\services\mixins\notification_service.dart:8:8 - unused_import
+warning - Unused import: '../../models/message_model.dart' - lib\services\mixins\notification_service.dart:9:8 - unused_import
+warning - Unused import: '../../models/job_model.dart' - lib\services\mixins\notification_service.dart:10:8 - unused_import
+warning - Unused import: '../../models/marketplace_model.dart' - lib\services\mixins\notification_service.dart:11:8 - unused_import
+warning - Unused import: '../../models/conversation_model.dart' - lib\services\mixins\notification_service.dart:12:8 - unused_import
+warning - Unused import: '../../models/comment_model.dart' - lib\services\mixins\notification_service.dart:14:8 - unused_import
+warning - Unused import: '../../constants/app_constants.dart' - lib\services\mixins\notification_service.dart:15:8 - unused_import
+warning - Unused import: 'package:rxdart/rxdart.dart' - lib\services\mixins\notification_service.dart:17:8 - unused_import
+warning - Unused import: 'package:uuid/uuid.dart' - lib\services\mixins\notification_service.dart:18:8 - unused_import
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\notification_service.dart:31:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\notification_service.dart:31:71 - dead_code
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\post_service.dart:16:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\post_service.dart:16:71 - dead_code
+warning - Unused import: '../../models/user_model.dart' - lib\services\mixins\search_service.dart:5:8 - unused_import
+warning - Unused import: '../../models/answer_model.dart' - lib\services\mixins\search_service.dart:8:8 - unused_import
+warning - Unused import: '../../models/message_model.dart' - lib\services\mixins\search_service.dart:9:8 - unused_import
+warning - Unused import: '../../models/conversation_model.dart' - lib\services\mixins\search_service.dart:12:8 - unused_import
+warning - Unused import: '../../models/notification_model.dart' - lib\services\mixins\search_service.dart:13:8 - unused_import
+warning - Unused import: '../../models/comment_model.dart' - lib\services\mixins\search_service.dart:14:8 - unused_import
+warning - Unused import: '../../constants/app_constants.dart' - lib\services\mixins\search_service.dart:15:8 - unused_import
+warning - Unused import: 'package:rxdart/rxdart.dart' - lib\services\mixins\search_service.dart:17:8 - unused_import
+warning - Unused import: 'package:uuid/uuid.dart' - lib\services\mixins\search_service.dart:18:8 - unused_import
+warning - The value of the field '_auth' isn't used - lib\services\mixins\search_service.dart:31:22 - unused_field
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\search_service.dart:31:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\search_service.dart:31:71 - dead_code
+  error - The method '_meetupFromDocument' isn't defined for the type 'SearchService' - lib\services\mixins\search_service.dart:43:45 - undefined_method
+  error - The method '_jobFromDocument' isn't defined for the type 'SearchService' - lib\services\mixins\search_service.dart:54:45 - undefined_method
+  error - The method '_marketplaceItemFromDocument' isn't defined for the type 'SearchService' - lib\services\mixins\search_service.dart:66:29 - undefined_method
+  error - The method '_postFromDocument' isn't defined for the type 'SearchService' - lib\services\mixins\search_service.dart:78:45 - undefined_method
+warning - Unused import: '../../models/meetup_model.dart' - lib\services\mixins\user_service.dart:4:8 - unused_import
+warning - Unused import: '../../models/post_model.dart' - lib\services\mixins\user_service.dart:6:8 - unused_import
+warning - Unused import: '../../models/question_model.dart' - lib\services\mixins\user_service.dart:7:8 - unused_import
+warning - Unused import: '../../models/answer_model.dart' - lib\services\mixins\user_service.dart:8:8 - unused_import
+warning - Unused import: '../../models/message_model.dart' - lib\services\mixins\user_service.dart:9:8 - unused_import
+warning - Unused import: '../../models/job_model.dart' - lib\services\mixins\user_service.dart:10:8 - unused_import
+warning - Unused import: '../../models/marketplace_model.dart' - lib\services\mixins\user_service.dart:11:8 - unused_import
+warning - Unused import: '../../models/conversation_model.dart' - lib\services\mixins\user_service.dart:12:8 - unused_import
+warning - Unused import: '../../models/notification_model.dart' - lib\services\mixins\user_service.dart:13:8 - unused_import
+warning - Unused import: '../../models/comment_model.dart' - lib\services\mixins\user_service.dart:14:8 - unused_import
+warning - Unused import: '../../constants/app_constants.dart' - lib\services\mixins\user_service.dart:15:8 - unused_import
+warning - Unused import: 'package:rxdart/rxdart.dart' - lib\services\mixins\user_service.dart:17:8 - unused_import
+warning - Unused import: 'package:uuid/uuid.dart' - lib\services\mixins\user_service.dart:18:8 - unused_import
+warning - The operand can't be 'null', so the condition is always 'false' - lib\services\mixins\user_service.dart:31:61 - unnecessary_null_comparison
+warning - Dead code - lib\services\mixins\user_service.dart:31:71 - dead_code
+  error - The name 'currentUserId' is already defined - lib\services\mixins\user_service.dart:108:15 - duplicate_definition
+  error - The method 'sendNotification' isn't defined for the type 'UserService' - lib\services\mixins\user_service.dart:310:11 - undefined_method
+   info - Don't invoke 'print' in production code - lib\services\parse_script.dart:11:5 - avoid_print
+warning - The value of the local variable 'variables' isn't used - lib\services\split_script.dart:22:9 - unused_local_variable
+warning - The '!' will have no effect because the receiver can't be null - lib\services\split_script.dart:70:28 - unnecessary_non_null_assertion
+   info - Use interpolation to compose strings and values - lib\services\split_script.dart:105:26 - prefer_interpolation_to_compose_strings
+   info - Unnecessary braces in a string interpolation - lib\services\split_script.dart:144:37 - unnecessary_brace_in_string_interps
+   info - Don't invoke 'print' in production code - lib\services\split_script.dart:147:5 - avoid_print
+   info - Unnecessary braces in a string interpolation - lib\services\split_script.dart:151:74 - unnecessary_brace_in_string_interps
+   info - Don't invoke 'print' in production code - lib\services\split_script.dart:167:3 - avoid_print
+

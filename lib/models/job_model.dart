@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class Job {
   final String id;
   final String title;
@@ -26,4 +28,24 @@ class Job {
     this.deadline,
     this.isActive = true,
   });
+
+  factory Job.fromFirestore(DocumentSnapshot doc) {
+    var data = doc.data() as Map<String, dynamic>;
+    return Job(
+      id: doc.id,
+      title: data['title'] ?? '',
+      companyName: data['companyName'] ?? '',
+      location: data['location'] ?? '',
+      salary: data['salary'] ?? '',
+      description: data['description'] ?? '',
+      requirements: List<String>.from(data['requirements'] ?? []),
+      contactInfo: data['contactInfo'] ?? '',
+      authorId: data['authorId'] ?? '',
+      postedDate: (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      deadline: data['deadline'] != null
+          ? (data['deadline'] as Timestamp?)?.toDate() ?? DateTime.now()
+          : null,
+      isActive: data['isActive'] ?? true,
+    );
+  }
 }
