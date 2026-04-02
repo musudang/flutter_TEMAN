@@ -6,6 +6,7 @@ import '../models/user_model.dart' as app_models;
 import 'contact_us_screen.dart';
 import 'notices_screen.dart';
 import 'restriction_history_screen.dart';
+import 'information_consent_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final app_models.User user;
@@ -17,12 +18,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('This feature is coming soon.')),
-    );
-  }
-
   /// Step 1 confirmation dialog
   Future<void> _showDeleteAccountDialog(BuildContext context) async {
     final authService = Provider.of<AuthService>(context, listen: false);
@@ -41,9 +36,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ],
         ),
         content: const Text(
-          'Your account will be deactivated immediately.\n\n'
-          'You have 14 days to recover your account by logging in again.\n'
-          'After that, your data will be permanently deleted.',
+          'This action cannot be undone.\n\n'
+          'All your data including your profile, posts, and settings will be permanently deleted.',
         ),
         actions: [
           TextButton(
@@ -147,7 +141,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (result.isSuccess) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Your account has been deactivated. You have 14 days to recover it.'),
+          content: Text('Your account and data have been permanently deleted.'),
           duration: Duration(seconds: 4),
         ),
       );
@@ -266,7 +260,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSettingItem(
                 context,
                 title: 'Information Consent Settings',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => InformationConsentScreen(userId: widget.user.id),
+                    ),
+                  );
+                },
               ),
               _buildSettingItem(
                 context,

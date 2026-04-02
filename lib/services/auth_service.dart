@@ -152,38 +152,7 @@ class AuthService extends ChangeNotifier {
     required String password,
   }) async {
     try {
-      final credential = await _auth.signInWithEmailAndPassword(email: email, password: password);
-      final uid = credential.user?.uid;
-      if (uid != null) {
-        // Check if account is soft-deleted
-        final userDoc = await _db.collection('users').doc(uid).get();
-        if (userDoc.exists) {
-          final data = userDoc.data()!;
-          if (data['status'] == 'deleted') {
-            final deletedAt = (data['deletedAt'] as Timestamp?)?.toDate();
-            final scheduledDelete = (data['scheduledPermanentDeleteAt'] as Timestamp?)?.toDate();
-            final now = DateTime.now();
-            if (deletedAt != null && scheduledDelete != null && now.isBefore(scheduledDelete)) {
-              // Within grace period — sign out and return special result
-              await _auth.signOut();
-              return AuthResult.deletedAccount(
-                deletedAt: deletedAt,
-                scheduledPermanentDeleteAt: scheduledDelete,
-                uid: uid,
-                email: email,
-                password: password,
-              );
-            } else {
-              // Grace period expired
-              await _auth.signOut();
-              return AuthResult.failure(
-                'This account has been permanently deleted.',
-                'account-permanently-deleted',
-              );
-            }
-          }
-        }
-      }
+      await _auth.signInWithEmailAndPassword(email: email, password: password);
       return AuthResult.success();
     } on firebase_auth.FirebaseAuthException catch (e) {
       return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
@@ -305,32 +274,6 @@ class AuthService extends ChangeNotifier {
             'personalInfo': '',
             'createdAt': FieldValue.serverTimestamp(),
           });
-        } else {
-          // Check if account is soft-deleted
-          final data = doc.data()!;
-          if (data['status'] == 'deleted') {
-            final deletedAt = (data['deletedAt'] as Timestamp?)?.toDate();
-            final scheduledDelete = (data['scheduledPermanentDeleteAt'] as Timestamp?)?.toDate();
-            final now = DateTime.now();
-            if (deletedAt != null && scheduledDelete != null && now.isBefore(scheduledDelete)) {
-              await _auth.signOut();
-              try { await _googleSignIn.disconnect(); } catch (_) {}
-              return AuthResult.deletedAccount(
-                deletedAt: deletedAt,
-                scheduledPermanentDeleteAt: scheduledDelete,
-                uid: user.uid,
-                email: user.email ?? '',
-                password: '',
-              );
-            } else {
-              await _auth.signOut();
-              try { await _googleSignIn.disconnect(); } catch (_) {}
-              return AuthResult.failure(
-                'This account has been permanently deleted.',
-                'account-permanently-deleted',
-              );
-            }
-          }
         }
       }
 
@@ -494,7 +437,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  // Delete Account (soft delete — 14-day grace period recovery via re-login)
+  // Delete Account (Hard delete immediately)
   Future<AuthResult> deleteAccount({String? currentPassword}) async {
     try {
       final user = _auth.currentUser;
@@ -510,99 +453,46 @@ class AuthService extends ChangeNotifier {
       }
 
       final uid = user.uid;
-      final now = DateTime.now();
-      final scheduledDelete = now.add(const Duration(days: 14));
 
-      // Fetch current user data for backup
+      // 1. Migrate posts to deleted_posts
+      final userPostsQuery = await _db.collection('posts').where('authorId', isEqualTo: uid).get();
+      for (final postDoc in userPostsQuery.docs) {
+        final postData = postDoc.data();
+        await _db.collection('deleted_posts').doc(postDoc.id).set({
+          ...postData,
+          'originalPostId': postDoc.id,
+          'deletedAt': FieldValue.serverTimestamp(),
+          'deletedReason': 'Account deleted',
+          'deletedBy': uid,
+        });
+        await _db.collection('posts').doc(postDoc.id).delete();
+      }
+
+      // 2. Back up to deleted_users for records
       final userDoc = await _db.collection('users').doc(uid).get();
       final userData = userDoc.data() ?? {};
-
-      // 1. Mark user as deleted in main users collection
-      await _db.collection('users').doc(uid).update({
-        'status': 'deleted',
-        'deletedAt': FieldValue.serverTimestamp(),
-        'scheduledPermanentDeleteAt': Timestamp.fromDate(scheduledDelete),
-      });
-
-      // 2. Back up to deleted_users for admin review
       await _db.collection('deleted_users').doc(uid).set({
         ...userData,
-        'status': 'deleted',
         'deletedAt': FieldValue.serverTimestamp(),
-        'scheduledPermanentDeleteAt': Timestamp.fromDate(scheduledDelete),
+        'reason': 'User initiated',
       });
 
-      // 3. Sign out
-      await signOut();
+      // 3. Delete user data from public user collection
+      await _db.collection('users').doc(uid).delete();
 
-      return AuthResult.success();
-    } on firebase_auth.FirebaseAuthException catch (e) {
-      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
-    } catch (e) {
-      return AuthResult.failure(e.toString());
-    }
-  }
+      // 4. Delete user from Firebase Auth
+      await user.delete();
 
-  // Recover deleted account (restore status to 'active') — email/password users
-  Future<AuthResult> recoverAccount({
-    required String email,
-    required String password,
-    required String uid,
-  }) async {
-    try {
-      // Re-login first
-      await _auth.signInWithEmailAndPassword(email: email, password: password);
-
-      // Restore status
-      await _db.collection('users').doc(uid).update({
-        'status': 'active',
-        'deletedAt': FieldValue.delete(),
-        'scheduledPermanentDeleteAt': FieldValue.delete(),
-      });
-
-      // Clean up deleted_users backup entry
+      // Cleanup local state
       try {
-        await _db.collection('deleted_users').doc(uid).delete();
+        await _googleSignIn.disconnect();
       } catch (_) {}
 
       return AuthResult.success();
     } on firebase_auth.FirebaseAuthException catch (e) {
-      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
-    } catch (e) {
-      return AuthResult.failure(e.toString());
-    }
-  }
-
-  // Recover deleted account — Google / social users.
-  // Signs in with Google again and immediately restores account status.
-  Future<AuthResult> recoverGoogleAccount({required String uid}) async {
-    try {
-      final google_sign_in.GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      if (googleUser == null) return AuthResult.failure('Google sign in cancelled');
-
-      final google_sign_in.GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      final firebase_auth.AuthCredential credential =
-          firebase_auth.GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
-      );
-
-      await _auth.signInWithCredential(credential);
-
-      // Restore status immediately after sign-in (while authenticated)
-      await _db.collection('users').doc(uid).update({
-        'status': 'active',
-        'deletedAt': FieldValue.delete(),
-        'scheduledPermanentDeleteAt': FieldValue.delete(),
-      });
-
-      // Clean up deleted_users backup entry
-      try {
-        await _db.collection('deleted_users').doc(uid).delete();
-      } catch (_) {}
-
-      return AuthResult.success();
-    } on firebase_auth.FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        return AuthResult.failure('Requires recent login. Please log out and back in, then try again.', e.code);
+      }
       return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
     } catch (e) {
       return AuthResult.failure(e.toString());

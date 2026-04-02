@@ -87,7 +87,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       nationality: data['nationality'] ?? 'Global ?��',
       email: data['email'] ?? '',
       bio: data['bio'] ?? '',
-      role: data['role'] ?? 'user',
+      role: (data['isAdmin'] == true || data['isAdmin'] == 'true' || data['role'] == 'admin') ? 'admin' : (data['role'] ?? 'user'),
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now()
           : null,

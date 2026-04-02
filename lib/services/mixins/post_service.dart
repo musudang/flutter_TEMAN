@@ -309,7 +309,7 @@ mixin PostService on ChangeNotifier {
     if (uid == null) return;
 
     final postRef = _db.collection('posts').doc(postId);
-    final reportRef = _db.collection('admin_reports').doc();
+    final reportRef = _db.collection('admin_reports').doc('${postId}_$uid');
 
     await _db.runTransaction((transaction) async {
       final postSnapshot = await transaction.get(postRef);
@@ -359,6 +359,38 @@ mixin PostService on ChangeNotifier {
           'reportCount': newReportCount,
         });
       }
+    });
+  }
+
+  Future<void> restorePost(String postId) async {
+    final admin = await isAdmin();
+    if (!admin) throw Exception('Permission denied');
+
+    final restrictedPostRef = _db.collection('admin_restricted_posts').doc('post_$postId');
+    final postRef = _db.collection('posts').doc(postId);
+
+    await _db.runTransaction((transaction) async {
+      final restrictedSnapshot = await transaction.get(restrictedPostRef);
+      if (!restrictedSnapshot.exists) {
+        throw Exception("Post does not exist in restricted list!");
+      }
+
+      final postData = restrictedSnapshot.data()!;
+      
+      // Remove restriction metadata
+      postData.remove('originalPostId');
+      postData.remove('restrictedAt');
+      postData.remove('status');
+      
+      // Reset report count and restriction status
+      postData['reportCount'] = 0;
+      postData['isRestricted'] = false;
+
+      // Restore to public posts collection
+      transaction.set(postRef, postData);
+      
+      // Remove from restricted collection
+      transaction.delete(restrictedPostRef);
     });
   }
 

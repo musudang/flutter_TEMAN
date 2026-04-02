@@ -59,14 +59,7 @@ class _LoginScreenState extends State<LoginScreen>
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (result.isDeletedAccount) {
-      await _showAccountRecoveryDialog(
-        context,
-        authService: authService,
-        result: result,
-        isGoogleUser: true,
-      );
-    } else if (!result.isSuccess) {
+    if (!result.isSuccess) {
       messenger.showSnackBar(
         SnackBar(
           content: Text(result.errorMessage ?? 'Google sign-in failed. Please try again.'),
@@ -78,100 +71,7 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
-  Future<void> _showAccountRecoveryDialog(
-    BuildContext context, {
-    required AuthService authService,
-    required result,
-    required bool isGoogleUser,
-  }) async {
-    final deletedAt = result.deletedAt as DateTime;
-    final scheduledDelete = result.scheduledPermanentDeleteAt as DateTime;
-    final daysLeft = scheduledDelete.difference(DateTime.now()).inDays;
-    final uid = result.deletedUid as String;
-    final deletedOnStr =
-        '${deletedAt.year}-${deletedAt.month.toString().padLeft(2, '0')}-${deletedAt.day.toString().padLeft(2, '0')}';
 
-    final recover = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.restore, color: Color(0xFF1E56C8), size: 28),
-            SizedBox(width: 8),
-            Text('Account Recovery'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'This account was recently deleted.\nWould you like to recover it?',
-              style: TextStyle(fontSize: 15),
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFFF0F4FF),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '🗓 Deleted on: $deletedOnStr',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF555577),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '⏳ $daysLeft day${daysLeft != 1 ? 's' : ''} remaining until permanent deletion.',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: Color(0xFF1E56C8),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('No, stay deleted'),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF1E56C8),
-            ),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Recover Account', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
-
-    if (!mounted) return;
-
-    if (recover == true) {
-      setState(() => _isLoading = true);
-      final recoverResult = await authService.recoverGoogleAccount(uid: uid);
-      if (!context.mounted) return;
-      setState(() => _isLoading = false);
-      if (!recoverResult.isSuccess) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(recoverResult.errorMessage ?? 'Recovery failed.')),
-        );
-      }
-    }
-  }
 
   Future<void> _navigateToPhoneAuth() async {
     Navigator.push(
