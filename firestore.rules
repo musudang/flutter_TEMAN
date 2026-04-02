@@ -111,14 +111,31 @@ service cloud.firestore {
       allow read, delete: if false;
     }
 
-    match /deleted_posts/{postId} {
+    match /admin_deleted_posts/{postId} {
       // Users can backup their own posts before deleting
       allow create, update: if request.auth != null && request.auth.uid == request.resource.data.deletedBy;
       allow read, delete: if false;
     }
 
-    match /reports/{reportId} {
+    match /admin_restricted_posts/{postId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+
+    match /user_restrictions/{restrictionId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update, delete: if false;
+    }
+
+    match /admin_reports/{reportId} {
       // Any authenticated user can submit a report
+      allow create: if request.auth != null;
+      allow read, update, delete: if false;
+    }
+
+    match /admin_contact_inquiries/{inquiryId} {
+      // Any authenticated user can submit a contact inquiry
       allow create: if request.auth != null;
       allow read, update, delete: if false;
     }

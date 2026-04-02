@@ -5,6 +5,8 @@ import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import 'contact_us_screen.dart';
 import 'notices_screen.dart';
+import 'restriction_history_screen.dart';
+
 class SettingsScreen extends StatefulWidget {
   final app_models.User user;
 
@@ -183,7 +185,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSettingItem(
                 context,
                 title: 'Restriction History',
-                onTap: () => _showComingSoon(context),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const RestrictionHistoryScreen(),
+                    ),
+                  );
+                },
               ),
               _buildSettingItem(
                 context,

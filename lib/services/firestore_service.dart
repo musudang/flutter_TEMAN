@@ -1282,19 +1282,74 @@ class FirestoreService extends ChangeNotifier {
   }
 
   /// Report a post — saves to the 'admin_reports' collection for admin review.
+  /// If a post receives 6 or more reports, it is automatically soft-deleted and moved
+  /// to 'admin_restricted_posts', and the restriction is logged to 'user_restrictions'.
   Future<void> reportPost(String postId, {String reason = 'Inappropriate content', String details = ''}) async {
     final uid = currentUserId;
     if (uid == null) return;
 
-    await _db.collection('admin_reports').add({
-      'postId': postId,
-      'reportedBy': uid,
-      'reason': reason,
-      'details': details,
-      'type': 'post',
-      'reportedAt': FieldValue.serverTimestamp(),
-      'status': 'pending',
+    final postRef = _db.collection('posts').doc(postId);
+    final reportRef = _db.collection('admin_reports').doc();
+
+    await _db.runTransaction((transaction) async {
+      // 1. Get the post
+      final postSnapshot = await transaction.get(postRef);
+      if (!postSnapshot.exists) {
+        throw Exception("Post does not exist! It might have already been removed.");
+      }
+      
+      final postData = postSnapshot.data()!;
+      final int currentReports = (postData['reportCount'] ?? 0) as int;
+      final bool isRestricted = (postData['isRestricted'] ?? false) as bool;
+      
+      // 2. Add the report
+      transaction.set(reportRef, {
+        'postId': postId,
+        'reportedBy': uid,
+        'reason': reason,
+        'details': details,
+        'type': 'post',
+        'reportedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+      
+      // 3. Increment the report count
+      final newReportCount = currentReports + 1;
+      
+      if (!isRestricted && newReportCount >= 6) {
+        // Automatic Restriction Threshold Reached
+        
+        // Move to admin_restricted_posts
+        final restrictedPostRef = _db.collection('admin_restricted_posts').doc('post_$postId');
+        transaction.set(restrictedPostRef, {
+          ...postData,
+          'originalPostId': postId,
+          'restrictedAt': FieldValue.serverTimestamp(),
+          'reportCount': newReportCount,
+          'status': 'Under Review',
+        });
+        
+        // Log to user_restrictions
+        final restrictionLogRef = _db.collection('user_restrictions').doc();
+        transaction.set(restrictionLogRef, {
+          'userId': postData['authorId'],
+          'postId': postId,
+          'postTitle': postData['title'] ?? 'Unknown Title',
+          'status': 'Reviewing',
+          'createdAt': FieldValue.serverTimestamp(),
+          'reason': 'Automatically restricted due to multiple reports.',
+        });
+        
+        // Delete from public posts
+        transaction.delete(postRef);
+      } else {
+        // Just update the count
+        transaction.update(postRef, {
+          'reportCount': newReportCount,
+        });
+      }
     });
+
     debugPrint("Post $postId reported by $uid.");
   }
 

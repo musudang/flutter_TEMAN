@@ -12,16 +12,16 @@ class ReportDialog extends StatefulWidget {
 
 class _ReportDialogState extends State<ReportDialog> {
   final List<String> _reasons = [
-    '그룹 규칙 위반',
-    '관련 없는 콘텐츠',
-    '허위 뉴스',
-    '멤버 간 갈등',
-    '스팸',
-    '괴롭힘',
-    '혐오 발언',
-    '나체 이미지 또는 성적 행위',
-    '폭력물',
-    '기타'
+    'Group rule violation',
+    'Irrelevant content',
+    'Fake news',
+    'Conflict between members',
+    'Spam',
+    'Harassment',
+    'Hate speech',
+    'Nudity or sexual content',
+    'Violence',
+    'Other'
   ];
 
   String? _selectedReason;
@@ -37,7 +37,7 @@ class _ReportDialogState extends State<ReportDialog> {
   Future<void> _submitReport() async {
     if (_selectedReason == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('신고 사유를 선택해주세요.')),
+        const SnackBar(content: Text('Please select a reason for reporting.')),
       );
       return;
     }
@@ -56,13 +56,13 @@ class _ReportDialogState extends State<ReportDialog> {
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('신고가 접수되었습니다.')),
+          const SnackBar(content: Text('Report submitted successfully.')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('신고 중 오류가 발생했습니다: $e')),
+          SnackBar(content: Text('An error occurred while reporting: $e')),
         );
       }
     } finally {
@@ -88,7 +88,7 @@ class _ReportDialogState extends State<ReportDialog> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text(
-                  '신고하기',
+                  'Report Post',
                   style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
@@ -105,7 +105,7 @@ class _ReportDialogState extends State<ReportDialog> {
             ),
             const SizedBox(height: 8),
             const Text(
-              '관리자에게 게시물 신고하기\n관리자에게 이 게시물에 어떤 문제가 있는지 알려주세요. 게시물 작성자에게는 회원님이 신고한 사실을 알리지 않습니다.',
+              'Report this post to administrators.\nPlease tell us what is wrong with this post. We will not tell the author that you reported it.',
               style: TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
@@ -129,13 +129,13 @@ class _ReportDialogState extends State<ReportDialog> {
                           activeColor: Colors.red,
                         );
                       }),
-                    if (_selectedReason == '기타' || _selectedReason != null) ...[
+                    if (_selectedReason == 'Other' || _selectedReason != null) ...[
                       const SizedBox(height: 12),
                       TextField(
                         controller: _detailsController,
                         maxLines: 3,
                         decoration: InputDecoration(
-                          hintText: '상세 사유 (선택사항)',
+                          hintText: 'Details (optional)',
                           hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -181,7 +181,7 @@ class _ReportDialogState extends State<ReportDialog> {
                         ),
                       )
                     : const Text(
-                        '신고 제출',
+                        'Submit Report',
                         style: TextStyle(
                           color: Colors.white,
                           fontWeight: FontWeight.bold,

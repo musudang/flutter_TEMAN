@@ -74,29 +74,35 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
 
     final authService = Provider.of<AuthService>(context, listen: false);
 
-    await authService.verifyPhoneNumber(
-      phoneNumber: fullPhone,
-      onCodeSent: (verificationId) {
-        if (!mounted) return;
-        setState(() {
-          _verificationId = verificationId;
-          _step = 2;
-          _isLoading = false;
-        });
-        _animController.reset();
-        _animController.forward();
-      },
-      onError: (error) {
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-        _showError(error);
-      },
-      onAutoVerified: () {
-        if (!mounted) return;
-        setState(() => _isLoading = false);
-        // auto-verified, navigator pops automatically via auth state change
-      },
-    );
+    try {
+      await authService.verifyPhoneNumber(
+        phoneNumber: fullPhone,
+        onCodeSent: (verificationId) {
+          if (!mounted) return;
+          setState(() {
+            _verificationId = verificationId;
+            _step = 2;
+            _isLoading = false;
+          });
+          _animController.reset();
+          _animController.forward();
+        },
+        onError: (error) {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          _showError(error);
+        },
+        onAutoVerified: () {
+          if (!mounted) return;
+          setState(() => _isLoading = false);
+          // auto-verified, navigator pops automatically via auth state change
+        },
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      _showError(e.toString());
+    }
   }
 
   Future<void> _verifyOtp() async {

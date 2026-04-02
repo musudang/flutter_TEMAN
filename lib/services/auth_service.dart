@@ -349,29 +349,37 @@ class AuthService extends ChangeNotifier {
     required Function(String error) onError,
     required VoidCallback onAutoVerified,
   }) async {
-    await _auth.verifyPhoneNumber(
-      phoneNumber: phoneNumber,
-      verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
-        try {
-          final result = await _auth.signInWithCredential(credential);
-          final user = result.user;
-          if (user != null) {
-            await _ensurePhoneUserDocument(user);
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
+          try {
+            final result = await _auth.signInWithCredential(credential);
+            final user = result.user;
+            if (user != null) {
+              await _ensurePhoneUserDocument(user);
+            }
+            onAutoVerified();
+          } catch (e) {
+            onError(e.toString());
           }
-          onAutoVerified();
-        } catch (e) {
-          onError(e.toString());
-        }
-      },
-      verificationFailed: (firebase_auth.FirebaseAuthException e) {
-        onError(e.message ?? 'Phone verification failed.');
-      },
-      codeSent: (String verificationId, int? resendToken) {
-        onCodeSent(verificationId);
-      },
-      codeAutoRetrievalTimeout: (String verificationId) {},
-      timeout: const Duration(seconds: 60),
-    );
+        },
+        verificationFailed: (firebase_auth.FirebaseAuthException e) {
+          onError(e.message ?? 'Phone verification failed.');
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          onCodeSent(verificationId);
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {},
+        timeout: const Duration(seconds: 60),
+      );
+    } catch (e) {
+      if (e is firebase_auth.FirebaseAuthException) {
+        onError(e.message ?? e.toString());
+      } else {
+        onError(e.toString());
+      }
+    }
   }
 
   // Phone Auth: Verify OTP
