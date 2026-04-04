@@ -5,9 +5,9 @@ import '../../models/user_model.dart' as app_models;
 import 'dart:async';
 
 // Since mixins might call methods from each other (e.g. UserService calling sendNotification),
-// they need a common base interface. But for simplicity and to avoid cyclic dependencies, 
+// they need a common base interface. But for simplicity and to avoid cyclic dependencies,
 // Dart allows calling unresolved methods if typed as dynamic or if we just bundle them properly.
-// Wait, actually, in Flutter, if a mixin calls another mixin's method, you can use `on` or just not 
+// Wait, actually, in Flutter, if a mixin calls another mixin's method, you can use `on` or just not
 // care if there's no static analyzer error? No, Dart statically checks.
 // Since we are moving fast, we can declare `var _db` inline. Actually, `FirestoreService` will have them.
 // Let's make the mixins independent. If they need to call each other, we can use an abstract base or late fields.
@@ -28,7 +28,6 @@ mixin UserService on ChangeNotifier implements UserDependencies {
   final FirebaseAuth _auth = FirebaseAuth.instance; // dummy
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
-
 
   Future<app_models.User?> getCurrentUser() async {
     final user = _auth.currentUser;
@@ -87,7 +86,12 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       nationality: data['nationality'] ?? 'Global ?��',
       email: data['email'] ?? '',
       bio: data['bio'] ?? '',
-      role: (data['isAdmin'] == true || data['isAdmin'] == 'true' || data['role'] == 'admin') ? 'admin' : (data['role'] ?? 'user'),
+      role:
+          (data['isAdmin'] == true ||
+              data['isAdmin'] == 'true' ||
+              data['role'] == 'admin')
+          ? 'admin'
+          : (data['role'] ?? 'user'),
       createdAt: data['createdAt'] != null
           ? (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now()
           : null,
@@ -99,6 +103,8 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       instagramId: data['instagramId'] ?? '',
       followers: List<String>.from(data['followers'] ?? []),
       following: List<String>.from(data['following'] ?? []),
+      blockedUsers: List<String>.from(data['blockedUsers'] ?? []),
+      blockedBy: List<String>.from(data['blockedBy'] ?? []),
     );
   }
 
@@ -391,5 +397,53 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     return null;
   }
 
-}
+  Future<void> blockUser(String targetUserId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
 
+    final batch = _db.batch();
+    final currentUserRef = _db.collection('users').doc(uid);
+    final targetUserRef = _db.collection('users').doc(targetUserId);
+
+    batch.update(currentUserRef, {
+      'blockedUsers': FieldValue.arrayUnion([targetUserId]),
+      'following': FieldValue.arrayRemove([targetUserId]),
+      'followers': FieldValue.arrayRemove([targetUserId]),
+    });
+    batch.update(targetUserRef, {
+      'blockedBy': FieldValue.arrayUnion([uid]),
+      'followers': FieldValue.arrayRemove([uid]),
+      'following': FieldValue.arrayRemove([uid]),
+    });
+
+    try {
+      await batch.commit();
+    } catch (e) {
+      debugPrint("Error blocking user: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> unblockUser(String targetUserId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final batch = _db.batch();
+    final currentUserRef = _db.collection('users').doc(uid);
+    final targetUserRef = _db.collection('users').doc(targetUserId);
+
+    batch.update(currentUserRef, {
+      'blockedUsers': FieldValue.arrayRemove([targetUserId]),
+    });
+    batch.update(targetUserRef, {
+      'blockedBy': FieldValue.arrayRemove([uid]),
+    });
+
+    try {
+      await batch.commit();
+    } catch (e) {
+      debugPrint("Error unblocking user: $e");
+      rethrow;
+    }
+  }
+}

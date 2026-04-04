@@ -7,6 +7,7 @@ import 'contact_us_screen.dart';
 import 'notices_screen.dart';
 import 'restriction_history_screen.dart';
 import 'information_consent_screen.dart';
+import 'blocked_users_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final app_models.User user;
@@ -47,7 +48,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Continue', style: TextStyle(color: Colors.white)),
+            child: const Text(
+              'Continue',
+              style: TextStyle(color: Colors.white),
+            ),
           ),
         ],
       ),
@@ -76,7 +80,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (ctx) {
         return StatefulBuilder(
           builder: (ctx, setDialogState) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
             title: const Text('Confirm Your Password'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -90,7 +96,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     labelText: 'Password',
                     border: const OutlineInputBorder(),
                     suffixIcon: IconButton(
-                      icon: Icon(obscure ? Icons.visibility_off : Icons.visibility),
+                      icon: Icon(
+                        obscure ? Icons.visibility_off : Icons.visibility,
+                      ),
                       onPressed: () => setDialogState(() => obscure = !obscure),
                     ),
                   ),
@@ -105,7 +113,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Delete Account', style: TextStyle(color: Colors.white)),
+                child: const Text(
+                  'Delete Account',
+                  style: TextStyle(color: Colors.white),
+                ),
               ),
             ],
           ),
@@ -131,9 +142,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (_) => const Center(child: CircularProgressIndicator()),
     );
 
-    final result = await authService.deleteAccount(
-      currentPassword: password,
-    );
+    final result = await authService.deleteAccount(currentPassword: password);
 
     if (!context.mounted) return;
     Navigator.of(context).pop(); // Close loading
@@ -147,7 +156,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result.errorMessage ?? 'Failed to delete account.')),
+        SnackBar(
+          content: Text(result.errorMessage ?? 'Failed to delete account.'),
+        ),
       );
     }
   }
@@ -173,124 +184,135 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16.0),
         children: [
-          _buildSectionGroup(
-            'Community',
-            [
-              _buildSettingItem(
-                context,
-                title: 'Restriction History',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const RestrictionHistoryScreen(),
-                    ),
-                  );
-                },
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Community Guidelines',
-                onTap: () async {
-                  final url = Uri.parse(
-                      'https://iris-tank-0cf.notion.site/333d16a0171980e2a20fc9975656021e?source=copy_link');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url);
-                  }
-                },
-              ),
-            ],
-          ),
+          _buildSectionGroup('Community', [
+            _buildSettingItem(
+              context,
+              title: 'Restriction History',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const RestrictionHistoryScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Blocked Users',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const BlockedUsersScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Community Guidelines',
+              onTap: () async {
+                final url = Uri.parse(
+                  'https://iris-tank-0cf.notion.site/333d16a0171980e2a20fc9975656021e?source=copy_link',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                }
+              },
+            ),
+          ]),
           const SizedBox(height: 16),
-          _buildSectionGroup(
-            'Information / Support',
-            [
-              _buildSettingItem(
-                context,
-                title: 'Contact Us',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => ContactUsScreen(currentUser: widget.user),
-                    ),
-                  );
-                },
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Notices',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => NoticesScreen(isAdmin: widget.user.isAdmin),
-                    ),
-                  );
-                },
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Terms of Service',
-                onTap: () async {
-                  final url = Uri.parse(
-                      'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url);
-                  }
-                },
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Privacy Policy',
-                onTap: () async {
-                  final url = Uri.parse(
-                      'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link');
-                  if (await canLaunchUrl(url)) {
-                    await launchUrl(url);
-                  }
-                },
-              ),
-            ],
-          ),
+          _buildSectionGroup('Information / Support', [
+            _buildSettingItem(
+              context,
+              title: 'Contact Us',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        ContactUsScreen(currentUser: widget.user),
+                  ),
+                );
+              },
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Notices',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        NoticesScreen(isAdmin: widget.user.isAdmin),
+                  ),
+                );
+              },
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Terms of Service',
+              onTap: () async {
+                final url = Uri.parse(
+                  'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                }
+              },
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Privacy Policy',
+              onTap: () async {
+                final url = Uri.parse(
+                  'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link',
+                );
+                if (await canLaunchUrl(url)) {
+                  await launchUrl(url);
+                }
+              },
+            ),
+          ]),
           const SizedBox(height: 16),
-          _buildSectionGroup(
-            'Other',
-            [
-              _buildSettingItem(
-                context,
-                title: 'Information Consent Settings',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => InformationConsentScreen(userId: widget.user.id),
-                    ),
-                  );
-                },
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Delete Account',
-                onTap: () => _showDeleteAccountDialog(context),
-                textColor: Colors.red,
-              ),
-              _buildSettingItem(
-                context,
-                title: 'Sign Out',
-                onTap: () async {
-                  final authService =
-                      Provider.of<AuthService>(context, listen: false);
-                  await authService.signOut();
-                  // ignore: use_build_context_synchronously
-                  if (context.mounted) {
-                    Navigator.of(context).pop(); // Pop settings screen
-                  }
-                },
-                textColor: Colors.red,
-              ),
-            ],
-          ),
+          _buildSectionGroup('Other', [
+            _buildSettingItem(
+              context,
+              title: 'Information Consent Settings',
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        InformationConsentScreen(userId: widget.user.id),
+                  ),
+                );
+              },
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Delete Account',
+              onTap: () => _showDeleteAccountDialog(context),
+              textColor: Colors.red,
+            ),
+            _buildSettingItem(
+              context,
+              title: 'Sign Out',
+              onTap: () async {
+                final authService = Provider.of<AuthService>(
+                  context,
+                  listen: false,
+                );
+                await authService.signOut();
+                // ignore: use_build_context_synchronously
+                if (context.mounted) {
+                  Navigator.of(context).pop(); // Pop settings screen
+                }
+              },
+              textColor: Colors.red,
+            ),
+          ]),
         ],
       ),
     );
@@ -307,7 +329,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(left: 16, top: 16, bottom: 8, right: 16),
+            padding: const EdgeInsets.only(
+              left: 16,
+              top: 16,
+              bottom: 8,
+              right: 16,
+            ),
             child: Text(
               title,
               style: const TextStyle(
@@ -337,18 +364,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 15,
-                color: textColor,
-              ),
-            ),
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-              size: 20,
-            ),
+            Text(title, style: TextStyle(fontSize: 15, color: textColor)),
+            Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
           ],
         ),
       ),

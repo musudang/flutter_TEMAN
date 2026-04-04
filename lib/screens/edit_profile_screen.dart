@@ -49,8 +49,12 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _nameController = TextEditingController(text: widget.user.name);
     _nicknameController = TextEditingController(text: widget.user.nickname);
     _bioController = TextEditingController(text: widget.user.bio);
-    _nationalityController = TextEditingController(text: widget.user.nationality);
-    _ageController = TextEditingController(text: widget.user.age?.toString() ?? '');
+    _nationalityController = TextEditingController(
+      text: widget.user.nationality,
+    );
+    _ageController = TextEditingController(
+      text: widget.user.age?.toString() ?? '',
+    );
     _avatarUrlController = TextEditingController(text: widget.user.avatarUrl);
     _instagramController = TextEditingController(text: widget.user.instagramId);
     _phoneController = TextEditingController(text: widget.user.phoneNumber);
@@ -79,9 +83,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please sign in first')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Please sign in first')));
       }
       return;
     }
@@ -115,15 +119,19 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
       );
 
-      await uploadTask.whenComplete(() {}).timeout(
-        const Duration(seconds: 90),
-        onTimeout: () {
-          if (uploadTask.snapshot.state == TaskState.running) {
-            uploadTask.cancel();
-          }
-          throw TimeoutException('Upload timed out. Please check your internet connection and try again.');
-        },
-      );
+      await uploadTask
+          .whenComplete(() {})
+          .timeout(
+            const Duration(seconds: 90),
+            onTimeout: () {
+              if (uploadTask.snapshot.state == TaskState.running) {
+                uploadTask.cancel();
+              }
+              throw TimeoutException(
+                'Upload timed out. Please check your internet connection and try again.',
+              );
+            },
+          );
 
       final url = await ref.getDownloadURL();
 
@@ -142,25 +150,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           _isUploadingPhoto = false;
           _uploadError = 'Upload failed: ${e.message}';
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: ${e.message}')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Upload failed: ${e.message}')));
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isUploadingPhoto = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Unexpected error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Unexpected error: $e')));
       }
     }
   }
 
   Future<void> _save() async {
     if (_nameController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name cannot be empty')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Name cannot be empty')));
       return;
     }
 
@@ -193,9 +201,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSaving = false);
@@ -207,9 +215,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => InterestSelectionSheet(
-        initialInterests: _selectedInterests,
-      ),
+      builder: (ctx) =>
+          InterestSelectionSheet(initialInterests: _selectedInterests),
     );
     if (result != null) {
       setState(() => _selectedInterests = result);
@@ -257,11 +264,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   CircleAvatar(
                     radius: 48,
                     backgroundColor: Colors.teal[50],
-                    backgroundImage: _avatarUrlController.text.trim().isNotEmpty &&
+                    backgroundImage:
+                        _avatarUrlController.text.trim().isNotEmpty &&
                             _avatarUrlController.text.trim().startsWith('http')
                         ? NetworkImage(_avatarUrlController.text.trim())
                         : null,
-                    child: _avatarUrlController.text.trim().isEmpty ||
+                    child:
+                        _avatarUrlController.text.trim().isEmpty ||
                             !_avatarUrlController.text.trim().startsWith('http')
                         ? Text(
                             _nameController.text.isNotEmpty
@@ -296,7 +305,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                                   color: Colors.white,
                                 ),
                               )
-                            : const Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                            : const Icon(
+                                Icons.camera_alt,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                       ),
                     ),
                   ),
@@ -317,7 +330,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 32),
 
             // ── Public Info Section ──
-            _buildSectionHeader(Icons.public, 'Public Info', 'Visible to other users'),
+            _buildSectionHeader(
+              Icons.public,
+              'Public Info',
+              'Visible to other users',
+            ),
             const SizedBox(height: 16),
 
             _buildLabel('Display Name *'),
@@ -337,12 +354,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 20),
             _buildLabel('Age'),
             const SizedBox(height: 8),
-            _buildTextField(_ageController, 'e.g. 25', keyboardType: TextInputType.number),
+            _buildTextField(
+              _ageController,
+              'e.g. 25',
+              keyboardType: TextInputType.number,
+            ),
 
             const SizedBox(height: 20),
             _buildLabel('Bio'),
             const SizedBox(height: 8),
-            _buildTextField(_bioController, 'Tell us about yourself...', maxLines: 3),
+            _buildTextField(
+              _bioController,
+              'Tell us about yourself...',
+              maxLines: 3,
+            ),
 
             const SizedBox(height: 20),
             _buildLabel('Instagram ID / Link'),
@@ -360,7 +385,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             const SizedBox(height: 32),
 
             // ── Private Info Section ──
-            _buildSectionHeader(Icons.lock_outline, 'Private Info', 'Only visible to you'),
+            _buildSectionHeader(
+              Icons.lock_outline,
+              'Private Info',
+              'Only visible to you',
+            ),
             const SizedBox(height: 16),
 
             _buildLabel('Email'),
@@ -381,7 +410,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ),
 
             // ── 비밀번호 변경 섹션 (이메일 로그인 사용자만) ──
-            if (Provider.of<AuthService>(context, listen: false).isEmailPasswordUser) ..._buildPasswordChangeSection(),
+            if (Provider.of<AuthService>(
+              context,
+              listen: false,
+            ).isEmailPasswordUser)
+              ..._buildPasswordChangeSection(),
 
             const SizedBox(height: 40),
           ],
@@ -444,22 +477,29 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                 spacing: 8,
                 runSpacing: 6,
                 children: _selectedInterests
-                    .map((interest) => Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.teal[50],
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(color: Colors.teal.withValues(alpha: 0.3)),
+                    .map(
+                      (interest) => Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.teal[50],
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.teal.withValues(alpha: 0.3),
                           ),
-                          child: Text(
-                            interest,
-                            style: TextStyle(
-                              color: Colors.teal[700],
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
+                        ),
+                        child: Text(
+                          interest,
+                          style: TextStyle(
+                            color: Colors.teal[700],
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
                           ),
-                        ))
+                        ),
+                      ),
+                    )
                     .toList(),
               ),
       ),
@@ -504,7 +544,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: Colors.teal, width: 2),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 14,
+        ),
       ),
     );
   }
@@ -513,7 +556,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   List<Widget> _buildPasswordChangeSection() {
     return [
       const SizedBox(height: 32),
-      _buildSectionHeader(Icons.key_outlined, 'Change Password', 'Verify current password to set a new one'),
+      _buildSectionHeader(
+        Icons.key_outlined,
+        'Change Password',
+        'Verify current password to set a new one',
+      ),
       const SizedBox(height: 16),
 
       // Current password
@@ -539,9 +586,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.teal, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
           suffixIcon: IconButton(
-            icon: Icon(_showCurrentPw ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+            icon: Icon(
+              _showCurrentPw ? Icons.visibility_off : Icons.visibility,
+              color: Colors.grey,
+            ),
             onPressed: () => setState(() => _showCurrentPw = !_showCurrentPw),
           ),
         ),
@@ -572,9 +625,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.teal, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
           suffixIcon: IconButton(
-            icon: Icon(_showNewPw ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+            icon: Icon(
+              _showNewPw ? Icons.visibility_off : Icons.visibility,
+              color: Colors.grey,
+            ),
             onPressed: () => setState(() => _showNewPw = !_showNewPw),
           ),
         ),
@@ -605,9 +664,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             borderRadius: BorderRadius.circular(12),
             borderSide: const BorderSide(color: Colors.teal, width: 2),
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 14,
+          ),
           suffixIcon: IconButton(
-            icon: Icon(_showConfirmPw ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
+            icon: Icon(
+              _showConfirmPw ? Icons.visibility_off : Icons.visibility,
+              color: Colors.grey,
+            ),
             onPressed: () => setState(() => _showConfirmPw = !_showConfirmPw),
           ),
         ),
@@ -624,7 +689,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               ? const SizedBox(
                   width: 18,
                   height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : const Icon(Icons.lock_reset, size: 18),
           label: Text(_isChangingPassword ? 'Changing...' : 'Change Password'),
@@ -632,8 +700,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             backgroundColor: Colors.teal,
             foregroundColor: Colors.white,
             padding: const EdgeInsets.symmetric(vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+            textStyle: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ),
       ),
@@ -647,21 +720,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     if (current.isEmpty || newPw.isEmpty || confirm.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all password fields.'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text('Please fill in all password fields.'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
     if (newPw.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New password must be at least 6 characters.'), backgroundColor: Colors.orange),
+        const SnackBar(
+          content: Text('New password must be at least 6 characters.'),
+          backgroundColor: Colors.orange,
+        ),
       );
       return;
     }
 
     if (newPw != confirm) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('New passwords do not match.'), backgroundColor: Colors.red),
+        const SnackBar(
+          content: Text('New passwords do not match.'),
+          backgroundColor: Colors.red,
+        ),
       );
       return;
     }

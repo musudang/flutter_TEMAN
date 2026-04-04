@@ -283,7 +283,9 @@ class PostDetailScreen extends StatelessWidget {
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Failed to delete post: $e')),
+                                  SnackBar(
+                                    content: Text('Failed to delete post: $e'),
+                                  ),
                                 );
                               }
                             }
@@ -306,7 +308,10 @@ class PostDetailScreen extends StatelessWidget {
                     ),
                   if (!isOwner)
                     IconButton(
-                      icon: const Icon(Icons.flag_outlined, color: Colors.orange),
+                      icon: const Icon(
+                        Icons.flag_outlined,
+                        color: Colors.orange,
+                      ),
                       tooltip: 'Report Post',
                       onPressed: () {
                         showReportPostDialog(context, post.id);

@@ -6,7 +6,8 @@ class InformationConsentScreen extends StatefulWidget {
   const InformationConsentScreen({super.key, required this.userId});
 
   @override
-  State<InformationConsentScreen> createState() => _InformationConsentScreenState();
+  State<InformationConsentScreen> createState() =>
+      _InformationConsentScreenState();
 }
 
 class _InformationConsentScreenState extends State<InformationConsentScreen> {
@@ -22,7 +23,10 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
 
   Future<void> _loadConsents() async {
     try {
-      final doc = await FirebaseFirestore.instance.collection('users').doc(widget.userId).get();
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .get();
       if (doc.exists) {
         final data = doc.data()!;
         final consents = data['consentSettings'] as Map<String, dynamic>? ?? {};
@@ -43,12 +47,13 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
 
   Future<void> _updateConsent(String key, bool value) async {
     try {
-      await FirebaseFirestore.instance.collection('users').doc(widget.userId).set({
-        'consentSettings': {
-          key: value,
-        }
-      }, SetOptions(merge: true));
-      
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.userId)
+          .set({
+            'consentSettings': {key: value},
+          }, SetOptions(merge: true));
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Consent updated successfully.')),
@@ -56,9 +61,9 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to update consent: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to update consent: $e')));
       }
     }
   }
@@ -66,9 +71,7 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     return Scaffold(
@@ -92,7 +95,8 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
         children: [
           _buildConsentItem(
             title: 'Marketing Information Reception Agreement',
-            description: 'Receive notifications about special offers, events, and promotions from TEMAN.',
+            description:
+                'Receive notifications about special offers, events, and promotions from TEMAN.',
             value: _marketingConsent,
             onChanged: (val) {
               setState(() => _marketingConsent = val);
@@ -102,7 +106,8 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
           const SizedBox(height: 16),
           _buildConsentItem(
             title: 'Personalized Advertising Consent',
-            description: 'Allow TEMAN to use your data to provide more relevant and personalized ads.',
+            description:
+                'Allow TEMAN to use your data to provide more relevant and personalized ads.',
             value: _personalizedAds,
             onChanged: (val) {
               setState(() => _personalizedAds = val);
@@ -146,17 +151,14 @@ class _InformationConsentScreenState extends State<InformationConsentScreen> {
               Switch(
                 value: value,
                 onChanged: onChanged,
-                activeColor: const Color(0xFF1E56C8),
+                activeThumbColor: const Color(0xFF1E56C8),
               ),
             ],
           ),
           const SizedBox(height: 8),
           Text(
             description,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
           ),
         ],
       ),

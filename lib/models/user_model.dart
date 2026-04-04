@@ -17,6 +17,9 @@ class User {
   final List<String> followers;
   final List<String> following;
 
+  final List<String> blockedUsers;
+  final List<String> blockedBy;
+
   User({
     required this.id,
     required this.name,
@@ -34,6 +37,8 @@ class User {
     this.instagramId = '',
     this.followers = const [],
     this.following = const [],
+    this.blockedUsers = const [],
+    this.blockedBy = const [],
   });
 
   bool get isAdmin => role == 'admin';

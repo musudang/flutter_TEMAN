@@ -73,7 +73,7 @@ class NoticesScreen extends StatelessWidget {
             itemBuilder: (context, index) {
               final doc = snapshot.data!.docs[index];
               final notice = Notice.fromFirestore(doc);
-              
+
               return Card(
                 elevation: 0,
                 color: Colors.white,
@@ -83,7 +83,9 @@ class NoticesScreen extends StatelessWidget {
                 ),
                 margin: const EdgeInsets.only(bottom: 12),
                 child: Theme(
-                  data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                  data: Theme.of(
+                    context,
+                  ).copyWith(dividerColor: Colors.transparent),
                   child: ExpansionTile(
                     title: Text(
                       notice.title,
@@ -94,10 +96,7 @@ class NoticesScreen extends StatelessWidget {
                     ),
                     subtitle: Text(
                       DateFormat('yyyy-MM-dd HH:mm').format(notice.createdAt),
-                      style: TextStyle(
-                        color: Colors.grey[500],
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey[500], fontSize: 12),
                     ),
                     children: [
                       Padding(
@@ -123,7 +122,9 @@ class NoticesScreen extends StatelessWidget {
               onPressed: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (context) => const AddNoticeScreen()),
+                  MaterialPageRoute(
+                    builder: (context) => const AddNoticeScreen(),
+                  ),
                 );
               },
               backgroundColor: const Color(0xFF1E56C8),
@@ -170,9 +171,9 @@ class _AddNoticeScreenState extends State<AddNoticeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save notice: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save notice: $e')));
       }
     } finally {
       if (mounted) {
@@ -218,7 +219,10 @@ class _AddNoticeScreenState extends State<AddNoticeScreen> {
                 )
               : TextButton(
                   onPressed: _saveNotice,
-                  child: const Text('Save', style: TextStyle(color: Color(0xFF1E56C8), fontSize: 16)),
+                  child: const Text(
+                    'Save',
+                    style: TextStyle(color: Color(0xFF1E56C8), fontSize: 16),
+                  ),
                 ),
         ],
       ),

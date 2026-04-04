@@ -41,7 +41,8 @@ class Job {
       requirements: List<String>.from(data['requirements'] ?? []),
       contactInfo: data['contactInfo'] ?? '',
       authorId: data['authorId'] ?? '',
-      postedDate: (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      postedDate:
+          (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deadline: data['deadline'] != null
           ? (data['deadline'] as Timestamp?)?.toDate() ?? DateTime.now()
           : null,

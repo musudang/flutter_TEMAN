@@ -35,13 +35,13 @@ class _LoginScreenState extends State<LoginScreen>
       parent: _animController,
       curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
     );
-    _buttonSlide = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _animController,
-      curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
-    ));
+    _buttonSlide = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _animController,
+            curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
+          ),
+        );
     _animController.forward();
   }
 
@@ -62,16 +62,18 @@ class _LoginScreenState extends State<LoginScreen>
     if (!result.isSuccess) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text(result.errorMessage ?? 'Google sign-in failed. Please try again.'),
+          content: Text(
+            result.errorMessage ?? 'Google sign-in failed. Please try again.',
+          ),
           backgroundColor: Colors.red.shade400,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
       );
     }
   }
-
-
 
   Future<void> _navigateToPhoneAuth() async {
     Navigator.push(
@@ -173,7 +175,8 @@ class _LoginScreenState extends State<LoginScreen>
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () async {
                                       final url = Uri.parse(
-                                          'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link');
+                                        'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link',
+                                      );
                                       if (await canLaunchUrl(url)) {
                                         await launchUrl(url);
                                       }
@@ -190,7 +193,8 @@ class _LoginScreenState extends State<LoginScreen>
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () async {
                                       final url = Uri.parse(
-                                          'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link');
+                                        'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link',
+                                      );
                                       if (await canLaunchUrl(url)) {
                                         await launchUrl(url);
                                       }
@@ -217,7 +221,11 @@ class _LoginScreenState extends State<LoginScreen>
                           // ── Phone button ──
                           _AuthButton(
                             onPressed: _isLoading ? null : _navigateToPhoneAuth,
-                            icon: const Icon(Icons.phone, color: Colors.white, size: 22),
+                            icon: const Icon(
+                              Icons.phone,
+                              color: Colors.white,
+                              size: 22,
+                            ),
                             label: 'Continue with Phone',
                             backgroundColor: _temanBlue,
                             textColor: Colors.white,
@@ -234,8 +242,11 @@ class _LoginScreenState extends State<LoginScreen>
                                   context: context,
                                   builder: (_) => AlertDialog(
                                     shape: RoundedRectangleBorder(
-                                        borderRadius: BorderRadius.circular(16)),
-                                    title: const Text('Having trouble logging in?'),
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                    title: const Text(
+                                      'Having trouble logging in?',
+                                    ),
                                     content: const Text(
                                       'If you\'re experiencing issues, please try:\n\n'
                                       '• Check your internet connection\n'
@@ -394,20 +405,39 @@ class _GoogleGPainter extends CustomPainter {
     final radius = size.width / 2;
 
     // Blue segment
-    canvas.drawArc(rect, -0.52, 1.57, true,
-        Paint()..color = const Color(0xFF4285F4));
+    canvas.drawArc(
+      rect,
+      -0.52,
+      1.57,
+      true,
+      Paint()..color = const Color(0xFF4285F4),
+    );
     // Red segment
-    canvas.drawArc(rect, 1.05, 1.57, true,
-        Paint()..color = const Color(0xFFEA4335));
+    canvas.drawArc(
+      rect,
+      1.05,
+      1.57,
+      true,
+      Paint()..color = const Color(0xFFEA4335),
+    );
     // Yellow segment
-    canvas.drawArc(rect, 2.62, 0.79, true,
-        Paint()..color = const Color(0xFFFBBC05));
+    canvas.drawArc(
+      rect,
+      2.62,
+      0.79,
+      true,
+      Paint()..color = const Color(0xFFFBBC05),
+    );
     // Green segment
-    canvas.drawArc(rect, 3.41, 0.79, true,
-        Paint()..color = const Color(0xFF34A853));
+    canvas.drawArc(
+      rect,
+      3.41,
+      0.79,
+      true,
+      Paint()..color = const Color(0xFF34A853),
+    );
     // White center
-    canvas.drawCircle(center, radius * 0.58,
-        Paint()..color = Colors.white);
+    canvas.drawCircle(center, radius * 0.58, Paint()..color = Colors.white);
 
     // "G" letter simplified - horizontal bar
     final barPaint = Paint()

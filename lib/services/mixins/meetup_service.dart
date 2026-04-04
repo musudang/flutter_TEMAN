@@ -11,13 +11,23 @@ mixin MeetupService on ChangeNotifier {
 
   String? get currentUserId => _auth.currentUser?.uid;
 
-  Stream<List<Meetup>> getMeetups() {
+  Stream<List<Meetup>> getMeetups({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  }) {
     return _db
         .collection('meetups')
         .orderBy('createdAt', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => _fromDocument(doc)).toList();
+          final meetups = snapshot.docs
+              .map((doc) => _fromDocument(doc))
+              .toList();
+          if (hiddenUsers.isEmpty) return meetups;
+          return meetups
+              .where((m) => !hiddenUsers.contains(m.host.id))
+              .toList();
         });
   }
 
@@ -121,18 +131,18 @@ mixin MeetupService on ChangeNotifier {
           return false;
         }
 
-        final updatedParticipants = List<String>.from(meetup.participantIds)..add(uid);
+        final updatedParticipants = List<String>.from(meetup.participantIds)
+          ..add(uid);
 
         transaction.update(docRef, {'participantIds': updatedParticipants});
         debugPrint("Successfully joined meetup!");
 
         return true;
       });
-      
     } catch (e) {
       debugPrint("Error joining meetup: $e");
       rethrow;
-    } 
+    }
 
     if (joinedSuccess) {
       // Add to group chat immediately
@@ -147,16 +157,20 @@ mixin MeetupService on ChangeNotifier {
         if (hostId != null && hostId != uid) {
           final userDoc = await _db.collection('users').doc(uid).get();
           final userName = userDoc.data()?['name'] ?? 'Someone';
-          
-          await _db.collection('users').doc(hostId).collection('notifications').add({
-             'userId': hostId,
-             'title': 'New Member ?��',
-             'body': '$userName joined your meetup!',
-             'type': 'meetup_join',
-             'relatedId': meetupId,
-             'timestamp': FieldValue.serverTimestamp(),
-             'isRead': false,
-          });
+
+          await _db
+              .collection('users')
+              .doc(hostId)
+              .collection('notifications')
+              .add({
+                'userId': hostId,
+                'title': 'New Member ?��',
+                'body': '$userName joined your meetup!',
+                'type': 'meetup_join',
+                'relatedId': meetupId,
+                'timestamp': FieldValue.serverTimestamp(),
+                'isRead': false,
+              });
         }
 
         // Clear cooldown since they successfully joined
@@ -377,7 +391,7 @@ mixin MeetupService on ChangeNotifier {
         // Add System Leave Message
         final userDoc = await _db.collection('users').doc(uid).get();
         final userName = userDoc.data()?['name'] ?? 'Someone';
-        
+
         await convRef.collection('messages').add({
           'senderId': 'system', // Distinguish as a system message
           'senderName': 'System',
@@ -453,7 +467,7 @@ mixin MeetupService on ChangeNotifier {
     if (!doc.exists || doc.data() == null) {
       throw Exception("Meetup document does not exist");
     }
-    
+
     final data = doc.data() as Map<String, dynamic>;
     return Meetup(
       id: doc.id,
@@ -590,15 +604,20 @@ mixin MeetupService on ChangeNotifier {
       if (meetupDoc.exists) {
         final hostId = meetupDoc.data()?['hostId'] ?? '';
         if (hostId.isNotEmpty && hostId != user.uid) {
-          await _db.collection('users').doc(hostId).collection('notifications').add({
-            'userId': hostId,
-            'title': 'New Meetup Comment ?��',
-            'body': '${userData?['name'] ?? "Someone"} commented on your meetup.',
-            'type': 'comment',
-            'relatedId': meetupId,
-            'timestamp': FieldValue.serverTimestamp(),
-            'isRead': false,
-          });
+          await _db
+              .collection('users')
+              .doc(hostId)
+              .collection('notifications')
+              .add({
+                'userId': hostId,
+                'title': 'New Meetup Comment ?��',
+                'body':
+                    '${userData?['name'] ?? "Someone"} commented on your meetup.',
+                'type': 'comment',
+                'relatedId': meetupId,
+                'timestamp': FieldValue.serverTimestamp(),
+                'isRead': false,
+              });
         }
       }
     } catch (e) {
@@ -675,4 +694,3 @@ mixin MeetupService on ChangeNotifier {
         });
   }
 }
-

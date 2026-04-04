@@ -124,7 +124,9 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
     setState(() => _isLoading = false);
 
     if (!result.isSuccess) {
-      _showError(result.errorMessage ?? 'Verification failed. Please try again.');
+      _showError(
+        result.errorMessage ?? 'Verification failed. Please try again.',
+      );
     }
     // On success, auth state change in main.dart will handle navigation
   }
@@ -148,7 +150,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
         backgroundColor: Colors.white,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20),
+          icon: const Icon(
+            Icons.arrow_back_ios,
+            color: Colors.black87,
+            size: 20,
+          ),
           onPressed: () {
             if (_step == 2) {
               setState(() {
@@ -196,10 +202,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   const SizedBox(height: 8),
                   Text(
                     'We\'ll send you a verification code.',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
                   ),
                   const SizedBox(height: 36),
 
@@ -207,7 +210,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   Container(
                     decoration: BoxDecoration(
                       border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                        bottom: BorderSide(
+                          color: Colors.grey.shade300,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -216,7 +222,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                         DropdownButtonHideUnderline(
                           child: DropdownButton<String>(
                             value: _selectedCountryCode,
-                            icon: const Icon(Icons.arrow_drop_down, color: Colors.grey),
+                            icon: const Icon(
+                              Icons.arrow_drop_down,
+                              color: Colors.grey,
+                            ),
                             style: const TextStyle(
                               fontSize: 18,
                               color: Color(0xFF1A1A2E),
@@ -225,8 +234,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                             items: _countryCodes.map((c) {
                               return DropdownMenuItem(
                                 value: c['code'],
-                                child: Text('${c['code']} ${c['name']}',
-                                    style: const TextStyle(fontSize: 16)),
+                                child: Text(
+                                  '${c['code']} ${c['name']}',
+                                  style: const TextStyle(fontSize: 16),
+                                ),
                               );
                             }).toList(),
                             onChanged: (value) {
@@ -246,7 +257,9 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                           child: TextField(
                             controller: _phoneController,
                             keyboardType: TextInputType.phone,
-                            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             style: const TextStyle(
                               fontSize: 20,
                               fontWeight: FontWeight.w600,
@@ -255,7 +268,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                             decoration: const InputDecoration(
                               border: InputBorder.none,
                               hintText: '10-digit number',
-                              hintStyle: TextStyle(color: Colors.grey, fontSize: 18),
+                              hintStyle: TextStyle(
+                                color: Colors.grey,
+                                fontSize: 18,
+                              ),
                             ),
                           ),
                         ),
@@ -311,10 +327,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   const SizedBox(height: 8),
                   Text(
                     'Code sent to $_selectedCountryCode ${_phoneController.text}',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
                   ),
                   const SizedBox(height: 36),
 
@@ -322,7 +335,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   Container(
                     decoration: BoxDecoration(
                       border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                        bottom: BorderSide(
+                          color: Colors.grey.shade300,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                     child: TextField(

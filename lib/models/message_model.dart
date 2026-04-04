@@ -51,7 +51,9 @@ class Message {
       replyToMessageId: data['replyToMessageId'],
       replyToMessageText: data['replyToMessageText'],
       replyToMessageSender: data['replyToMessageSender'],
-      reactions: data['reactions'] != null ? Map<String, String>.from(data['reactions']) : null,
+      reactions: data['reactions'] != null
+          ? Map<String, String>.from(data['reactions'])
+          : null,
     );
   }
 }

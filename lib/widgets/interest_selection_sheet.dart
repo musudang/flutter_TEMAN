@@ -16,24 +16,48 @@ class InterestSelectionSheet extends StatefulWidget {
 
 class _InterestSelectionSheetState extends State<InterestSelectionSheet> {
   late Set<String> _selectedInterests;
-  
-  // Gemini curated list of interests matching the requested style
+
   final List<String> _allInterests = [
-    // Lifestyle / Social
-    '맛집 탐방', '카페 투어', '인스타그래머블 카페', '커피 한 잔', '브런치', '동네 산책', 
-    '한강에서 치맥', '솔직한 대화', '심심할 때 수다', '언어 교환', '친구 사귀기', '파티', '술 한 잔',
-    
-    // Hobbies / Culture
-    '한국 드라마', '영화', '넷플릭스 정주행', '전시회 관람', '연극', '콘서트', '페스티벌',
-    '음악 감상', 'K-Pop', '90년대 바이브', '독서', '만화카페', '사진', '종이접기', '새로운 것 도전하기',
-    
-    // Activity / Sports
-    '산책', '러닝', '골프', '등산', '클라이밍', '크로스핏', '스포츠', '캠핑', 
-    '근교 드라이브', '반려동물과 산책', '자전거', '홈트레이닝',
-    
-    // Entertainment / Others
-    'PC방', 'e스포츠', '방탈출 카페', 'VR 체험', '쇼핑', '베이킹', '재테크', '자기계발',
-    
+    // Lifestyle & Social
+    'Foodie', 'Cafe Hopping', 'Brunch', 'Neighborhood Walks',
+    'Beer & Chicken',
+    'Deep Conversations',
+    'Language Exchange',
+    'Making Friends',
+    'Parties',
+    'Drinks',
+
+    // Entertainment & Culture
+    'K-Dramas',
+    'Movies',
+    'Netflix Binging',
+    'Art Exhibitions',
+    'Theater',
+    'Concerts',
+    'Festivals',
+    'Music', 'K-Pop', '90s Vibe', 'Reading', 'Photography', 'Trying New Things',
+
+    // Activity & Sports
+    'Walking',
+    'Running',
+    'Golf',
+    'Hiking',
+    'Climbing',
+    'CrossFit',
+    'Team Sports',
+    'Camping',
+    'Road Trips', 'Pet Walking', 'Cycling', 'Home Workout',
+
+    // Hobbies & Others
+    'PC Gaming',
+    'Esports',
+    'Escape Rooms',
+    'VR Experiences',
+    'Shopping',
+    'Baking',
+    'Investing',
+    'Self-Development',
+
     // MBTI
     'INTJ', 'INTP', 'ENTJ', 'ENTP', 'INFJ', 'INFP', 'ENFJ', 'ENFP',
     'ISTJ', 'ISFJ', 'ESTJ', 'ESFJ', 'ISTP', 'ISFP', 'ESTP', 'ESFP',
@@ -55,7 +79,9 @@ class _InterestSelectionSheetState extends State<InterestSelectionSheet> {
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('You can select up to ${widget.maxSelections} interests.'),
+              content: Text(
+                'You can select up to ${widget.maxSelections} interests.',
+              ),
               duration: const Duration(seconds: 2),
             ),
           );
@@ -83,7 +109,7 @@ class _InterestSelectionSheetState extends State<InterestSelectionSheet> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const SizedBox(width: 48), // Balance 
+                const SizedBox(width: 48), // Balance
                 const Text(
                   'Interests',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -92,30 +118,38 @@ class _InterestSelectionSheetState extends State<InterestSelectionSheet> {
                   onPressed: () {
                     Navigator.pop(context, _selectedInterests.toList());
                   },
-                  child: const Text('Done', style: TextStyle(color: Colors.red, fontSize: 16)),
+                  child: const Text(
+                    'Done',
+                    style: TextStyle(color: Colors.red, fontSize: 16),
+                  ),
                 ),
               ],
             ),
           ),
           const Divider(height: 1),
-          
+
           // Sub-header
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Select interests for your profile.', style: TextStyle(color: Colors.grey)),
+                const Text(
+                  'Select interests for your profile.',
+                  style: TextStyle(color: Colors.grey),
+                ),
                 Text(
                   '(${_selectedInterests.length}/${widget.maxSelections})',
                   style: TextStyle(
-                    color: _selectedInterests.length == widget.maxSelections ? Colors.red : Colors.grey,
+                    color: _selectedInterests.length == widget.maxSelections
+                        ? Colors.red
+                        : Colors.grey,
                   ),
                 ),
               ],
             ),
           ),
-          
+
           // Interest Chips List
           Expanded(
             child: SingleChildScrollView(
@@ -128,7 +162,10 @@ class _InterestSelectionSheetState extends State<InterestSelectionSheet> {
                   return GestureDetector(
                     onTap: () => _toggleInterest(interest),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white,
                         borderRadius: BorderRadius.circular(20),
@@ -141,7 +178,9 @@ class _InterestSelectionSheetState extends State<InterestSelectionSheet> {
                         interest,
                         style: TextStyle(
                           color: isSelected ? Colors.red : Colors.grey.shade600,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
                           fontSize: 14,
                         ),
                       ),

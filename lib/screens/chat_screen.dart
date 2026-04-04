@@ -6,6 +6,7 @@ import '../models/message_model.dart';
 import 'package:intl/intl.dart';
 import 'meetup_detail_screen.dart';
 import 'post_detail_screen.dart';
+import '../models/user_model.dart' as app_models;
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -255,57 +256,90 @@ class _ChatScreenState extends State<ChatScreen> {
                 ],
               ),
             ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  offset: const Offset(0, -2),
-                  blurRadius: 5,
-                ),
-              ],
-            ),
-            child: SafeArea(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      decoration: InputDecoration(
-                        hintText: 'Type a message...',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[100],
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 20,
-                          vertical: 10,
+          // Input area with block check
+          Builder(
+            builder: (_) {
+              if (currentUserId == null || widget.otherUserId == null) {
+                return _buildMessageInput();
+              }
+              return StreamBuilder<app_models.User?>(
+                stream: firestoreService.getUserStream(currentUserId),
+                builder: (context, userSnap) {
+                  final blockedUsers = userSnap.data?.blockedUsers ?? [];
+                  final blockedBy = userSnap.data?.blockedBy ?? [];
+                  if (blockedUsers.contains(widget.otherUserId) ||
+                      blockedBy.contains(widget.otherUserId)) {
+                    return Container(
+                      padding: const EdgeInsets.all(16),
+                      color: Colors.grey[200],
+                      child: const SafeArea(
+                        child: Center(
+                          child: Text(
+                            'You cannot reply to this conversation.',
+                            style: TextStyle(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
                         ),
                       ),
-                      textCapitalization: TextCapitalization.sentences,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  CircleAvatar(
-                    backgroundColor: Colors.teal,
-                    child: IconButton(
-                      icon: const Icon(
-                        Icons.send,
-                        color: Colors.white,
-                        size: 20,
-                      ),
-                      onPressed: _sendMessage,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+                    );
+                  }
+                  return _buildMessageInput();
+                },
+              );
+            },
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            offset: const Offset(0, -2),
+            blurRadius: 5,
+          ),
+        ],
+      ),
+      child: SafeArea(
+        child: Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _messageController,
+                decoration: InputDecoration(
+                  hintText: 'Type a message...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(24),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: Colors.grey[100],
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 20,
+                    vertical: 10,
+                  ),
+                ),
+                textCapitalization: TextCapitalization.sentences,
+              ),
+            ),
+            const SizedBox(width: 8),
+            CircleAvatar(
+              backgroundColor: Colors.teal,
+              child: IconButton(
+                icon: const Icon(Icons.send, color: Colors.white, size: 20),
+                onPressed: _sendMessage,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

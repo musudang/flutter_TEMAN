@@ -16,13 +16,23 @@ mixin QnaService on ChangeNotifier implements QnaDependencies {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
-  Stream<List<Question>> getQuestions() {
+  Stream<List<Question>> getQuestions({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  }) {
     return _db
         .collection('questions')
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Question.fromFirestore(doc)).toList();
+          final questions = snapshot.docs
+              .map((doc) => Question.fromFirestore(doc))
+              .toList();
+          if (hiddenUsers.isEmpty) return questions;
+          return questions
+              .where((q) => !hiddenUsers.contains(q.authorId))
+              .toList();
         });
   }
 
@@ -87,7 +97,9 @@ mixin QnaService on ChangeNotifier implements QnaDependencies {
         .orderBy('timestamp', descending: false)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Answer.fromFirestore(doc, questionId)).toList();
+          return snapshot.docs
+              .map((doc) => Answer.fromFirestore(doc, questionId))
+              .toList();
         });
   }
 

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
+import '../models/user_model.dart' as app_models;
 import 'meetup_detail_screen.dart';
 import 'create_meetup_screen.dart';
 
@@ -76,37 +77,50 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
 
           // Meetup List
           Expanded(
-            child: StreamBuilder<List<Meetup>>(
-              stream: firestoreService.getMeetups(),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            child: StreamBuilder<app_models.User?>(
+              stream: firestoreService.currentUserId != null
+                  ? firestoreService.getUserStream(
+                      firestoreService.currentUserId!,
+                    )
+                  : null,
+              builder: (context, userSnap) {
+                final hiddenUsers = <String>[
+                  ...(userSnap.data?.blockedUsers ?? []),
+                  ...(userSnap.data?.blockedBy ?? []),
+                ];
+                return StreamBuilder<List<Meetup>>(
+                  stream: firestoreService.getMeetups(hiddenUsers: hiddenUsers),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                var meetups = snapshot.data ?? [];
+                    var meetups = snapshot.data ?? [];
 
-                // Filter logic
-                if (_selectedCategory != null) {
-                  meetups = meetups
-                      .where((m) => m.category == _selectedCategory)
-                      .toList();
-                }
+                    // Filter logic
+                    if (_selectedCategory != null) {
+                      meetups = meetups
+                          .where((m) => m.category == _selectedCategory)
+                          .toList();
+                    }
 
-                if (meetups.isEmpty) {
-                  return const Center(
-                    child: Text('No meetups found. Create one!'),
-                  );
-                }
+                    if (meetups.isEmpty) {
+                      return const Center(
+                        child: Text('No meetups found. Create one!'),
+                      );
+                    }
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16.0),
-                  itemCount: meetups.length,
-                  itemBuilder: (context, index) {
-                    final meetup = meetups[index];
-                    return _buildMeetupCard(context, meetup);
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(16.0),
+                      itemCount: meetups.length,
+                      itemBuilder: (context, index) {
+                        final meetup = meetups[index];
+                        return _buildMeetupCard(context, meetup);
+                      },
+                    );
                   },
                 );
               },

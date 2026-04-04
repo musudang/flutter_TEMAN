@@ -37,6 +37,14 @@ class _FeedScreenState extends State<FeedScreen> {
   String _selectedEventSubCategory = 'ALL';
   String _selectedQnaSubCategory = 'ALL';
 
+  // Pagination state
+  final List<dynamic> _feedItems = [];
+  bool _isLoading = false;
+  bool _hasMore = true;
+  DateTime? _lastTimestamp;
+
+  final ScrollController _scrollController = ScrollController();
+
   final List<String> _eventSubCategories = [
     'ALL',
     'CONCERT',
@@ -59,6 +67,93 @@ class _FeedScreenState extends State<FeedScreen> {
     'LANGUAGE',
     'OTHERS',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_scrollListener);
+    Future.microtask(() => _loadFeed(refresh: true));
+  }
+
+  void _scrollListener() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoading && _hasMore) {
+        _loadFeed();
+      }
+    }
+  }
+
+  Future<void> _loadFeed({bool refresh = false}) async {
+    if (_isLoading) return;
+    if (refresh) {
+      if (!mounted) return;
+      setState(() {
+        _hasMore = true;
+        _lastTimestamp = null;
+      });
+    }
+
+    if (!_hasMore) return;
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    final firestoreService = Provider.of<FirestoreService>(
+      context,
+      listen: false,
+    );
+
+    try {
+      final newItems = await firestoreService.fetchFeedPage(
+        limit: 20,
+        lastTimestamp: _lastTimestamp,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _isLoading = false;
+
+        if (refresh) {
+          _feedItems.clear();
+        }
+
+        if (newItems.isNotEmpty) {
+          _feedItems.addAll(newItems);
+
+          final lastObj = newItems.last;
+          if (lastObj is Post) {
+            _lastTimestamp = lastObj.timestamp;
+          } else if (lastObj is Meetup) {
+            _lastTimestamp = lastObj.createdAt;
+          } else if (lastObj is Job) {
+            _lastTimestamp = lastObj.postedDate;
+          } else if (lastObj is MarketplaceItem) {
+            _lastTimestamp = lastObj.postedDate;
+          } else if (lastObj is Question) {
+            _lastTimestamp = lastObj.timestamp;
+          }
+        } else {
+          _hasMore = false;
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
+      debugPrint("Error loading feed: \$e");
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -276,7 +371,22 @@ class _FeedScreenState extends State<FeedScreen> {
             ),
 
           // Dynamic Feed or Category-specific screen
-          Expanded(child: _buildBody(firestoreService)),
+          Expanded(
+            child: StreamBuilder<app_models.User?>(
+              stream: firestoreService.currentUserId != null
+                  ? firestoreService.getUserStream(
+                      firestoreService.currentUserId!,
+                    )
+                  : null,
+              builder: (context, userSnap) {
+                final hiddenUsers = <String>[
+                  ...(userSnap.data?.blockedUsers ?? []),
+                  ...(userSnap.data?.blockedBy ?? []),
+                ];
+                return _buildBody(firestoreService, hiddenUsers: hiddenUsers);
+              },
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
@@ -294,7 +404,10 @@ class _FeedScreenState extends State<FeedScreen> {
     );
   }
 
-  Widget _buildBody(FirestoreService firestoreService) {
+  Widget _buildBody(
+    FirestoreService firestoreService, {
+    List<String> hiddenUsers = const [],
+  }) {
     // Navigate to dedicated screens for Jobs and Market
     if (_selectedFilter == 'Jobs') {
       return const JobsScreen(embedded: true);
@@ -306,104 +419,134 @@ class _FeedScreenState extends State<FeedScreen> {
       return const MeetupListScreen(embedded: true);
     }
 
-    // For All, Q&A, Events, and Meetup Categories – use the feed stream
-    return StreamBuilder<List<dynamic>>(
-      stream: firestoreService.getFeed(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          return Center(child: Text('Error: ${snapshot.error}'));
+    // Filter items based on hidden users AND selected filter!
+    final filteredItems = _feedItems.where((item) {
+      // Apply hidden users filter locally
+      String authorId = '';
+      if (item is Post) {
+        authorId = item.authorId;
+      } else if (item is Meetup) {
+        authorId = item.host.id;
+      } else if (item is Job) {
+        authorId = item.authorId;
+      } else if (item is MarketplaceItem) {
+        authorId = item.sellerId;
+      } else if (item is Question) {
+        authorId = item.authorId;
+      }
+
+      if (hiddenUsers.contains(authorId)) return false;
+
+      // Also apply selected filter category
+      if (_selectedFilter == 'All') return true;
+      if (_selectedFilter == 'General') {
+        if (item is Post && item.category == 'general') return true;
+        return false;
+      }
+      if (_selectedFilter == 'Q&A') {
+        if (item is Post && item.category == 'qna') {
+          if (_selectedQnaSubCategory != 'ALL' &&
+              item.subCategory != _selectedQnaSubCategory) {
+            return false;
+          }
+          return true;
         }
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
+        if (item is Question) {
+          return _selectedQnaSubCategory == 'ALL';
         }
-
-        final items = snapshot.data ?? [];
-
-        final filteredItems = items.where((item) {
-          if (_selectedFilter == 'All') return true;
-          if (_selectedFilter == 'General') {
-            if (item is Post && item.category == 'general') return true;
+        return false;
+      }
+      if (_selectedFilter == 'Events') {
+        // Only show Posts with category 'event' OR 'events'
+        if (item is Post &&
+            (item.category == 'event' || item.category == 'events')) {
+          if (_selectedEventSubCategory != 'ALL' &&
+              item.subCategory != _selectedEventSubCategory) {
             return false;
           }
-          if (_selectedFilter == 'Q&A') {
-            if (item is Post && item.category == 'qna') {
-              if (_selectedQnaSubCategory != 'ALL' &&
-                  item.subCategory != _selectedQnaSubCategory) {
-                return false;
-              }
-              return true;
-            }
-            if (item is Question) {
-              return _selectedQnaSubCategory == 'ALL';
-            }
-            return false;
-          }
-          if (_selectedFilter == 'Events') {
-            // Only show Posts with category 'event' OR 'events'
-            // Explicitly exclude Meetups from this tab as per user request
-            if (item is Post &&
-                (item.category == 'event' || item.category == 'events')) {
-              if (_selectedEventSubCategory != 'ALL' &&
-                  item.subCategory != _selectedEventSubCategory) {
-                return false;
-              }
-              return true;
-            }
-            return false;
-          }
+          return true;
+        }
+        return false;
+      }
 
-          // If 'All' is selected, it will return true at the beginning.
-          return false;
-        }).toList();
+      return false;
+    }).toList();
 
-        if (filteredItems.isEmpty) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+    // Auto-fetch more if filtered is empty but there's more overall
+    if (filteredItems.isEmpty &&
+        _hasMore &&
+        !_isLoading &&
+        _feedItems.isNotEmpty) {
+      Future.microtask(() => _loadFeed());
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _loadFeed(refresh: true),
+      child: _feedItems.isEmpty && _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : filteredItems.isEmpty
+          ? ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
               children: [
-                Icon(Icons.feed_outlined, size: 64, color: Colors.grey[300]),
-                const SizedBox(height: 16),
-                Text(
-                  'No posts yet',
-                  style: TextStyle(color: Colors.grey[500], fontSize: 16),
+                SizedBox(
+                  height: MediaQuery.of(context).size.height * 0.5,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.feed_outlined,
+                        size: 64,
+                        color: Colors.grey[300],
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'No posts yet',
+                        style: TextStyle(color: Colors.grey[500], fontSize: 16),
+                      ),
+                    ],
+                  ),
                 ),
               ],
-            ),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(16.0),
-          itemCount: filteredItems.length,
-          separatorBuilder: (context, index) => const SizedBox(height: 16),
-          itemBuilder: (context, index) {
-            final item = filteredItems[index];
-            if (item is Post) {
-              return _buildPostItem(item, firestoreService);
-            } else if (item is Meetup) {
-              return MeetupCard(
-                meetup: item,
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          MeetupDetailScreen(meetupId: item.id),
-                    ),
+            )
+          : ListView.separated(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16.0),
+              itemCount: filteredItems.length + (_hasMore ? 1 : 0),
+              separatorBuilder: (context, index) => const SizedBox(height: 16),
+              itemBuilder: (context, index) {
+                if (index == filteredItems.length) {
+                  return const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 20),
+                    child: Center(child: CircularProgressIndicator()),
                   );
-                },
-              );
-            } else if (item is Job) {
-              return _buildJobItem(item);
-            } else if (item is MarketplaceItem) {
-              return _buildMarketplaceItem(item);
-            } else if (item is Question) {
-              return _buildQuestionItem(item);
-            }
-            return const SizedBox.shrink();
-          },
-        );
-      },
+                }
+                final item = filteredItems[index];
+                if (item is Post) {
+                  return _buildPostItem(item, firestoreService);
+                } else if (item is Meetup) {
+                  return MeetupCard(
+                    meetup: item,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) =>
+                              MeetupDetailScreen(meetupId: item.id),
+                        ),
+                      );
+                    },
+                  );
+                } else if (item is Job) {
+                  return _buildJobItem(item);
+                } else if (item is MarketplaceItem) {
+                  return _buildMarketplaceItem(item);
+                } else if (item is Question) {
+                  return _buildQuestionItem(item);
+                }
+                return const SizedBox.shrink();
+              },
+            ),
     );
   }
 
@@ -773,7 +916,11 @@ class _FeedScreenState extends State<FeedScreen> {
                               value: 'report',
                               child: Row(
                                 children: [
-                                  Icon(Icons.flag_outlined, color: Colors.orange, size: 20),
+                                  Icon(
+                                    Icons.flag_outlined,
+                                    color: Colors.orange,
+                                    size: 20,
+                                  ),
                                   SizedBox(width: 8),
                                   Text('Report Post'),
                                 ],

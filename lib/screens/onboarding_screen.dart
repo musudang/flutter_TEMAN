@@ -108,10 +108,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           children: [
             FadeTransition(
               opacity: _fadeAnim,
-              child: SlideTransition(
-                position: _slideAnim,
-                child: _buildStep(),
-              ),
+              child: SlideTransition(position: _slideAnim, child: _buildStep()),
             ),
             if (_isSavingExtras)
               Container(
@@ -166,11 +163,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
             try {
               if (profilePic != null && uid != null) {
-                final ref = FirebaseStorage.instance.ref().child('avatars/$uid.jpg');
+                final ref = FirebaseStorage.instance.ref().child(
+                  'avatars/$uid.jpg',
+                );
                 await ref.putFile(profilePic);
                 avatarUrl = await ref.getDownloadURL();
               } else {
-                avatarUrl = 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(_name)}&background=1E56C8&color=fff';
+                avatarUrl =
+                    'https://ui-avatars.com/api/?name=${Uri.encodeComponent(_name)}&background=1E56C8&color=fff';
               }
 
               await auth.completeOnboarding(
@@ -202,7 +202,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             setState(() => _isSavingExtras = true);
             final auth = Provider.of<AuthService>(context, listen: false);
             try {
-              String avatarUrl = 'https://ui-avatars.com/api/?name=${Uri.encodeComponent(_name)}&background=1E56C8&color=fff';
+              String avatarUrl =
+                  'https://ui-avatars.com/api/?name=${Uri.encodeComponent(_name)}&background=1E56C8&color=fff';
               await auth.completeOnboarding(
                 name: _name,
                 age: _birthday != null ? _calcAge(_birthday!) : null,
@@ -295,14 +296,20 @@ class _CommunityRulesStep extends StatelessWidget {
                   children: [
                     TextSpan(
                       text: '"Teman" ',
-                      style: TextStyle(fontWeight: FontWeight.w700, color: Color(0xFF1E56C8)),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF1E56C8),
+                      ),
                     ),
                     TextSpan(text: 'means '),
                     TextSpan(
                       text: '"Friend"',
                       style: TextStyle(fontWeight: FontWeight.w700),
                     ),
-                    TextSpan(text: ' in Indonesian.\nLet\'s make our life in Korea better, together.'),
+                    TextSpan(
+                      text:
+                          ' in Indonesian.\nLet\'s make our life in Korea better, together.',
+                    ),
                   ],
                 ),
               ),
@@ -357,8 +364,7 @@ class _CommunityRulesStep extends StatelessWidget {
                   titleKo: '안전이 최우선입니다',
                   description:
                       'Use the \'Accept/Decline\' system for Meetups and be cautious with your private info.',
-                  descriptionKo:
-                      '모임 참가 승인 기능을 활용하고, 개인 정보 공유에 항상 주의해 주세요.',
+                  descriptionKo: '모임 참가 승인 기능을 활용하고, 개인 정보 공유에 항상 주의해 주세요.',
                 ),
                 SizedBox(height: 12),
                 _RuleCard(
@@ -404,7 +410,6 @@ class _CommunityRulesStep extends StatelessWidget {
     );
   }
 }
-
 
 class _RuleCard extends StatelessWidget {
   final String emoji;
@@ -522,7 +527,11 @@ class _NameStepState extends State<_NameStep> {
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 12, 0, 0),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.black87,
+              size: 20,
+            ),
             onPressed: widget.onBack,
           ),
         ),
@@ -563,7 +572,10 @@ class _NameStepState extends State<_NameStep> {
                 Container(
                   decoration: BoxDecoration(
                     border: Border(
-                      bottom: BorderSide(color: Colors.grey.shade300, width: 1.5),
+                      bottom: BorderSide(
+                        color: Colors.grey.shade300,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                   child: TextField(
@@ -664,7 +676,9 @@ class _BirthdayStepState extends State<_BirthdayStep> {
       return;
     }
     if (age < 18) {
-      setState(() => _error = 'You must be at least 18 years old to join TEMAN.');
+      setState(
+        () => _error = 'You must be at least 18 years old to join TEMAN.',
+      );
       return;
     }
     if (age > 100) {
@@ -683,7 +697,11 @@ class _BirthdayStepState extends State<_BirthdayStep> {
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 12, 0, 0),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.black87,
+              size: 20,
+            ),
             onPressed: widget.onBack,
           ),
         ),
@@ -706,7 +724,11 @@ class _BirthdayStepState extends State<_BirthdayStep> {
                 const SizedBox(height: 8),
                 Text(
                   'Your age will be shown on your profile, not your birthday.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500, height: 1.5),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                    height: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 40),
 
@@ -722,10 +744,17 @@ class _BirthdayStepState extends State<_BirthdayStep> {
                       onChanged: (_) => setState(() {}),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      child: Text('/',
-                          style: TextStyle(
-                              fontSize: 22, color: Colors.grey.shade400)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        '/',
+                        style: TextStyle(
+                          fontSize: 22,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
                     ),
                     _DateField(
                       controller: _monthCtrl,
@@ -735,10 +764,17 @@ class _BirthdayStepState extends State<_BirthdayStep> {
                       onChanged: (_) => setState(() {}),
                     ),
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-                      child: Text('/',
-                          style: TextStyle(
-                              fontSize: 22, color: Colors.grey.shade400)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        '/',
+                        style: TextStyle(
+                          fontSize: 22,
+                          color: Colors.grey.shade400,
+                        ),
+                      ),
                     ),
                     _DateField(
                       controller: _dayCtrl,
@@ -754,10 +790,7 @@ class _BirthdayStepState extends State<_BirthdayStep> {
                   const SizedBox(height: 12),
                   Text(
                     _error!,
-                    style: TextStyle(
-                      color: Colors.red.shade400,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.red.shade400, fontSize: 13),
                   ),
                 ],
               ],
@@ -767,10 +800,7 @@ class _BirthdayStepState extends State<_BirthdayStep> {
 
         Padding(
           padding: const EdgeInsets.fromLTRB(28, 0, 28, 32),
-          child: _NextButton(
-            enabled: _isComplete,
-            onTap: _validate,
-          ),
+          child: _NextButton(enabled: _isComplete, onTap: _validate),
         ),
       ],
     );
@@ -858,7 +888,11 @@ class _GenderStepState extends State<_GenderStep> {
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 12, 0, 0),
           child: IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20),
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.black87,
+              size: 20,
+            ),
             onPressed: widget.onBack,
           ),
         ),
@@ -890,14 +924,16 @@ class _GenderStepState extends State<_GenderStep> {
                 const SizedBox(height: 28),
 
                 // Gender options
-                ..._options.map((option) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _GenderOption(
-                    label: option,
-                    selected: _selected == option,
-                    onTap: () => setState(() => _selected = option),
+                ..._options.map(
+                  (option) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _GenderOption(
+                      label: option,
+                      selected: _selected == option,
+                      onTap: () => setState(() => _selected = option),
+                    ),
                   ),
-                )),
+                ),
 
                 const SizedBox(height: 16),
                 // Show on profile toggle
@@ -910,16 +946,23 @@ class _GenderStepState extends State<_GenderStep> {
                         width: 22,
                         height: 22,
                         decoration: BoxDecoration(
-                          color: _showOnProfile ? _temanBlue : Colors.transparent,
+                          color: _showOnProfile
+                              ? _temanBlue
+                              : Colors.transparent,
                           border: Border.all(
-                            color: _showOnProfile ? _temanBlue : Colors.grey.shade400,
+                            color: _showOnProfile
+                                ? _temanBlue
+                                : Colors.grey.shade400,
                             width: 1.5,
                           ),
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: _showOnProfile
-                            ? const Icon(Icons.check,
-                                color: Colors.white, size: 14)
+                            ? const Icon(
+                                Icons.check,
+                                color: Colors.white,
+                                size: 14,
+                              )
                             : null,
                       ),
                       const SizedBox(width: 10),
@@ -1000,7 +1043,13 @@ class _GenderOption extends StatelessWidget {
 // Step 4 — Profile Extras (Optional: Bio, Instagram, Interests)
 // ──────────────────────────────────────────────────────────────────────────────
 class _ProfileExtrasStep extends StatefulWidget {
-  final Function(File? profilePic, String bio, String instagram, List<String> interests) onNext;
+  final Function(
+    File? profilePic,
+    String bio,
+    String instagram,
+    List<String> interests,
+  )
+  onNext;
   final VoidCallback onSkip;
   final VoidCallback onBack;
   const _ProfileExtrasStep({
@@ -1028,7 +1077,10 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
     if (pickedFile != null) {
       setState(() => _profileImage = File(pickedFile.path));
     }
@@ -1039,9 +1091,8 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => InterestSelectionSheet(
-        initialInterests: _selectedInterests,
-      ),
+      builder: (ctx) =>
+          InterestSelectionSheet(initialInterests: _selectedInterests),
     );
 
     if (result != null) {
@@ -1061,7 +1112,11 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               IconButton(
-                icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20),
+                icon: const Icon(
+                  Icons.arrow_back_ios,
+                  color: Colors.black87,
+                  size: 20,
+                ),
                 onPressed: widget.onBack,
               ),
               TextButton(
@@ -1088,7 +1143,10 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                 const SizedBox(height: 8),
                 // Optional badge
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFEFF4FF),
                     borderRadius: BorderRadius.circular(20),
@@ -1116,10 +1174,14 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                 const SizedBox(height: 8),
                 Text(
                   'These help others get to know you. You can always update this later in your profile.',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500, height: 1.5),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                    height: 1.5,
+                  ),
                 ),
                 const SizedBox(height: 32),
-                
+
                 // Profile Picture
                 Center(
                   child: GestureDetector(
@@ -1129,9 +1191,15 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                         CircleAvatar(
                           radius: 50,
                           backgroundColor: Colors.grey.shade200,
-                          backgroundImage: _profileImage != null ? FileImage(_profileImage!) : null,
+                          backgroundImage: _profileImage != null
+                              ? FileImage(_profileImage!)
+                              : null,
                           child: _profileImage == null
-                              ? Icon(Icons.person, size: 50, color: Colors.grey.shade500)
+                              ? Icon(
+                                  Icons.person,
+                                  size: 50,
+                                  color: Colors.grey.shade500,
+                                )
                               : null,
                         ),
                         Positioned(
@@ -1144,7 +1212,11 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                               border: Border.all(color: Colors.white, width: 2),
                             ),
                             padding: const EdgeInsets.all(6),
-                            child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 16,
+                            ),
                           ),
                         ),
                       ],
@@ -1156,7 +1228,11 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                 // Bio
                 const Text(
                   'Bio',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF374151),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -1172,7 +1248,10 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                     decoration: InputDecoration(
                       border: InputBorder.none,
                       hintText: 'Write a short intro about yourself...',
-                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 14,
+                      ),
                       contentPadding: const EdgeInsets.all(14),
                     ),
                   ),
@@ -1183,7 +1262,11 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                 // Instagram
                 const Text(
                   'Instagram ID',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF374151),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Container(
@@ -1197,9 +1280,16 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                     style: const TextStyle(fontSize: 15),
                     decoration: InputDecoration(
                       border: InputBorder.none,
-                      prefixIcon: Icon(Icons.alternate_email, color: Colors.grey.shade400, size: 18),
+                      prefixIcon: Icon(
+                        Icons.alternate_email,
+                        color: Colors.grey.shade400,
+                        size: 18,
+                      ),
                       hintText: 'your_instagram_id',
-                      hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                      hintStyle: TextStyle(
+                        color: Colors.grey.shade400,
+                        fontSize: 14,
+                      ),
                       contentPadding: const EdgeInsets.symmetric(vertical: 14),
                     ),
                   ),
@@ -1210,7 +1300,11 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                 // Interests
                 const Text(
                   'Interests',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Color(0xFF374151)),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF374151),
+                  ),
                 ),
                 const SizedBox(height: 8),
                 GestureDetector(
@@ -1226,11 +1320,18 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                     child: _selectedInterests.isEmpty
                         ? Row(
                             children: [
-                              Icon(Icons.emoji_emotions_outlined, color: Colors.grey.shade400, size: 18),
+                              Icon(
+                                Icons.emoji_emotions_outlined,
+                                color: Colors.grey.shade400,
+                                size: 18,
+                              ),
                               const SizedBox(width: 8),
                               Text(
                                 'Tap to select interests...',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+                                style: TextStyle(
+                                  color: Colors.grey.shade400,
+                                  fontSize: 14,
+                                ),
                               ),
                             ],
                           )
@@ -1238,22 +1339,29 @@ class _ProfileExtrasStepState extends State<_ProfileExtrasStep> {
                             spacing: 8,
                             runSpacing: 6,
                             children: _selectedInterests
-                                .map((i) => Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFEFF4FF),
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(color: const Color(0xFFBDD1FF)),
+                                .map(
+                                  (i) => Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEFF4FF),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0xFFBDD1FF),
                                       ),
-                                      child: Text(
-                                        i,
-                                        style: const TextStyle(
-                                          color: Color(0xFF1E56C8),
-                                          fontSize: 13,
-                                          fontWeight: FontWeight.w500,
-                                        ),
+                                    ),
+                                    child: Text(
+                                      i,
+                                      style: const TextStyle(
+                                        color: Color(0xFF1E56C8),
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w500,
                                       ),
-                                    ))
+                                    ),
+                                  ),
+                                )
                                 .toList(),
                           ),
                   ),
@@ -1291,7 +1399,6 @@ class _WelcomeStep extends StatefulWidget {
   final VoidCallback onEnter;
   const _WelcomeStep({required this.name, required this.onEnter});
 
-
   @override
   State<_WelcomeStep> createState() => _WelcomeStepState();
 }
@@ -1306,10 +1413,13 @@ class _WelcomeStepState extends State<_WelcomeStep>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 700));
-    _scale = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut),
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
     );
+    _scale = Tween<double>(
+      begin: 0.7,
+      end: 1.0,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
     _fade = CurvedAnimation(parent: _ctrl, curve: Curves.easeOut);
     _ctrl.forward();
   }
@@ -1352,8 +1462,11 @@ class _WelcomeStepState extends State<_WelcomeStep>
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.people_alt,
-                      color: Colors.white, size: 52),
+                  child: const Icon(
+                    Icons.people_alt,
+                    color: Colors.white,
+                    size: 52,
+                  ),
                 ),
                 const SizedBox(height: 32),
 
@@ -1400,7 +1513,8 @@ class _WelcomeStepState extends State<_WelcomeStep>
                 foregroundColor: Colors.white,
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 shadowColor: const Color(0xFF1E56C8).withValues(alpha: 0.4),
               ),
               child: const Text(
@@ -1437,12 +1551,14 @@ class _NextButton extends StatelessWidget {
       child: ElevatedButton(
         onPressed: enabled ? onTap : null,
         style: ElevatedButton.styleFrom(
-          backgroundColor:
-              enabled ? const Color(0xFF1E56C8) : Colors.grey.shade200,
+          backgroundColor: enabled
+              ? const Color(0xFF1E56C8)
+              : Colors.grey.shade200,
           foregroundColor: enabled ? Colors.white : Colors.grey.shade500,
           elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: Text(
           label,

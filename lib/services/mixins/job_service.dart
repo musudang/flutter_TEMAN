@@ -10,13 +10,21 @@ mixin JobService on ChangeNotifier {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
-  Stream<List<Job>> getJobs() {
+  Stream<List<Job>> getJobs({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  }) {
     return _db
         .collection('jobs')
         .orderBy('postedDate', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Job.fromFirestore(doc)).toList();
+          final jobs = snapshot.docs
+              .map((doc) => Job.fromFirestore(doc))
+              .toList();
+          if (hiddenUsers.isEmpty) return jobs;
+          return jobs.where((j) => !hiddenUsers.contains(j.authorId)).toList();
         });
   }
 
@@ -87,4 +95,3 @@ mixin JobService on ChangeNotifier {
         });
   }
 }
-

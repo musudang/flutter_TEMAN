@@ -46,6 +46,65 @@ class UserProfileScreen extends StatelessWidget {
             backgroundColor: Colors.white,
             foregroundColor: const Color(0xFF1A1F36),
             elevation: 0,
+            actions: [
+              if (firestoreService.currentUserId != null &&
+                  firestoreService.currentUserId != userId)
+                StreamBuilder<app_models.User?>(
+                  stream: firestoreService.getUserStream(
+                    firestoreService.currentUserId!,
+                  ),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData || snapshot.data == null) {
+                      return const SizedBox();
+                    }
+                    final currentUser = snapshot.data!;
+                    final isBlocked = currentUser.blockedUsers.contains(userId);
+                    return PopupMenuButton<String>(
+                      onSelected: (value) async {
+                        try {
+                          if (value == 'block') {
+                            await firestoreService.blockUser(userId);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('User blocked')),
+                              );
+                              Navigator.pop(context); // Close profile view
+                            }
+                          } else if (value == 'unblock') {
+                            await firestoreService.unblockUser(userId);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('User unblocked')),
+                              );
+                            }
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Error: $e')),
+                            );
+                          }
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        if (isBlocked)
+                          const PopupMenuItem(
+                            value: 'unblock',
+                            child: Text('Unblock User'),
+                          )
+                        else
+                          const PopupMenuItem(
+                            value: 'block',
+                            child: Text(
+                              'Block User',
+                              style: TextStyle(color: Colors.red),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+            ],
           ),
           body: CustomScrollView(
             slivers: [

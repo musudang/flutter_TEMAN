@@ -10,11 +10,12 @@ class ForgotPasswordScreen extends StatefulWidget {
   State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with SingleTickerProviderStateMixin {
+class _ForgotPasswordScreenState extends State<ForgotPasswordScreen>
+    with SingleTickerProviderStateMixin {
   late TabController _tabController;
   final _emailForIdController = TextEditingController();
   final _emailController = TextEditingController();
-  
+
   bool _isLoadingId = false;
   bool _isLoadingEmail = false;
   String? _foundNickname;
@@ -36,7 +37,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
   Future<void> _findId() async {
     final email = _emailForIdController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email.')),
+      );
       return;
     }
 
@@ -45,7 +48,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
       _foundNickname = null;
     });
 
-    final firestoreService = Provider.of<FirestoreService>(context, listen: false);
+    final firestoreService = Provider.of<FirestoreService>(
+      context,
+      listen: false,
+    );
     final nickname = await firestoreService.getUserNicknameByEmail(email);
 
     setState(() {
@@ -55,7 +61,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     if (nickname != null) {
       if (nickname.isEmpty) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('This account does not have a nickname set.')));
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('This account does not have a nickname set.'),
+            ),
+          );
         }
       } else {
         setState(() {
@@ -64,7 +74,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
       }
     } else {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No account found with this email.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No account found with this email.')),
+        );
       }
     }
   }
@@ -72,7 +84,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
   Future<void> _findPassword() async {
     final email = _emailController.text.trim();
     if (email.isEmpty || !email.contains('@')) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid email.')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email.')),
+      );
       return;
     }
 
@@ -90,12 +104,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
     if (mounted) {
       if (result.isSuccess) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password reset email sent! Please check your inbox.'), backgroundColor: Colors.green),
+          const SnackBar(
+            content: Text(
+              'Password reset email sent! Please check your inbox.',
+            ),
+            backgroundColor: Colors.green,
+          ),
         );
         Navigator.pop(context);
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'An error occurred'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(result.errorMessage ?? 'An error occurred'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -150,9 +172,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
                     backgroundColor: Colors.red,
                     foregroundColor: Colors.white,
                   ),
-                  child: _isLoadingId 
+                  child: _isLoadingId
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('아이디 찾기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : const Text(
+                          '아이디 찾기',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
                 if (_foundNickname != null) ...[
                   const SizedBox(height: 32),
@@ -165,20 +193,26 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
                     ),
                     child: Column(
                       children: [
-                        const Text('가입된 아이디(닉네임)', style: TextStyle(color: Colors.grey)),
+                        const Text(
+                          '가입된 아이디(닉네임)',
+                          style: TextStyle(color: Colors.grey),
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           _foundNickname!,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ]
+                ],
               ],
             ),
           ),
-          
+
           // Find Password Tab
           Padding(
             padding: const EdgeInsets.all(24.0),
@@ -211,7 +245,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> with Single
                   ),
                   child: _isLoadingEmail
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('비밀번호 찾기', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                      : const Text(
+                          '비밀번호 찾기',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                 ),
               ],
             ),

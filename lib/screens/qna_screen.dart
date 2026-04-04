@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 
 import '../services/firestore_service.dart';
 import '../models/question_model.dart';
+import '../models/user_model.dart' as app_models;
 import 'create_qna_screen.dart';
 import 'qna_detail_screen.dart';
 
@@ -18,27 +19,38 @@ class QnaScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Q&A (지식인)')),
-      body: StreamBuilder<List<Question>>(
-        stream: firestoreService.getQuestions(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+      body: StreamBuilder<app_models.User?>(
+        stream: firestoreService.currentUserId != null
+            ? firestoreService.getUserStream(firestoreService.currentUserId!)
+            : null,
+        builder: (context, userSnap) {
+          final hiddenUsers = <String>[
+            ...(userSnap.data?.blockedUsers ?? []),
+            ...(userSnap.data?.blockedBy ?? []),
+          ];
+          return StreamBuilder<List<Question>>(
+            stream: firestoreService.getQuestions(hiddenUsers: hiddenUsers),
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
-          final questions = snapshot.data ?? [];
-          if (questions.isEmpty) {
-            return const Center(child: Text('No questions yet. Ask one!'));
-          }
+              final questions = snapshot.data ?? [];
+              if (questions.isEmpty) {
+                return const Center(child: Text('No questions yet. Ask one!'));
+              }
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: questions.length,
-            itemBuilder: (context, index) {
-              final question = questions[index];
-              return _buildQuestionItem(context, question);
+              return ListView.builder(
+                padding: const EdgeInsets.all(16),
+                itemCount: questions.length,
+                itemBuilder: (context, index) {
+                  final question = questions[index];
+                  return _buildQuestionItem(context, question);
+                },
+              );
             },
           );
         },

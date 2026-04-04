@@ -21,7 +21,7 @@ class _ReportDialogState extends State<ReportDialog> {
     'Hate speech',
     'Nudity or sexual content',
     'Violence',
-    'Other'
+    'Other',
   ];
 
   String? _selectedReason;
@@ -89,10 +89,7 @@ class _ReportDialogState extends State<ReportDialog> {
               children: [
                 const Text(
                   'Report Post',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -123,41 +120,48 @@ class _ReportDialogState extends State<ReportDialog> {
                     children: [
                       ..._reasons.map((reason) {
                         return RadioListTile<String>(
-                          title: Text(reason, style: const TextStyle(fontSize: 15)),
+                          title: Text(
+                            reason,
+                            style: const TextStyle(fontSize: 15),
+                          ),
                           value: reason,
                           contentPadding: EdgeInsets.zero,
                           activeColor: Colors.red,
                         );
                       }),
-                    if (_selectedReason == 'Other' || _selectedReason != null) ...[
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: _detailsController,
-                        maxLines: 3,
-                        decoration: InputDecoration(
-                          hintText: 'Details (optional)',
-                          hintStyle: TextStyle(color: Colors.grey[400], fontSize: 13),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
+                      if (_selectedReason == 'Other' ||
+                          _selectedReason != null) ...[
+                        const SizedBox(height: 12),
+                        TextField(
+                          controller: _detailsController,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'Details (optional)',
+                            hintStyle: TextStyle(
+                              color: Colors.grey[400],
+                              fontSize: 13,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: BorderSide(color: Colors.grey[300]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8),
+                              borderSide: const BorderSide(color: Colors.red),
+                            ),
+                            contentPadding: const EdgeInsets.all(12),
                           ),
-                          enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: BorderSide(color: Colors.grey[300]!),
-                          ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8),
-                            borderSide: const BorderSide(color: Colors.red),
-                          ),
-                          contentPadding: const EdgeInsets.all(12),
                         ),
-                      ),
-                    ]
-                  ],
+                      ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
             const SizedBox(height: 20),
             SizedBox(
               width: double.infinity,

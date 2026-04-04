@@ -92,7 +92,7 @@ service cloud.firestore {
       // OR another user can ONLY update the 'followers' and 'following' lists
       allow update: if isAuthenticated() && (
         isOwner(userId) ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following', 'blockedBy'])
       );
       
       // Allow anyone logged in to send a notification to others

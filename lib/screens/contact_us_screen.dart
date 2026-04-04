@@ -43,10 +43,14 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    
+
     if (!_agreedToPrivacyPolicy) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please agree to the privacy policy before submitting.')),
+        const SnackBar(
+          content: Text(
+            'Please agree to the privacy policy before submitting.',
+          ),
+        ),
       );
       return;
     }
@@ -73,9 +77,9 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error submitting inquiry: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error submitting inquiry: $e')));
       }
     }
   }
@@ -115,15 +119,15 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                 children: [
                   const Text(
                     'Contact Us',
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 24),
-                  
+
                   // Content Field
-                  const Text('Content', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Content',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _contentController,
@@ -145,35 +149,55 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                       filled: true,
                       fillColor: Colors.grey[50],
                     ),
-                    validator: (value) => 
-                        value == null || value.trim().isEmpty ? 'Required' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
                   ),
                   const SizedBox(height: 24),
 
                   // File Attachment (Mock)
-                  const Text('File Attachment', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'File Attachment',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: () {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('File attachments via email app can be added directly inside your mail client.')),
+                        const SnackBar(
+                          content: Text(
+                            'File attachments via email app can be added directly inside your mail client.',
+                          ),
+                        ),
                       );
                     },
-                    icon: const Icon(Icons.camera_alt_outlined, color: Colors.red),
-                    label: const Text('Select File', style: TextStyle(color: Colors.red)),
+                    icon: const Icon(
+                      Icons.camera_alt_outlined,
+                      color: Colors.red,
+                    ),
+                    label: const Text(
+                      'Select File',
+                      style: TextStyle(color: Colors.red),
+                    ),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.red,
                       side: const BorderSide(color: Colors.red),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
 
                   // Email
-                  const Text('Contact Email', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Contact Email',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _emailController,
@@ -190,13 +214,17 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                       ),
                     ),
                     keyboardType: TextInputType.emailAddress,
-                    validator: (value) => 
-                        value == null || value.trim().isEmpty ? 'Required' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
                   // User ID
-                  const Text('User ID', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'User ID',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _userIdController,
@@ -212,13 +240,17 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                         borderSide: BorderSide(color: Colors.grey[300]!),
                       ),
                     ),
-                    validator: (value) => 
-                        value == null || value.trim().isEmpty ? 'Required' : null,
+                    validator: (value) => value == null || value.trim().isEmpty
+                        ? 'Required'
+                        : null,
                   ),
                   const SizedBox(height: 16),
 
                   // School
-                  const Text('School', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text(
+                    'School',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _schoolController,
@@ -239,7 +271,10 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                   const SizedBox(height: 32),
 
                   // Privacy Consent
-                  const Text('Privacy Policy Consent', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Text(
+                    'Privacy Policy Consent',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
                   const SizedBox(height: 12),
                   Container(
                     padding: const EdgeInsets.all(16),
@@ -269,15 +304,22 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                             const Expanded(
                               child: Text(
                                 'I agree to the collection and use of personal information (Required)',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            )
+                            ),
                           ],
                         ),
                         const SizedBox(height: 12),
                         Text(
                           'To process your inquiry, we collect personal information included in the email and inquiry details, which will be discarded 3 years after the inquiry is resolved according to our privacy policy.\nYou have the right to refuse the collection and use of personal information, but if you refuse, inquiry processing may be restricted.',
-                          style: TextStyle(fontSize: 12, color: Colors.grey[600], height: 1.5),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[600],
+                            height: 1.5,
+                          ),
                         ),
                       ],
                     ),

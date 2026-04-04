@@ -41,7 +41,10 @@ class _SignupScreenState extends State<SignupScreen> {
     if (_formKey.currentState!.validate()) {
       if (_passwordController.text != _confirmPasswordController.text) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Passwords do not match'), backgroundColor: Colors.red),
+          const SnackBar(
+            content: Text('Passwords do not match'),
+            backgroundColor: Colors.red,
+          ),
         );
         return;
       }
@@ -67,7 +70,10 @@ class _SignupScreenState extends State<SignupScreen> {
 
       if (!result.isSuccess) {
         messenger.showSnackBar(
-          SnackBar(content: Text(result.errorMessage ?? 'Signup failed'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text(result.errorMessage ?? 'Signup failed'),
+            backgroundColor: Colors.red,
+          ),
         );
       } else {
         navigator.pop();
@@ -166,12 +172,30 @@ class _SignupScreenState extends State<SignupScreen> {
                     prefixIcon: Icon(Icons.flag),
                   ),
                   items: const [
-                    DropdownMenuItem(value: 'USA 🇺🇸', child: Text('USA 🇺🇸')),
-                    DropdownMenuItem(value: 'Korea 🇰🇷', child: Text('Korea 🇰🇷')),
-                    DropdownMenuItem(value: 'China 🇨🇳', child: Text('China 🇨🇳')),
-                    DropdownMenuItem(value: 'Japan 🇯🇵', child: Text('Japan 🇯🇵')),
-                    DropdownMenuItem(value: 'Vietnam 🇻🇳', child: Text('Vietnam 🇻🇳')),
-                    DropdownMenuItem(value: 'Other 🌏', child: Text('Other 🌏')),
+                    DropdownMenuItem(
+                      value: 'USA 🇺🇸',
+                      child: Text('USA 🇺🇸'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Korea 🇰🇷',
+                      child: Text('Korea 🇰🇷'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'China 🇨🇳',
+                      child: Text('China 🇨🇳'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Japan 🇯🇵',
+                      child: Text('Japan 🇯🇵'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Vietnam 🇻🇳',
+                      child: Text('Vietnam 🇻🇳'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'Other 🌏',
+                      child: Text('Other 🌏'),
+                    ),
                   ],
                   onChanged: (val) => _nationality = val,
                   validator: (val) => val == null ? 'Select nationality' : null,
@@ -179,7 +203,9 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 16),
                 InkWell(
                   onTap: () async {
-                    FocusScope.of(context).unfocus(); // Dismiss keyboard if open
+                    FocusScope.of(
+                      context,
+                    ).unfocus(); // Dismiss keyboard if open
                     final List<String>? result = await showModalBottomSheet(
                       context: context,
                       isScrollControlled: true,
@@ -197,10 +223,15 @@ class _SignupScreenState extends State<SignupScreen> {
                   },
                   child: InputDecorator(
                     decoration: InputDecoration(
-                      labelText: _selectedInterests.isEmpty ? 'Interests' : 'Interests (${_selectedInterests.length}/5)',
+                      labelText: _selectedInterests.isEmpty
+                          ? 'Interests'
+                          : 'Interests (${_selectedInterests.length}/5)',
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.favorite_border),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 16,
+                      ),
                     ),
                     isEmpty: _selectedInterests.isEmpty,
                     child: _selectedInterests.isEmpty
@@ -208,16 +239,28 @@ class _SignupScreenState extends State<SignupScreen> {
                         : Wrap(
                             spacing: 8.0,
                             runSpacing: 4.0,
-                            children: _selectedInterests.map((interest) => Chip(
-                              label: Text(interest, style: const TextStyle(fontSize: 12, color: Colors.white)),
-                              backgroundColor: Colors.red.shade400,
-                              padding: EdgeInsets.zero,
-                              visualDensity: VisualDensity.compact,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                                side: const BorderSide(color: Colors.transparent)
-                              ),
-                            )).toList(),
+                            children: _selectedInterests
+                                .map(
+                                  (interest) => Chip(
+                                    label: Text(
+                                      interest,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                    backgroundColor: Colors.red.shade400,
+                                    padding: EdgeInsets.zero,
+                                    visualDensity: VisualDensity.compact,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                      side: const BorderSide(
+                                        color: Colors.transparent,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                                .toList(),
                           ),
                   ),
                 ),
@@ -269,21 +312,31 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 32),
                 OutlinedButton.icon(
-                  onPressed: _isLoading ? null : () async {
-                    setState(() => _isLoading = true);
-                    final authService = Provider.of<AuthService>(context, listen: false);
-                    final result = await authService.signInWithGoogle();
-                    setState(() => _isLoading = false);
-                    if (!result.isSuccess) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(result.errorMessage ?? 'Signup failed'), backgroundColor: Colors.red),
-                      );
-                    } else {
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          setState(() => _isLoading = true);
+                          final authService = Provider.of<AuthService>(
+                            context,
+                            listen: false,
+                          );
+                          final result = await authService.signInWithGoogle();
+                          setState(() => _isLoading = false);
+                          if (!result.isSuccess) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  result.errorMessage ?? 'Signup failed',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } else {
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                          }
+                        },
                   icon: Image.network(
                     'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Google_%22G%22_logo.svg/1024px-Google_%22G%22_logo.svg.png',
                     height: 24,
@@ -300,21 +353,31 @@ class _SignupScreenState extends State<SignupScreen> {
                 ),
                 const SizedBox(height: 16),
                 OutlinedButton.icon(
-                  onPressed: _isLoading ? null : () async {
-                    setState(() => _isLoading = true);
-                    final authService = Provider.of<AuthService>(context, listen: false);
-                    final result = await authService.signInWithApple();
-                    setState(() => _isLoading = false);
-                    if (!result.isSuccess) {
-                      if (!context.mounted) return;
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(result.errorMessage ?? 'Signup failed'), backgroundColor: Colors.red),
-                      );
-                    } else {
-                      if (!context.mounted) return;
-                      Navigator.pop(context);
-                    }
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () async {
+                          setState(() => _isLoading = true);
+                          final authService = Provider.of<AuthService>(
+                            context,
+                            listen: false,
+                          );
+                          final result = await authService.signInWithApple();
+                          setState(() => _isLoading = false);
+                          if (!result.isSuccess) {
+                            if (!context.mounted) return;
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  result.errorMessage ?? 'Signup failed',
+                                ),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          } else {
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                          }
+                        },
                   icon: const Icon(Icons.apple, color: Colors.black, size: 28),
                   label: const Text(
                     'Apple로 가입하기',
@@ -342,7 +405,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         recognizer: TapGestureRecognizer()
                           ..onTap = () async {
                             final url = Uri.parse(
-                                'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link');
+                              'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link',
+                            );
                             if (await canLaunchUrl(url)) {
                               await launchUrl(url);
                             }
@@ -358,7 +422,8 @@ class _SignupScreenState extends State<SignupScreen> {
                         recognizer: TapGestureRecognizer()
                           ..onTap = () async {
                             final url = Uri.parse(
-                                'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link');
+                              'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link',
+                            );
                             if (await canLaunchUrl(url)) {
                               await launchUrl(url);
                             }

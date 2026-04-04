@@ -27,7 +27,8 @@ class Conversation {
       id: doc.id,
       participantIds: List<String>.from(data['participantIds'] ?? []),
       lastMessage: data['lastMessage'] ?? '',
-      lastMessageTime: (data['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageTime:
+          (data['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
       unreadCounts: Map<String, int>.from(data['unreadCounts'] ?? {}),
       isGroup: data['isGroup'] ?? false,
       groupName: data['groupName'],

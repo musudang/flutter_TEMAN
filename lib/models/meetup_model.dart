@@ -75,8 +75,9 @@ class Meetup {
           ? (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now()
           : DateTime(2025, 1, 1),
       requiresApproval: data['requiresApproval'] ?? false,
-      pendingParticipantIds: List<String>.from(data['pendingParticipantIds'] ?? []),
+      pendingParticipantIds: List<String>.from(
+        data['pendingParticipantIds'] ?? [],
+      ),
     );
   }
 }
-

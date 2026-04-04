@@ -42,7 +42,8 @@ class MarketplaceItem {
       sellerId: data['sellerId'] ?? '',
       sellerName: data['sellerName'] ?? 'Unknown',
       sellerAvatar: data['sellerAvatar'] ?? '',
-      postedDate: (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      postedDate:
+          (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       isSold: data['isSold'] ?? false,
     );
   }

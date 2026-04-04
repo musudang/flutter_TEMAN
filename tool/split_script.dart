@@ -1,11 +1,15 @@
+// ignore_for_file: avoid_print, prefer_interpolation_to_compose_strings, unnecessary_brace_in_string_interps, unused_local_variable, unnecessary_non_null_assertion
+
 import 'dart:io';
 
 void main() async {
-  final file = File('c:/Users/user/OneDrive/Desktop/TEMAN FLUTTER TRIAL/teman_flutter_app_code/lib/services/firestore_service.dart');
+  final file = File(
+    'c:/Users/user/OneDrive/Desktop/TEMAN FLUTTER TRIAL/teman_flutter_app_code/lib/services/firestore_service.dart',
+  );
   final content = await file.readAsString();
-  
+
   final lines = content.split('\n');
-  
+
   // Extract imports
   final imports = <String>[];
   var i = 0;
@@ -17,7 +21,7 @@ void main() async {
       break;
     }
   }
-  
+
   // Extract the top level variables for Mixins to use
   final variables = '''
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -28,15 +32,18 @@ void main() async {
 
   // Find categories
   final mixinNames = <String>[];
-  final categoryPattern = RegExp(r'// ===================== (.*?) =====================');
-  
+  final categoryPattern = RegExp(
+    r'// ===================== (.*?) =====================',
+  );
+
   String? currentCategory;
   List<String> currentCategoryLines = [];
-  
-  final outDir = Directory('c:/Users/user/OneDrive/Desktop/TEMAN FLUTTER TRIAL/teman_flutter_app_code/lib/services/mixins');
+
+  final outDir = Directory(
+    'c:/Users/user/OneDrive/Desktop/TEMAN FLUTTER TRIAL/teman_flutter_app_code/lib/services/mixins',
+  );
   outDir.createSync(recursive: true);
 
-  
   final categoryToFileName = {
     'USER': 'user_service',
     'MEETUPS': 'meetup_service',
@@ -53,16 +60,16 @@ void main() async {
     'RESET DATA': 'dev_service',
     'SEARCH': 'search_service',
   };
-  
+
   Map<String, List<String>> fileContents = {};
-  
+
   for (var line in lines) {
     var match = categoryPattern.firstMatch(line);
     if (match != null) {
       currentCategory = match.group(1)!.trim();
       continue;
     }
-    
+
     if (currentCategory != null) {
       // Find which file it belongs to
       String fileName = 'misc_service';
@@ -72,14 +79,16 @@ void main() async {
           break;
         }
       }
-      
+
       fileContents.putIfAbsent(fileName, () => []);
-      if (line.trim() != '}' || currentCategoryLines.length < lines.length - 10) { // Avoid pulling the last brace
+      if (line.trim() != '}' ||
+          currentCategoryLines.length < lines.length - 10) {
+        // Avoid pulling the last brace
         fileContents[fileName]!.add(line);
       }
     }
   }
-  
+
   // Clean up the trailing brace from the last category
   if (fileContents.isNotEmpty) {
     final lastKey = fileContents.keys.last;
@@ -88,7 +97,8 @@ void main() async {
       lst.removeLast();
     }
     // Might need to remove one more empty line or brace
-    while(lst.isNotEmpty && (lst.last.trim() == '}' || lst.last.trim() == '')) {
+    while (lst.isNotEmpty &&
+        (lst.last.trim() == '}' || lst.last.trim() == '')) {
       lst.removeLast();
     }
   }
@@ -97,12 +107,16 @@ void main() async {
   for (final entry in fileContents.entries) {
     final fileName = entry.key;
     final lines = entry.value;
-    
+
     // Create mixin name: user_service -> UserService
-    final mixinName = fileName.split('_').map((s) => s[0].toUpperCase() + s.substring(1)).join('');
+    final mixinName = fileName
+        .split('_')
+        .map((s) => s[0].toUpperCase() + s.substring(1))
+        .join('');
     mixinNames.add(mixinName);
-    
-    final mixinContent = '''
+
+    final mixinContent =
+        '''
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -137,7 +151,9 @@ mixin \$mixinName on ChangeNotifier {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
-''' + lines.join('\n') + '''
+''' +
+        lines.join('\n') +
+        '''
 }
 ''';
 
@@ -148,10 +164,13 @@ mixin \$mixinName on ChangeNotifier {
   }
 
   // Write the new firestore_service.dart
-  final newServiceImports = fileContents.keys.map((k) => "import 'mixins/${k}.dart';").join('\n');
+  final newServiceImports = fileContents.keys
+      .map((k) => "import 'mixins/${k}.dart';")
+      .join('\n');
   final mixinsList = mixinNames.join(', ');
-  
-  final newFirestoreService = '''
+
+  final newFirestoreService =
+      '''
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -162,7 +181,8 @@ class FirestoreService extends ChangeNotifier with $mixinsList {
 }
   ''';
 
-  
-  await File('c:/Users/user/OneDrive/Desktop/TEMAN FLUTTER TRIAL/teman_flutter_app_code/lib/services/firestore_service_new.dart').writeAsString(newFirestoreService);
+  await File(
+    'c:/Users/user/OneDrive/Desktop/TEMAN FLUTTER TRIAL/teman_flutter_app_code/lib/services/firestore_service_new.dart',
+  ).writeAsString(newFirestoreService);
   print('Reconstructed FirestoreService in firestore_service_new.dart');
 }

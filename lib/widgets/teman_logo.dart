@@ -9,9 +9,7 @@ class TemanLogoWidget extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: CustomPaint(
-        painter: _TemanLogoPainter(),
-      ),
+      child: CustomPaint(painter: _TemanLogoPainter()),
     );
   }
 }
@@ -39,11 +37,7 @@ class _TemanLogoPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(w * 0.5, 0, w * 0.5, h));
 
     // Left person head
-    canvas.drawCircle(
-      Offset(w * 0.32, h * 0.18),
-      w * 0.10,
-      darkBluePaint,
-    );
+    canvas.drawCircle(Offset(w * 0.32, h * 0.18), w * 0.10, darkBluePaint);
 
     // Left person body (arc/semi-circle)
     final leftBodyRect = Rect.fromCenter(
@@ -56,7 +50,9 @@ class _TemanLogoPainter extends CustomPainter {
       3.14159, // start from bottom-left (pi)
       3.14159, // half circle
       false,
-      darkBluePaint..style = PaintingStyle.stroke..strokeWidth = w * 0.09,
+      darkBluePaint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.09,
     );
 
     // Right person head
@@ -77,11 +73,12 @@ class _TemanLogoPainter extends CustomPainter {
       3.14159,
       3.14159,
       false,
-      lightBluePaint..style = PaintingStyle.stroke..strokeWidth = w * 0.085,
+      lightBluePaint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = w * 0.085,
     );
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
-

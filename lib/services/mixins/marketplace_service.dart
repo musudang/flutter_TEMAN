@@ -10,20 +10,28 @@ mixin MarketplaceService on ChangeNotifier {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
-  Stream<List<MarketplaceItem>> getMarketplaceItems() {
+  Stream<List<MarketplaceItem>> getMarketplaceItems({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  }) {
     return _db
         .collection('marketplace')
         .orderBy('postedDate', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs
+          final items = snapshot.docs
               .map((doc) => MarketplaceItem.fromFirestore(doc))
               .toList();
+          if (hiddenUsers.isEmpty) return items;
+          return items.where((i) => !hiddenUsers.contains(i.sellerId)).toList();
         });
   }
 
   Future<void> addMarketplaceItem(
-      MarketplaceItem item, [List<File> imageFiles = const []]) async {
+    MarketplaceItem item, [
+    List<File> imageFiles = const [],
+  ]) async {
     if (_auth.currentUser == null) {
       throw Exception('User must be logged in to post an item');
     }
@@ -32,7 +40,8 @@ mixin MarketplaceService on ChangeNotifier {
       // 1. Upload images first (dummy logic since we don't have StorageService in this mixin directly)
       // We will assume imageFiles are somehow already uploaded or we store empty urls if needed.
       // Assuming image uploading logic is handled externally before calling addMarketplaceItem or we add a helper.
-      List<String> imageUrls = item.imageUrls; // Assuming they are already populated for now
+      List<String> imageUrls =
+          item.imageUrls; // Assuming they are already populated for now
 
       // 2. Add document to Firestore
       await _db.collection('marketplace').add({
@@ -55,7 +64,9 @@ mixin MarketplaceService on ChangeNotifier {
   }
 
   Future<void> updateMarketplaceItem(
-      String itemId, Map<String, dynamic> data) async {
+    String itemId,
+    Map<String, dynamic> data,
+  ) async {
     final uid = currentUserId;
     if (uid == null) return;
 
@@ -113,4 +124,3 @@ mixin MarketplaceService on ChangeNotifier {
         });
   }
 }
-

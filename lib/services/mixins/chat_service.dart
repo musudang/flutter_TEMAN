@@ -117,7 +117,9 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
         .where('participantIds', arrayContains: user.uid)
         .snapshots()
         .map((snapshot) {
-          final conversations = snapshot.docs.map((doc) => Conversation.fromFirestore(doc)).toList();
+          final conversations = snapshot.docs
+              .map((doc) => Conversation.fromFirestore(doc))
+              .toList();
 
           // Client-side sort to avoid composite index requirement
           conversations.sort(
@@ -177,8 +179,14 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
       final participants = List<String>.from(
         doc.data()['participantIds'] ?? [],
       );
-      if (participants.contains(otherUserId) && doc.data()['isGroup'] != true) {
-        return doc.id; // Existing conversation found
+      final isGroup = doc.data()['isGroup'] == true;
+      final meetupId = doc.data()['meetupId'];
+
+      if (!isGroup &&
+          meetupId == null &&
+          participants.length == 2 &&
+          participants.contains(otherUserId)) {
+        return doc.id; // Existing 1:1 conversation found
       }
     }
 
@@ -233,7 +241,9 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
         .orderBy('timestamp', descending: true)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Message.fromFirestore(doc)).toList();
+          return snapshot.docs
+              .map((doc) => Message.fromFirestore(doc))
+              .toList();
         });
   }
 
@@ -365,31 +375,6 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
   }
 
   Future<String> startConversation(String otherUserId) async {
-    final user = _auth.currentUser;
-    if (user == null) throw Exception('User not logged in');
-
-    final query = await _db
-        .collection('conversations')
-        .where('participantIds', arrayContains: user.uid)
-        .get();
-
-    for (var doc in query.docs) {
-      final List<dynamic> participants = doc['participantIds'];
-      if (participants.contains(otherUserId)) {
-        return doc.id;
-      }
-    }
-
-    final docRef = await _db.collection('conversations').add({
-      'participantIds': [user.uid, otherUserId],
-      'lastMessage': '',
-      'lastMessageTime': FieldValue.serverTimestamp(),
-      'unreadCounts': {user.uid: 0, otherUserId: 0},
-      'isGroup': false,
-      'groupName': null,
-      'meetupId': null,
-    });
-
-    return docRef.id;
+    return getOrCreateConversation(otherUserId);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../../constants/app_constants.dart';
 import '../../models/meetup_model.dart';
 import '../../models/post_model.dart';
 import '../../models/user_model.dart' as app_models;
@@ -9,7 +10,6 @@ import '../../models/job_model.dart';
 import '../../models/marketplace_model.dart';
 import '../../models/comment_model.dart';
 import 'dart:async';
-import 'package:rxdart/rxdart.dart';
 
 mixin PostService on ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -17,10 +17,22 @@ mixin PostService on ChangeNotifier {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
-  Stream<List<Meetup>> getMeetups();
-  Stream<List<Job>> getJobs();
-  Stream<List<MarketplaceItem>> getMarketplaceItems();
-  Stream<List<Question>> getQuestions();
+  Stream<List<Meetup>> getMeetups({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  });
+  Stream<List<Job>> getJobs({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  });
+  Stream<List<MarketplaceItem>> getMarketplaceItems({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  });
+  Stream<List<Question>> getQuestions({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  });
   Future<app_models.User?> getCurrentUser();
   Future<bool> isAdmin();
   Future<void> sendNotification({
@@ -35,7 +47,7 @@ mixin PostService on ChangeNotifier {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final docRef = _db.collection('meetups').doc(meetupId);
+    final docRef = _db.collection(AppConstants.meetupsCollection).doc(meetupId);
 
     try {
       await _db.runTransaction((transaction) async {
@@ -62,7 +74,7 @@ mixin PostService on ChangeNotifier {
     if (userId.isEmpty) return Stream.value([]);
 
     return _db
-        .collection('meetups')
+        .collection(AppConstants.meetupsCollection)
         .where('scrappedBy', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
@@ -120,107 +132,183 @@ mixin PostService on ChangeNotifier {
     return controller.stream;
   }
 
-  Stream<List<dynamic>> getFeed() {
-    return Rx.combineLatest5<
-          List<Post>,
-          List<Meetup>,
-          List<Job>,
-          List<MarketplaceItem>,
-          List<Question>,
-          List<dynamic>
-        >(
-          getPosts().onErrorReturnWith((error, stackTrace) {
-            debugPrint('Error fetching posts: $error');
-            return [];
-          }),
-          getMeetups().onErrorReturnWith((error, stackTrace) {
-            debugPrint('Error fetching meetups: $error');
-            return [];
-          }),
-          getJobs().onErrorReturnWith((error, stackTrace) {
-            debugPrint('Error fetching jobs: $error');
-            return [];
-          }),
-          getMarketplaceItems().onErrorReturnWith((error, stackTrace) {
-            debugPrint('Error fetching marketplace: $error');
-            return [];
-          }),
-          getQuestions().onErrorReturnWith((error, stackTrace) {
-            debugPrint('Error fetching questions: $error');
-            return [];
-          }),
-          (posts, meetups, jobs, marketItems, questions) {
-            final List<dynamic> allItems = [
-              ...posts,
-              ...meetups,
-              ...jobs,
-              ...marketItems,
-              ...questions,
-            ];
+  Future<List<dynamic>> fetchFeedPage({
+    DateTime? lastTimestamp,
+    int limit = 10,
+    List<String> hiddenUsers = const [],
+  }) async {
+    final queries = <Future<List<dynamic>>>[];
 
-            allItems.sort((a, b) {
-              DateTime timeA;
-              if (a is Post) {
-                timeA = a.timestamp;
-              } else if (a is Meetup) {
-                timeA = a.createdAt;
-              } else if (a is Job) {
-                timeA = a.postedDate;
-              } else if (a is MarketplaceItem) {
-                timeA = a.postedDate;
-              } else if (a is Question) {
-                timeA = a.timestamp;
-              } else {
-                timeA = DateTime.now();
-              }
+    // Posts
+    Query postsQ = _db
+        .collection(AppConstants.postsCollection)
+        .orderBy('timestamp', descending: true);
+    if (lastTimestamp != null) {
+      postsQ = postsQ.where(
+        'timestamp',
+        isLessThan: Timestamp.fromDate(lastTimestamp),
+      );
+    }
+    queries.add(
+      postsQ
+          .limit(limit)
+          .get()
+          .then(
+            (snap) => snap.docs
+                .map((d) => Post.fromFirestore(d))
+                .where((p) => !hiddenUsers.contains(p.authorId))
+                .toList(),
+          ),
+    );
 
-              DateTime timeB;
-              if (b is Post) {
-                timeB = b.timestamp;
-              } else if (b is Meetup) {
-                timeB = b.createdAt;
-              } else if (b is Job) {
-                timeB = b.postedDate;
-              } else if (b is MarketplaceItem) {
-                timeB = b.postedDate;
-              } else if (b is Question) {
-                timeB = b.timestamp;
-              } else {
-                timeB = DateTime.now();
-              }
+    // Meetups
+    Query meetupsQ = _db
+        .collection(AppConstants.meetupsCollection)
+        .orderBy('createdAt', descending: true);
+    if (lastTimestamp != null) {
+      meetupsQ = meetupsQ.where(
+        'createdAt',
+        isLessThan: Timestamp.fromDate(lastTimestamp),
+      );
+    }
+    queries.add(
+      meetupsQ
+          .limit(limit)
+          .get()
+          .then(
+            (snap) => snap.docs
+                .map((d) => Meetup.fromFirestore(d))
+                .where((m) => !hiddenUsers.contains(m.host.id))
+                .toList(),
+          ),
+    );
 
-              return timeB.compareTo(timeA);
-            });
+    // Jobs
+    Query jobsQ = _db
+        .collection(AppConstants.jobsCollection)
+        .orderBy('postedDate', descending: true);
+    if (lastTimestamp != null) {
+      jobsQ = jobsQ.where(
+        'postedDate',
+        isLessThan: Timestamp.fromDate(lastTimestamp),
+      );
+    }
+    queries.add(
+      jobsQ
+          .limit(limit)
+          .get()
+          .then(
+            (snap) => snap.docs
+                .map((d) => Job.fromFirestore(d))
+                .where((j) => !hiddenUsers.contains(j.authorId))
+                .toList(),
+          ),
+    );
 
-            return allItems;
-          },
-        )
-        .handleError((error) {
-          debugPrint("Error in feed stream: $error");
-          return [];
-        });
+    // Market
+    Query marketQ = _db
+        .collection(AppConstants.marketplaceCollection)
+        .orderBy('postedDate', descending: true);
+    if (lastTimestamp != null) {
+      marketQ = marketQ.where(
+        'postedDate',
+        isLessThan: Timestamp.fromDate(lastTimestamp),
+      );
+    }
+    queries.add(
+      marketQ
+          .limit(limit)
+          .get()
+          .then(
+            (snap) => snap.docs
+                .map((d) => MarketplaceItem.fromFirestore(d))
+                .where((m) => !hiddenUsers.contains(m.sellerId))
+                .toList(),
+          ),
+    );
+
+    // Questions
+    Query questionsQ = _db
+        .collection(AppConstants.questionsCollection)
+        .orderBy('timestamp', descending: true);
+    if (lastTimestamp != null) {
+      questionsQ = questionsQ.where(
+        'timestamp',
+        isLessThan: Timestamp.fromDate(lastTimestamp),
+      );
+    }
+    queries.add(
+      questionsQ
+          .limit(limit)
+          .get()
+          .then(
+            (snap) => snap.docs
+                .map((d) => Question.fromFirestore(d))
+                .where((q) => !hiddenUsers.contains(q.authorId))
+                .toList(),
+          ),
+    );
+
+    final results = await Future.wait(queries);
+    final allItems = results.expand((i) => i).toList();
+
+    allItems.sort((a, b) {
+      DateTime timeA = a is Post
+          ? a.timestamp
+          : a is Meetup
+          ? a.createdAt
+          : a is Job
+          ? a.postedDate
+          : a is MarketplaceItem
+          ? a.postedDate
+          : (a as Question).timestamp;
+      DateTime timeB = b is Post
+          ? b.timestamp
+          : b is Meetup
+          ? b.createdAt
+          : b is Job
+          ? b.postedDate
+          : b is MarketplaceItem
+          ? b.postedDate
+          : (b as Question).timestamp;
+      return timeB.compareTo(timeA);
+    });
+
+    return allItems.take(limit).toList();
   }
 
-  Stream<List<Post>> getPosts() {
+  Stream<List<Post>> getPosts({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  }) {
     return _db
-        .collection('posts')
+        .collection(AppConstants.postsCollection)
         .orderBy('timestamp', descending: true)
+        .limit(limit)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+          final posts = snapshot.docs
+              .map((doc) => Post.fromFirestore(doc))
+              .toList();
+          if (hiddenUsers.isEmpty) return posts;
+          return posts.where((p) => !hiddenUsers.contains(p.authorId)).toList();
         });
   }
 
   Stream<Post?> getPostStream(String postId) {
-    return _db.collection('posts').doc(postId).snapshots().map((doc) {
-      if (!doc.exists) return null;
-      return Post.fromFirestore(doc);
-    });
+    return _db
+        .collection(AppConstants.postsCollection)
+        .doc(postId)
+        .snapshots()
+        .map((doc) {
+          if (!doc.exists) return null;
+          return Post.fromFirestore(doc);
+        });
   }
 
   Stream<List<Post>> getUserPosts(String userId) {
     return _db
-        .collection('posts')
+        .collection(AppConstants.postsCollection)
         .where('authorId', isEqualTo: userId)
         .snapshots()
         .map((snapshot) {
@@ -269,7 +357,7 @@ mixin PostService on ChangeNotifier {
         docData['eventDate'] = Timestamp.fromDate(eventDate);
       }
 
-      await _db.collection('posts').add(docData);
+      await _db.collection(AppConstants.postsCollection).add(docData);
     } catch (e) {
       debugPrint("Error saving post: $e");
       rethrow;
@@ -280,7 +368,10 @@ mixin PostService on ChangeNotifier {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final doc = await _db.collection('posts').doc(postId).get();
+    final doc = await _db
+        .collection(AppConstants.postsCollection)
+        .doc(postId)
+        .get();
     if (!doc.exists) return;
 
     final data = doc.data()!;
@@ -298,29 +389,40 @@ mixin PostService on ChangeNotifier {
           now.add(const Duration(days: 4)),
         ),
       });
-      await _db.collection('posts').doc(postId).delete();
+      await _db.collection(AppConstants.postsCollection).doc(postId).delete();
     } else {
       throw Exception('Permission denied');
     }
   }
 
-  Future<void> reportPost(String postId, {String reason = 'Inappropriate content', String details = ''}) async {
+  Future<void> reportPost(
+    String postId, {
+    String reason = 'Inappropriate content',
+    String details = '',
+  }) async {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final postRef = _db.collection('posts').doc(postId);
-    final reportRef = _db.collection('admin_reports').doc('${postId}_$uid');
+    final postRef = _db.collection(AppConstants.postsCollection).doc(postId);
+    final reportRef = _db
+        .collection(AppConstants.reportsCollection)
+        .doc('${postId}_$uid');
 
     await _db.runTransaction((transaction) async {
+      final reportSnapshot = await transaction.get(reportRef);
+      if (reportSnapshot.exists) {
+        throw Exception("You have already reported this post.");
+      }
+
       final postSnapshot = await transaction.get(postRef);
       if (!postSnapshot.exists) {
         throw Exception("Post does not exist!");
       }
-      
+
       final postData = postSnapshot.data()!;
       final int currentReports = (postData['reportCount'] ?? 0) as int;
       final bool isRestricted = (postData['isRestricted'] ?? false) as bool;
-      
+
       transaction.set(reportRef, {
         'postId': postId,
         'reportedBy': uid,
@@ -330,11 +432,13 @@ mixin PostService on ChangeNotifier {
         'reportedAt': FieldValue.serverTimestamp(),
         'status': 'pending',
       });
-      
+
       final newReportCount = currentReports + 1;
-      
+
       if (!isRestricted && newReportCount >= 6) {
-        final restrictedPostRef = _db.collection('admin_restricted_posts').doc('post_$postId');
+        final restrictedPostRef = _db
+            .collection('admin_restricted_posts')
+            .doc('post_$postId');
         transaction.set(restrictedPostRef, {
           ...postData,
           'originalPostId': postId,
@@ -342,7 +446,7 @@ mixin PostService on ChangeNotifier {
           'reportCount': newReportCount,
           'status': 'Under Review',
         });
-        
+
         final restrictionLogRef = _db.collection('user_restrictions').doc();
         transaction.set(restrictionLogRef, {
           'userId': postData['authorId'],
@@ -352,12 +456,10 @@ mixin PostService on ChangeNotifier {
           'createdAt': FieldValue.serverTimestamp(),
           'reason': 'Automatically restricted due to multiple reports.',
         });
-        
+
         transaction.delete(postRef);
       } else {
-        transaction.update(postRef, {
-          'reportCount': newReportCount,
-        });
+        transaction.update(postRef, {'reportCount': newReportCount});
       }
     });
   }
@@ -366,8 +468,10 @@ mixin PostService on ChangeNotifier {
     final admin = await isAdmin();
     if (!admin) throw Exception('Permission denied');
 
-    final restrictedPostRef = _db.collection('admin_restricted_posts').doc('post_$postId');
-    final postRef = _db.collection('posts').doc(postId);
+    final restrictedPostRef = _db
+        .collection('admin_restricted_posts')
+        .doc('post_$postId');
+    final postRef = _db.collection(AppConstants.postsCollection).doc(postId);
 
     await _db.runTransaction((transaction) async {
       final restrictedSnapshot = await transaction.get(restrictedPostRef);
@@ -376,19 +480,19 @@ mixin PostService on ChangeNotifier {
       }
 
       final postData = restrictedSnapshot.data()!;
-      
+
       // Remove restriction metadata
       postData.remove('originalPostId');
       postData.remove('restrictedAt');
       postData.remove('status');
-      
+
       // Reset report count and restriction status
       postData['reportCount'] = 0;
       postData['isRestricted'] = false;
 
       // Restore to public posts collection
       transaction.set(postRef, postData);
-      
+
       // Remove from restricted collection
       transaction.delete(restrictedPostRef);
     });
@@ -414,12 +518,18 @@ mixin PostService on ChangeNotifier {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final doc = await _db.collection('posts').doc(postId).get();
+    final doc = await _db
+        .collection(AppConstants.postsCollection)
+        .doc(postId)
+        .get();
     if (!doc.exists) return;
 
     final postData = doc.data()!;
     if (postData['authorId'] == uid) {
-      await _db.collection('posts').doc(postId).update(data);
+      await _db
+          .collection(AppConstants.postsCollection)
+          .doc(postId)
+          .update(data);
     } else {
       throw Exception('Permission denied');
     }
@@ -429,7 +539,7 @@ mixin PostService on ChangeNotifier {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final docRef = _db.collection('posts').doc(postId);
+    final docRef = _db.collection(AppConstants.postsCollection).doc(postId);
 
     try {
       await _db.runTransaction((transaction) async {
@@ -471,7 +581,7 @@ mixin PostService on ChangeNotifier {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final docRef = _db.collection('posts').doc(postId);
+    final docRef = _db.collection(AppConstants.postsCollection).doc(postId);
 
     try {
       await _db.runTransaction((transaction) async {
@@ -496,7 +606,7 @@ mixin PostService on ChangeNotifier {
 
   Stream<List<Post>> getScrappedPosts(String userId) {
     return _db
-        .collection('posts')
+        .collection(AppConstants.postsCollection)
         .where('scrappedBy', arrayContains: userId)
         .snapshots()
         .map((snapshot) {
@@ -510,13 +620,15 @@ mixin PostService on ChangeNotifier {
 
   Stream<List<Comment>> getComments(String postId) {
     return _db
-        .collection('posts')
+        .collection(AppConstants.postsCollection)
         .doc(postId)
-        .collection('comments')
+        .collection(AppConstants.commentsCollection)
         .orderBy('timestamp', descending: false)
         .snapshots()
         .map((snapshot) {
-          return snapshot.docs.map((doc) => Comment.fromFirestore(doc, defaultPostId: postId)).toList();
+          return snapshot.docs
+              .map((doc) => Comment.fromFirestore(doc, defaultPostId: postId))
+              .toList();
         });
   }
 
@@ -534,8 +646,12 @@ mixin PostService on ChangeNotifier {
 
     try {
       await _db.runTransaction((transaction) async {
-        final postRef = _db.collection('posts').doc(postId);
-        final commentRef = postRef.collection('comments').doc();
+        final postRef = _db
+            .collection(AppConstants.postsCollection)
+            .doc(postId);
+        final commentRef = postRef
+            .collection(AppConstants.commentsCollection)
+            .doc();
 
         final docData = <String, dynamic>{
           'content': content,
@@ -546,15 +662,24 @@ mixin PostService on ChangeNotifier {
           'reactions': {},
         };
 
-        if (replyToCommentId != null) docData['replyToCommentId'] = replyToCommentId;
-        if (replyToCommentText != null) docData['replyToCommentText'] = replyToCommentText;
-        if (replyToCommentAuthor != null) docData['replyToCommentAuthor'] = replyToCommentAuthor;
+        if (replyToCommentId != null) {
+          docData['replyToCommentId'] = replyToCommentId;
+        }
+        if (replyToCommentText != null) {
+          docData['replyToCommentText'] = replyToCommentText;
+        }
+        if (replyToCommentAuthor != null) {
+          docData['replyToCommentAuthor'] = replyToCommentAuthor;
+        }
 
         transaction.set(commentRef, docData);
         transaction.update(postRef, {'comments': FieldValue.increment(1)});
       });
 
-      final postDoc = await _db.collection('posts').doc(postId).get();
+      final postDoc = await _db
+          .collection(AppConstants.postsCollection)
+          .doc(postId)
+          .get();
       if (postDoc.exists) {
         final authorId = postDoc.data()?['authorId'] ?? '';
         if (authorId.isNotEmpty && authorId != user.uid) {
@@ -580,9 +705,9 @@ mixin PostService on ChangeNotifier {
     try {
       await _db.runTransaction((transaction) async {
         final commentRef = _db
-            .collection('posts')
+            .collection(AppConstants.postsCollection)
             .doc(postId)
-            .collection('comments')
+            .collection(AppConstants.commentsCollection)
             .doc(commentId);
 
         final snapshot = await transaction.get(commentRef);
@@ -593,7 +718,9 @@ mixin PostService on ChangeNotifier {
           throw Exception('Not authorized to delete this comment');
         }
 
-        final postRef = _db.collection('posts').doc(postId);
+        final postRef = _db
+            .collection(AppConstants.postsCollection)
+            .doc(postId);
 
         transaction.delete(commentRef);
         transaction.update(postRef, {'comments': FieldValue.increment(-1)});
@@ -613,9 +740,9 @@ mixin PostService on ChangeNotifier {
     if (uid == null) return;
 
     final docRef = _db
-        .collection('posts')
+        .collection(AppConstants.postsCollection)
         .doc(postId)
-        .collection('comments')
+        .collection(AppConstants.commentsCollection)
         .doc(commentId);
 
     try {

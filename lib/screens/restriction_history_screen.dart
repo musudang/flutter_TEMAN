@@ -56,8 +56,12 @@ class RestrictionHistoryScreen extends StatelessWidget {
                 // Sort client-side to avoid composite index requirement
                 final docs = snapshot.data!.docs.toList();
                 docs.sort((a, b) {
-                  final aTime = (a.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
-                  final bTime = (b.data() as Map<String, dynamic>)['createdAt'] as Timestamp?;
+                  final aTime =
+                      (a.data() as Map<String, dynamic>)['createdAt']
+                          as Timestamp?;
+                  final bTime =
+                      (b.data() as Map<String, dynamic>)['createdAt']
+                          as Timestamp?;
                   if (aTime == null || bTime == null) return 0;
                   return bTime.compareTo(aTime);
                 });
@@ -68,9 +72,11 @@ class RestrictionHistoryScreen extends StatelessWidget {
                   itemBuilder: (context, index) {
                     final data = docs[index].data() as Map<String, dynamic>;
                     final postTitle = data['postTitle'] ?? 'Unknown Post';
-                    final reason = data['reason'] ?? 'Violation of community guidelines';
+                    final reason =
+                        data['reason'] ?? 'Violation of community guidelines';
                     final status = data['status'] ?? 'Under Review';
-                    final createdAt = (data['createdAt'] as Timestamp?)?.toDate();
+                    final createdAt = (data['createdAt'] as Timestamp?)
+                        ?.toDate();
 
                     Color statusColor = Colors.orange;
                     IconData statusIcon = Icons.pending_actions;
@@ -112,7 +118,10 @@ class RestrictionHistoryScreen extends StatelessWidget {
                                   ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: statusColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(12),
@@ -120,7 +129,11 @@ class RestrictionHistoryScreen extends StatelessWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(statusIcon, size: 14, color: statusColor),
+                                      Icon(
+                                        statusIcon,
+                                        size: 14,
+                                        color: statusColor,
+                                      ),
                                       const SizedBox(width: 4),
                                       Text(
                                         status,
@@ -132,19 +145,27 @@ class RestrictionHistoryScreen extends StatelessWidget {
                                       ),
                                     ],
                                   ),
-                                )
+                                ),
                               ],
                             ),
                             const SizedBox(height: 8),
                             Text(
                               reason,
-                              style: const TextStyle(color: Colors.black87, fontSize: 14),
+                              style: const TextStyle(
+                                color: Colors.black87,
+                                fontSize: 14,
+                              ),
                             ),
                             const SizedBox(height: 8),
                             if (createdAt != null)
                               Text(
-                                DateFormat('MMM dd, yyyy - hh:mm a').format(createdAt),
-                                style: TextStyle(color: Colors.grey[500], fontSize: 12),
+                                DateFormat(
+                                  'MMM dd, yyyy - hh:mm a',
+                                ).format(createdAt),
+                                style: TextStyle(
+                                  color: Colors.grey[500],
+                                  fontSize: 12,
+                                ),
                               ),
                           ],
                         ),
