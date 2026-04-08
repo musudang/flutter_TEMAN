@@ -399,69 +399,89 @@ mixin PostService on ChangeNotifier {
     String postId, {
     String reason = 'Inappropriate content',
     String details = '',
+    String type = 'post',
   }) async {
     final uid = currentUserId;
     if (uid == null) return;
 
-    final postRef = _db.collection(AppConstants.postsCollection).doc(postId);
     final reportRef = _db
         .collection(AppConstants.reportsCollection)
         .doc('${postId}_$uid');
 
-    await _db.runTransaction((transaction) async {
-      final reportSnapshot = await transaction.get(reportRef);
+    // For posts, we also update the post's report count
+    if (type == 'post') {
+      final postRef = _db.collection(AppConstants.postsCollection).doc(postId);
+      await _db.runTransaction((transaction) async {
+        final reportSnapshot = await transaction.get(reportRef);
+        if (reportSnapshot.exists) {
+          throw Exception("You have already reported this post.");
+        }
+
+        final postSnapshot = await transaction.get(postRef);
+        if (!postSnapshot.exists) {
+          throw Exception("Post does not exist!");
+        }
+
+        final postData = postSnapshot.data()!;
+        final int currentReports = (postData['reportCount'] ?? 0) as int;
+        final bool isRestricted = (postData['isRestricted'] ?? false) as bool;
+
+        transaction.set(reportRef, {
+          'postId': postId,
+          'reportedBy': uid,
+          'reason': reason,
+          'details': details,
+          'type': type,
+          'reportedAt': FieldValue.serverTimestamp(),
+          'status': 'pending',
+        });
+
+        final newReportCount = currentReports + 1;
+
+        if (!isRestricted && newReportCount >= 6) {
+          final restrictedPostRef = _db
+              .collection('admin_restricted_posts')
+              .doc('post_$postId');
+          transaction.set(restrictedPostRef, {
+            ...postData,
+            'originalPostId': postId,
+            'restrictedAt': FieldValue.serverTimestamp(),
+            'reportCount': newReportCount,
+            'status': 'Under Review',
+          });
+
+          final restrictionLogRef = _db.collection('user_restrictions').doc();
+          transaction.set(restrictionLogRef, {
+            'userId': postData['authorId'],
+            'postId': postId,
+            'postTitle': postData['title'] ?? 'Unknown Title',
+            'status': 'Reviewing',
+            'createdAt': FieldValue.serverTimestamp(),
+            'reason': 'Automatically restricted due to multiple reports.',
+          });
+
+          transaction.delete(postRef);
+        } else {
+          transaction.update(postRef, {'reportCount': newReportCount});
+        }
+      });
+    } else {
+      // For meetup, job, marketplace — just submit the report
+      final reportSnapshot = await reportRef.get();
       if (reportSnapshot.exists) {
-        throw Exception("You have already reported this post.");
+        throw Exception("You have already reported this content.");
       }
 
-      final postSnapshot = await transaction.get(postRef);
-      if (!postSnapshot.exists) {
-        throw Exception("Post does not exist!");
-      }
-
-      final postData = postSnapshot.data()!;
-      final int currentReports = (postData['reportCount'] ?? 0) as int;
-      final bool isRestricted = (postData['isRestricted'] ?? false) as bool;
-
-      transaction.set(reportRef, {
+      await reportRef.set({
         'postId': postId,
         'reportedBy': uid,
         'reason': reason,
         'details': details,
-        'type': 'post',
+        'type': type,
         'reportedAt': FieldValue.serverTimestamp(),
         'status': 'pending',
       });
-
-      final newReportCount = currentReports + 1;
-
-      if (!isRestricted && newReportCount >= 6) {
-        final restrictedPostRef = _db
-            .collection('admin_restricted_posts')
-            .doc('post_$postId');
-        transaction.set(restrictedPostRef, {
-          ...postData,
-          'originalPostId': postId,
-          'restrictedAt': FieldValue.serverTimestamp(),
-          'reportCount': newReportCount,
-          'status': 'Under Review',
-        });
-
-        final restrictionLogRef = _db.collection('user_restrictions').doc();
-        transaction.set(restrictionLogRef, {
-          'userId': postData['authorId'],
-          'postId': postId,
-          'postTitle': postData['title'] ?? 'Unknown Title',
-          'status': 'Reviewing',
-          'createdAt': FieldValue.serverTimestamp(),
-          'reason': 'Automatically restricted due to multiple reports.',
-        });
-
-        transaction.delete(postRef);
-      } else {
-        transaction.update(postRef, {'reportCount': newReportCount});
-      }
-    });
+    }
   }
 
   Future<void> restorePost(String postId) async {

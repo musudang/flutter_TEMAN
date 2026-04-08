@@ -9,6 +9,7 @@ import 'user_profile_screen.dart';
 import 'meetup_comments_sheet.dart';
 import 'share_content_sheet.dart';
 import 'create_meetup_screen.dart';
+import '../widgets/report_dialog.dart';
 
 class MeetupDetailScreen extends StatelessWidget {
   final String meetupId;
@@ -53,6 +54,7 @@ class MeetupDetailScreen extends StatelessWidget {
             currentUserId != null &&
             meetup.pendingParticipantIds.contains(currentUserId);
         final isFull = meetup.participantIds.length >= meetup.maxParticipants;
+        final isClosed = meetup.isClosed;
         final dateFormat = DateFormat('EEE, MMM d @ h:mm a');
 
         return Scaffold(
@@ -64,6 +66,13 @@ class MeetupDetailScreen extends StatelessWidget {
             elevation: 0,
             centerTitle: true,
             actions: [
+              // Non-host: Report button
+              if (currentUserId != null && currentUserId != meetup.host.id)
+                IconButton(
+                  icon: const Icon(Icons.flag_outlined, color: Colors.red),
+                  tooltip: 'Report Meetup',
+                  onPressed: () => showReportDialog(context, meetup.id, 'meetup'),
+                ),
               // Host Delete Option
               if (currentUserId == meetup.host.id)
                 PopupMenuButton<String>(
@@ -771,7 +780,7 @@ class MeetupDetailScreen extends StatelessWidget {
                         child: SizedBox(
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: (isFull && !isJoined && !isPending)
+                            onPressed: ((isFull || isClosed) && !isJoined && !isPending)
                                 ? null
                                 : () async {
                                     final action = isJoined
@@ -890,11 +899,11 @@ class MeetupDetailScreen extends StatelessWidget {
                                   ? Colors.redAccent
                                   : (isPending
                                         ? Colors.orange
-                                        : (isFull
+                                        : ((isFull || isClosed)
                                               ? Colors.grey[300]
                                               : Colors.blue)),
                               foregroundColor:
-                                  (isFull && !isJoined && !isPending)
+                                  ((isFull || isClosed) && !isJoined && !isPending)
                                   ? Colors.grey[600]
                                   : Colors.white,
                               elevation: 0,
@@ -907,7 +916,9 @@ class MeetupDetailScreen extends StatelessWidget {
                                   ? 'Leave'
                                   : (isPending
                                         ? 'Cancel Request'
-                                        : (isFull ? 'Closed' : 'Join Now')),
+                                        : (isClosed
+                                              ? 'Closed'
+                                              : (isFull ? 'Full' : 'Join Now'))),
                               style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,

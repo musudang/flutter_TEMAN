@@ -47,6 +47,14 @@ class Meetup {
   bool get isFull => participantIds.length >= maxParticipants;
   int get participantCount => participantIds.length;
 
+  /// A meetup is considered "closed" 3 hours after the scheduled dateTime.
+  /// Once closed, no new participants can join.
+  bool get isClosed =>
+      DateTime.now().isAfter(dateTime.add(const Duration(hours: 3)));
+
+  /// A meetup is considered "past" if the scheduled dateTime has passed.
+  bool get isPast => DateTime.now().isAfter(dateTime);
+
   factory Meetup.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return Meetup(

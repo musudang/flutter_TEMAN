@@ -7,6 +7,7 @@ import 'user_profile_screen.dart';
 import 'profile_screen.dart';
 import 'chat_screen.dart';
 import 'create_marketplace_item_screen.dart';
+import '../widgets/report_dialog.dart';
 
 class MarketplaceDetailScreen extends StatefulWidget {
   final MarketplaceItem item;
@@ -113,6 +114,12 @@ class _MarketplaceDetailScreenState extends State<MarketplaceDetailScreen> {
                   child: Text('Delete Item'),
                 ),
               ],
+            ),
+          if (!isOwnListing)
+            IconButton(
+              icon: const Icon(Icons.flag_outlined, color: Colors.red),
+              tooltip: 'Report Item',
+              onPressed: () => showReportDialog(context, widget.item.id, 'marketplace'),
             ),
         ],
       ),

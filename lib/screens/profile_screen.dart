@@ -620,47 +620,212 @@ class _ProfileScreenState extends State<ProfileScreen>
           );
         }
 
-        return ListView.builder(
+        // Split into active (upcoming / happening now) and past meetups
+        final now = DateTime.now();
+        final activeMeetups = meetups
+            .where((m) => m.dateTime.isAfter(now) || !m.isClosed)
+            .toList();
+        final pastMeetups = meetups
+            .where((m) => m.isClosed)
+            .toList();
+
+        return ListView(
           padding: const EdgeInsets.all(16),
-          itemCount: meetups.length,
-          itemBuilder: (context, index) {
-            final meetup = meetups[index];
-            return Card(
-              margin: const EdgeInsets.only(bottom: 16),
-              elevation: 2,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListTile(
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          MeetupDetailScreen(meetupId: meetup.id),
-                    ),
-                  );
-                },
-                leading: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.teal[50],
-                    borderRadius: BorderRadius.circular(8),
+          children: [
+            // Active Meetups
+            if (activeMeetups.isNotEmpty) ...[
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  'Active Meetups',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal[700],
                   ),
-                  child: Icon(Icons.event, color: Colors.teal[700]),
-                ),
-                title: Text(
-                  meetup.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                subtitle: Text(
-                  '${DateFormat('MMM d').format(meetup.dateTime)} • ${meetup.participantIds.length} joined',
                 ),
               ),
-            );
-          },
+              ...activeMeetups.map((meetup) => _buildMeetupCard(meetup)),
+            ],
+            if (activeMeetups.isEmpty && pastMeetups.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _buildEmptyState(
+                  Icons.event_available,
+                  "No active meetups",
+                ),
+              ),
+
+            // Past Meetups (Collapsible)
+            if (pastMeetups.isNotEmpty)
+              Card(
+                margin: const EdgeInsets.only(top: 8),
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    dividerColor: Colors.transparent,
+                  ),
+                  child: ExpansionTile(
+                    tilePadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    leading: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.history,
+                        color: Colors.grey[600],
+                        size: 20,
+                      ),
+                    ),
+                    title: Text(
+                      'Past Joined Meetups (${pastMeetups.length})',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        color: Color(0xFF1A1F36),
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Tap to view history',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    children: pastMeetups.map((meetup) {
+                      return ListTile(
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) =>
+                                  MeetupDetailScreen(meetupId: meetup.id),
+                            ),
+                          );
+                        },
+                        leading: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[50],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.event_busy,
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                        title: Text(
+                          meetup.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Icon(Icons.location_on_outlined,
+                                    size: 14, color: Colors.grey[500]),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    meetup.location,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(Icons.person_outline,
+                                    size: 14, color: Colors.grey[500]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  'Host: ${meetup.host.name}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Icon(Icons.calendar_today,
+                                    size: 14, color: Colors.grey[500]),
+                                const SizedBox(width: 4),
+                                Text(
+                                  DateFormat('MMM d, yyyy • h:mm a')
+                                      .format(meetup.dateTime),
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+          ],
         );
       },
+    );
+  }
+
+  Widget _buildMeetupCard(Meetup meetup) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  MeetupDetailScreen(meetupId: meetup.id),
+            ),
+          );
+        },
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: Colors.teal[50],
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(Icons.event, color: Colors.teal[700]),
+        ),
+        title: Text(
+          meetup.title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          '${DateFormat('MMM d').format(meetup.dateTime)} • ${meetup.participantIds.length} joined',
+        ),
+      ),
     );
   }
 

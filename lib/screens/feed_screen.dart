@@ -24,6 +24,8 @@ import 'post_detail_screen.dart';
 import 'share_content_sheet.dart';
 import '../widgets/teman_logo.dart';
 import '../widgets/report_dialog.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'notices_screen.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -370,6 +372,9 @@ class _FeedScreenState extends State<FeedScreen> {
               ),
             ),
 
+          // Notices Banner
+          _buildNoticesBanner(),
+
           // Dynamic Feed or Category-specific screen
           Expanded(
             child: StreamBuilder<app_models.User?>(
@@ -547,6 +552,99 @@ class _FeedScreenState extends State<FeedScreen> {
                 return const SizedBox.shrink();
               },
             ),
+    );
+  }
+  Widget _buildNoticesBanner() {
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('notices')
+          .orderBy('createdAt', descending: true)
+          .limit(1)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData ||
+            snapshot.data == null ||
+            snapshot.data!.docs.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final doc = snapshot.data!.docs.first;
+        final notice = Notice.fromFirestore(doc);
+
+        return Container(
+          color: Colors.white,
+          child: Theme(
+            data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+            child: ExpansionTile(
+              tilePadding: const EdgeInsets.symmetric(horizontal: 16),
+              childrenPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+              leading: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.campaign_rounded,
+                  color: Color(0xFFEF6C00),
+                  size: 20,
+                ),
+              ),
+              title: Text(
+                notice.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 14,
+                  color: Color(0xFF1A1F36),
+                ),
+              ),
+              subtitle: const Text(
+                'Tap to expand',
+                style: TextStyle(fontSize: 11, color: Colors.grey),
+              ),
+              children: [
+                Align(
+                  alignment: Alignment.topLeft,
+                  child: Text(
+                    notice.content,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      height: 1.5,
+                      color: Color(0xFF4B5563),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const NoticesScreen(isAdmin: false),
+                        ),
+                      );
+                    },
+                    child: const Text(
+                      'View All Notices →',
+                      style: TextStyle(
+                        color: Color(0xFF1E56C8),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

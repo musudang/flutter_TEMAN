@@ -496,16 +496,64 @@ class AuthService extends ChangeNotifier {
 
       // 3. Clean up active meetups
       try {
-        final activeMeetups = await _db
+        // 3a. Meetups where user is the HOST → delete entirely
+        final hostedMeetups = await _db
+            .collection('meetups')
+            .where('hostId', isEqualTo: uid)
+            .get();
+        for (final meetup in hostedMeetups.docs) {
+          final meetupData = meetup.data();
+          // Migrate meetup to deleted_posts for record keeping
+          await _db.collection('deleted_posts').doc(meetup.id).set({
+            ...meetupData,
+            'originalPostId': meetup.id,
+            'deletedAt': FieldValue.serverTimestamp(),
+            'deletedReason': 'Host account deleted',
+            'deletedBy': uid,
+            'type': 'meetup',
+          });
+          // Delete the meetup
+          await _db.collection('meetups').doc(meetup.id).delete();
+          // Delete associated conversation
+          try {
+            final convQuery = await _db
+                .collection('conversations')
+                .where('meetupId', isEqualTo: meetup.id)
+                .get();
+            for (final conv in convQuery.docs) {
+              await _db.collection('conversations').doc(conv.id).delete();
+            }
+          } catch (e) {
+            debugPrint("Warning: Could not delete meetup conversation: $e");
+          }
+        }
+
+        // 3b. Meetups where user is a PARTICIPANT (not host) → just remove
+        final joinedMeetups = await _db
             .collection('meetups')
             .where('participantIds', arrayContains: uid)
             .get();
-        for (final meetup in activeMeetups.docs) {
+        for (final meetup in joinedMeetups.docs) {
           final p = List<String>.from(meetup['participantIds'] ?? []);
           p.remove(uid);
           await _db.collection('meetups').doc(meetup.id).update({
             'participantIds': p,
           });
+          // Also remove from conversation
+          try {
+            final convQuery = await _db
+                .collection('conversations')
+                .where('meetupId', isEqualTo: meetup.id)
+                .get();
+            for (final conv in convQuery.docs) {
+              await _db.collection('conversations').doc(conv.id).update({
+                'participantIds': FieldValue.arrayRemove([uid]),
+                'unreadCounts.$uid': FieldValue.delete(),
+              });
+            }
+          } catch (e) {
+            debugPrint("Warning: Could not update meetup conversation: $e");
+          }
         }
       } catch (e) {
         debugPrint("Error cleaning up meetups during account deletion: $e");

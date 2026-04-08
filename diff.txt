@@ -1,0 +1,67 @@
+﻿diff --git a/firestore.rules b/firestore.rules
+index 52793a3..b2d94a1 100644
+--- a/firestore.rules
++++ b/firestore.rules
+@@ -12,6 +12,21 @@ service cloud.firestore {
+       return request.auth.uid == userId;
+     }
+ 
++    // Helper to check if user is admin
++    function isAdmin() {
++      let userDoc = get(/databases/$(database)/documents/users/$(request.auth.uid));
++      return isAuthenticated() && 
++        (userDoc.data.role == 'admin' || userDoc.data.isAdmin == true || userDoc.data.isAdmin == 'true');
++    }
++
++    // ==========================================================
++    // NOTICES
++    // ==========================================================
++    match /notices/{noticeId} {
++      allow read: if true;
++      allow write: if isAdmin();
++    }
++
+     // ==========================================================
+     // PUBLIC COLLECTIONS (Global Feed)
+     // ==========================================================
+@@ -77,7 +92,7 @@ service cloud.firestore {
+       // OR another user can ONLY update the 'followers' and 'following' lists
+       allow update: if isAuthenticated() && (
+         isOwner(userId) ||
+-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following'])
++        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following', 'blockedBy'])
+       );
+       
+       // Allow anyone logged in to send a notification to others
+@@ -111,7 +126,7 @@ service cloud.firestore {
+       allow read, delete: if false;
+     }
+ 
+-    match /admin_deleted_posts/{postId} {
++    match /deleted_posts/{postId} {
+       // Users can backup their own posts before deleting
+       allow create, update: if request.auth != null && request.auth.uid == request.resource.data.deletedBy;
+       allow read, delete: if false;
+@@ -119,7 +134,7 @@ service cloud.firestore {
+ 
+     match /admin_restricted_posts/{postId} {
+       allow create: if request.auth != null;
+-      allow read, update, delete: if false;
++      allow read, update, delete: if isAdmin();
+     }
+ 
+     match /user_restrictions/{restrictionId} {
+@@ -129,9 +144,10 @@ service cloud.firestore {
+     }
+ 
+     match /admin_reports/{reportId} {
+-      // Any authenticated user can submit a report
+-      allow create: if request.auth != null;
+-      allow read, update, delete: if false;
++      // Any authenticated user can submit a report if document ID is strictly postId_userId
++      // Only admins can read, update, or delete
++      allow create: if request.auth != null && reportId == request.resource.data.postId + '_' + request.auth.uid;
++      allow read, update, delete: if isAdmin();
+     }
+ 
+     match /admin_contact_inquiries/{inquiryId} {

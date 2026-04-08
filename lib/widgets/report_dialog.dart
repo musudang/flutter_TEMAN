@@ -2,9 +2,14 @@ import 'package:flutter/material.dart';
 import '../services/firestore_service.dart';
 
 class ReportDialog extends StatefulWidget {
-  final String postId;
+  final String contentId;
+  final String contentType; // 'post', 'meetup', 'job', 'marketplace'
 
-  const ReportDialog({super.key, required this.postId});
+  const ReportDialog({
+    super.key,
+    required this.contentId,
+    this.contentType = 'post',
+  });
 
   @override
   State<ReportDialog> createState() => _ReportDialogState();
@@ -34,6 +39,32 @@ class _ReportDialogState extends State<ReportDialog> {
     super.dispose();
   }
 
+  String get _titleLabel {
+    switch (widget.contentType) {
+      case 'meetup':
+        return 'Report Meetup';
+      case 'job':
+        return 'Report Job';
+      case 'marketplace':
+        return 'Report Item';
+      default:
+        return 'Report Post';
+    }
+  }
+
+  String get _descriptionLabel {
+    switch (widget.contentType) {
+      case 'meetup':
+        return 'Report this meetup to administrators.\nPlease tell us what is wrong with this meetup. We will not tell the host that you reported it.';
+      case 'job':
+        return 'Report this job posting to administrators.\nPlease tell us what is wrong with this listing. We will not tell the author that you reported it.';
+      case 'marketplace':
+        return 'Report this marketplace item to administrators.\nPlease tell us what is wrong with this listing. We will not tell the seller that you reported it.';
+      default:
+        return 'Report this post to administrators.\nPlease tell us what is wrong with this post. We will not tell the author that you reported it.';
+    }
+  }
+
   Future<void> _submitReport() async {
     if (_selectedReason == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -48,9 +79,10 @@ class _ReportDialogState extends State<ReportDialog> {
 
     try {
       await FirestoreService().reportPost(
-        widget.postId,
+        widget.contentId,
         reason: _selectedReason!,
         details: _detailsController.text.trim(),
+        type: widget.contentType,
       );
 
       if (mounted) {
@@ -87,9 +119,9 @@ class _ReportDialogState extends State<ReportDialog> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Report Post',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                Text(
+                  _titleLabel,
+                  style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                 ),
                 IconButton(
                   icon: const Icon(Icons.close),
@@ -101,9 +133,9 @@ class _ReportDialogState extends State<ReportDialog> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
-              'Report this post to administrators.\nPlease tell us what is wrong with this post. We will not tell the author that you reported it.',
-              style: TextStyle(fontSize: 13, color: Colors.grey),
+            Text(
+              _descriptionLabel,
+              style: const TextStyle(fontSize: 13, color: Colors.grey),
             ),
             const SizedBox(height: 16),
             Flexible(
@@ -204,6 +236,13 @@ class _ReportDialogState extends State<ReportDialog> {
 void showReportPostDialog(BuildContext context, String postId) {
   showDialog(
     context: context,
-    builder: (context) => ReportDialog(postId: postId),
+    builder: (context) => ReportDialog(contentId: postId, contentType: 'post'),
+  );
+}
+
+void showReportDialog(BuildContext context, String contentId, String contentType) {
+  showDialog(
+    context: context,
+    builder: (context) => ReportDialog(contentId: contentId, contentType: contentType),
   );
 }

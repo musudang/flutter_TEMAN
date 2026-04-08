@@ -5,6 +5,7 @@ import '../models/comment_model.dart';
 import '../models/user_model.dart' as app_models;
 import '../services/firestore_service.dart';
 import 'user_profile_screen.dart';
+import 'profile_screen.dart';
 import 'share_content_sheet.dart';
 import 'create_post_screen.dart';
 import '../widgets/report_dialog.dart';
@@ -132,13 +133,22 @@ class PostDetailScreen extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) =>
-                              UserProfileScreen(userId: post.authorId),
-                        ),
-                      );
+                      if (post.authorId == uid) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ProfileScreen(),
+                          ),
+                        );
+                      } else {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                UserProfileScreen(userId: post.authorId),
+                          ),
+                        );
+                      }
                     },
                     child: CircleAvatar(
                       radius: 20,
@@ -166,13 +176,22 @@ class PostDetailScreen extends StatelessWidget {
                       children: [
                         GestureDetector(
                           onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) =>
-                                    UserProfileScreen(userId: post.authorId),
-                              ),
-                            );
+                            if (post.authorId == uid) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ProfileScreen(),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      UserProfileScreen(userId: post.authorId),
+                                ),
+                              );
+                            }
                           },
                           child: Text(
                             authorName,

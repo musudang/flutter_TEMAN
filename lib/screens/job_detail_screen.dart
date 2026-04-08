@@ -4,6 +4,7 @@ import '../models/job_model.dart';
 import '../services/firestore_service.dart';
 import 'package:intl/intl.dart';
 import 'create_job_screen.dart';
+import '../widgets/report_dialog.dart';
 
 class JobDetailScreen extends StatelessWidget {
   final Job job;
@@ -60,6 +61,12 @@ class JobDetailScreen extends StatelessWidget {
                 const PopupMenuItem(value: 'edit', child: Text('Edit Job')),
                 const PopupMenuItem(value: 'delete', child: Text('Delete Job')),
               ],
+            ),
+          if (!isOwner)
+            IconButton(
+              icon: const Icon(Icons.flag_outlined, color: Colors.red),
+              tooltip: 'Report Job',
+              onPressed: () => showReportDialog(context, job.id, 'job'),
             ),
         ],
       ),

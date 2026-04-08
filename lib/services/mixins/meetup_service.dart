@@ -365,6 +365,10 @@ mixin MeetupService on ChangeNotifier {
     final docRef = _db.collection('meetups').doc(meetupId);
 
     try {
+      bool isHost = false;
+      String? newHostId;
+      bool shouldDeleteMeetup = false;
+
       await _db.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) throw Exception("Meetup does not exist!");
@@ -374,42 +378,97 @@ mixin MeetupService on ChangeNotifier {
           return;
         }
 
-        // Now perform writes
+        isHost = meetup.host.id == uid;
         final updatedParticipants = List<String>.from(meetup.participantIds)
           ..remove(uid);
-        transaction.update(docRef, {'participantIds': updatedParticipants});
+
+        if (isHost) {
+          if (updatedParticipants.isEmpty) {
+            // No participants left — mark for deletion
+            shouldDeleteMeetup = true;
+            transaction.delete(docRef);
+          } else {
+            // Transfer host to the next participant
+            newHostId = updatedParticipants.first;
+            transaction.update(docRef, {
+              'participantIds': updatedParticipants,
+              'hostId': newHostId,
+            });
+          }
+        } else {
+          transaction.update(docRef, {'participantIds': updatedParticipants});
+        }
       });
 
-      // Update conversation outside transaction to avoid completely failing the meetup leave if the chat throws permission denied/isn't there
+      // If host was transferred, update host name/avatar from user doc
+      if (isHost && newHostId != null && !shouldDeleteMeetup) {
+        try {
+          final newHostDoc =
+              await _db.collection('users').doc(newHostId).get();
+          if (newHostDoc.exists) {
+            final newHostData = newHostDoc.data();
+            await docRef.update({
+              'hostName': newHostData?['name'] ?? 'Unknown',
+              'hostAvatar': newHostData?['avatarUrl'] ?? '',
+            });
+          }
+        } catch (e) {
+          debugPrint("Warning: Could not update new host info: $e");
+        }
+      }
+
+      // Update conversation
       final convRef = _db.collection('conversations').doc(meetupId);
       try {
-        await convRef.update({
-          'participantIds': FieldValue.arrayRemove([uid]),
-          'unreadCounts.$uid': FieldValue.delete(),
-        });
+        if (shouldDeleteMeetup) {
+          // Delete the conversation entirely
+          await convRef.delete();
+        } else {
+          await convRef.update({
+            'participantIds': FieldValue.arrayRemove([uid]),
+            'unreadCounts.$uid': FieldValue.delete(),
+          });
 
-        // Add System Leave Message
-        final userDoc = await _db.collection('users').doc(uid).get();
-        final userName = userDoc.data()?['name'] ?? 'Someone';
+          // Add System Leave Message
+          final userDoc = await _db.collection('users').doc(uid).get();
+          final userName = userDoc.data()?['name'] ?? 'Someone';
 
-        await convRef.collection('messages').add({
-          'senderId': 'system', // Distinguish as a system message
-          'senderName': 'System',
-          'senderAvatar': '',
-          'content': '$userName has left the group.',
-          'timestamp': FieldValue.serverTimestamp(),
-        });
+          await convRef.collection('messages').add({
+            'senderId': 'system',
+            'senderName': 'System',
+            'senderAvatar': '',
+            'content': '$userName has left the group.',
+            'timestamp': FieldValue.serverTimestamp(),
+          });
+
+          // If host was transferred, add a system message about new host
+          if (isHost && newHostId != null) {
+            final newHostDoc =
+                await _db.collection('users').doc(newHostId).get();
+            final newHostName = newHostDoc.data()?['name'] ?? 'Someone';
+
+            await convRef.collection('messages').add({
+              'senderId': 'system',
+              'senderName': 'System',
+              'senderAvatar': '',
+              'content': '$newHostName is now the host.',
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+          }
+        }
       } catch (e) {
         debugPrint("Could not strictly update conversation for leave: $e");
       }
 
       // Record Cooldown to the main user document
-      try {
-        await _db.collection('users').doc(uid).update({
-          'cooldowns.$meetupId': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        debugPrint("Warning: Could not save cooldown timestamp: $e");
+      if (!shouldDeleteMeetup) {
+        try {
+          await _db.collection('users').doc(uid).update({
+            'cooldowns.$meetupId': FieldValue.serverTimestamp(),
+          });
+        } catch (e) {
+          debugPrint("Warning: Could not save cooldown timestamp: $e");
+        }
       }
     } catch (e) {
       debugPrint("Error leaving meetup: $e");
