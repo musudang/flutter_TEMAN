@@ -372,9 +372,6 @@ class _FeedScreenState extends State<FeedScreen> {
               ),
             ),
 
-          // Notices Banner
-          _buildNoticesBanner(),
-
           // Dynamic Feed or Category-specific screen
           Expanded(
             child: StreamBuilder<app_models.User?>(
@@ -397,11 +394,14 @@ class _FeedScreenState extends State<FeedScreen> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'post_fab',
         elevation: 4,
-        onPressed: () {
-          Navigator.push(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
             MaterialPageRoute(builder: (context) => const CreatePostScreen()),
           );
+          if (result == true && mounted) {
+            _loadFeed(refresh: true);
+          }
         },
         backgroundColor: Colors.teal,
         child: const Icon(Icons.edit),
@@ -517,9 +517,14 @@ class _FeedScreenState extends State<FeedScreen> {
               controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
-              itemCount: filteredItems.length + (_hasMore ? 1 : 0),
+              itemCount: filteredItems.length + (_hasMore ? 1 : 0) + (_selectedFilter == 'All' ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
+                if (_selectedFilter == 'All') {
+                  if (index == 0) return _buildNoticesBanner();
+                  index -= 1;
+                }
+                
                 if (index == filteredItems.length) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
@@ -852,7 +857,10 @@ class _FeedScreenState extends State<FeedScreen> {
                             ),
                           ),
                           const SizedBox(height: 2),
-                          Row(
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -877,8 +885,7 @@ class _FeedScreenState extends State<FeedScreen> {
                               ),
                               if ((post.category == 'events' ||
                                       post.category == 'event') &&
-                                  post.eventDate != null) ...[
-                                const SizedBox(width: 6),
+                                  post.eventDate != null)
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 6,
@@ -897,8 +904,6 @@ class _FeedScreenState extends State<FeedScreen> {
                                     ),
                                   ),
                                 ),
-                              ],
-                              const SizedBox(width: 6),
                               Text(
                                 timeAgo,
                                 style: TextStyle(
@@ -1221,7 +1226,9 @@ class _FeedScreenState extends State<FeedScreen> {
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Row(
+                      Wrap(
+                        spacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -1241,7 +1248,6 @@ class _FeedScreenState extends State<FeedScreen> {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 6),
                           Text(
                             job.companyName,
                             style: TextStyle(
@@ -1257,20 +1263,32 @@ class _FeedScreenState extends State<FeedScreen> {
               ],
             ),
             const SizedBox(height: 12),
-            Row(
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  job.location,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      job.location,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                Icon(Icons.attach_money, size: 14, color: Colors.grey[600]),
-                const SizedBox(width: 4),
-                Text(
-                  job.salary,
-                  style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.attach_money, size: 14, color: Colors.grey[600]),
+                    const SizedBox(width: 4),
+                    Text(
+                      job.salary,
+                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
+                    ),
+                  ],
                 ),
               ],
             ),

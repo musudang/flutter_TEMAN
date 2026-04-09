@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_app_check/firebase_app_check.dart';
+
+import 'package:flutter/foundation.dart'; // kIsWeb을 사용하기 위해 추가
 
 import 'firebase_options.dart';
 import 'screens/main_screen.dart';
@@ -13,6 +16,15 @@ import 'models/auth_result.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // Activate App Check (웹을 제외한 모바일에서만 실행되도록 분기 처리)
+  if (!kIsWeb) {
+    await FirebaseAppCheck.instance.activate(
+      androidProvider: AndroidProvider.playIntegrity,
+      // appleProvider: AppleProvider.appAttest, // iOS 세팅 완료 시 주석 해제
+    );
+  }
+
   runApp(const MyApp());
 }
 
@@ -27,6 +39,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthService()),
       ],
       child: MaterialApp(
+        debugShowCheckedModeBanner: false,
         title: 'TEMAN Community',
         theme: ThemeData(
           colorScheme: ColorScheme.fromSeed(

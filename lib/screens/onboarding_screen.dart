@@ -7,6 +7,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import '../services/auth_service.dart';
 import '../widgets/teman_logo.dart';
 import '../widgets/interest_selection_sheet.dart';
+import '../utils/image_compress_util.dart';
 import 'main_screen.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -164,9 +165,23 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             try {
               if (profilePic != null && uid != null) {
                 final ref = FirebaseStorage.instance.ref().child(
-                  'avatars/$uid.jpg',
+                  'profiles/$uid/profile_pic.jpg',
                 );
-                await ref.putFile(profilePic);
+                
+                final compressedData = await ImageCompressUtil.compressImage(
+                  await profilePic.readAsBytes(),
+                  minWidth: 600,
+                  minHeight: 600,
+                );
+                if (compressedData != null) {
+                  await ref.putData(
+                    compressedData,
+                    SettableMetadata(contentType: 'image/jpeg'),
+                  );
+                } else {
+                  await ref.putFile(profilePic);
+                }
+                
                 avatarUrl = await ref.getDownloadURL();
               } else {
                 avatarUrl =

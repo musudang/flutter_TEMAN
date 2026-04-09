@@ -156,6 +156,8 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
     final dateFormat = DateFormat('MMM d, h:mm a');
     final progress = meetup.participantCount / meetup.maxParticipants;
     final isFull = meetup.participantCount >= meetup.maxParticipants;
+    final isClosed = meetup.isClosed;
+    final isEntryUnavailable = isFull || isClosed;
 
     return Card(
       elevation: 4, // Higher elevation for shadow
@@ -229,7 +231,7 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
                     ),
                   ),
                 ),
-                if (isFull)
+                if (isEntryUnavailable)
                   Positioned(
                     top: 16,
                     right: 16,
@@ -242,14 +244,14 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
                         color: Colors.redAccent,
                         borderRadius: BorderRadius.circular(8),
                       ),
-                      child: const Text(
-                        'FULL',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
+                        child: Text(
+                          isClosed ? 'CLOSED' : 'FULL',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
-                      ),
                     ),
                   ),
               ],
@@ -333,7 +335,7 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
                                   text: '${meetup.participantCount}',
                                   style: TextStyle(
                                     fontWeight: FontWeight.bold,
-                                    color: isFull
+                                    color: isEntryUnavailable
                                         ? Colors.redAccent
                                         : Theme.of(context).primaryColor,
                                   ),
@@ -354,7 +356,7 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
                           value: progress,
                           backgroundColor: Colors.grey[100],
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            isFull
+                            isEntryUnavailable
                                 ? Colors.redAccent
                                 : Theme.of(context).primaryColor,
                           ),

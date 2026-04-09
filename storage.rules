@@ -2,10 +2,49 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // Allow users to upload and read their own profile photo
+    // Helper function to check size (5MB = 5 * 1024 * 1024 bytes)
+    function isSmallEnough() {
+      return request.resource.size < 5 * 1024 * 1024;
+    }
+    
+    // Helper function to check if it's an image
+    function isImage() {
+      return request.resource.contentType.matches('image/.*');
+    }
+    
+    function isValidUpload() {
+      return isSmallEnough() && isImage();
+    }
+
+    // Profiles Image (Allow create/update if valid upload)
     match /profiles/{userId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow write: if request.auth != null && request.auth.uid == userId && (request.resource == null || isValidUpload());
+    }
+    
+    // Posts Images
+    match /posts/{allPaths=**} {
+      allow read: if true;
+      // Anyone authenticated can upload, but restricted by size and type
+      allow write: if request.auth != null && (request.resource == null || isValidUpload());
+    }
+    
+    // Meetups Images
+    match /meetups/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.resource == null || isValidUpload());
+    }
+    
+    // Marketplace Images
+    match /marketplace/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.resource == null || isValidUpload());
+    }
+    
+    // Questions Images
+    match /questions/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null && (request.resource == null || isValidUpload());
     }
   }
 }

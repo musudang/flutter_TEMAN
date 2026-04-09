@@ -10,7 +10,9 @@ class MeetupCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bool isClosed = meetup.isClosed;
     final bool isFull = meetup.participantIds.length >= meetup.maxParticipants;
+    final bool isEntryUnavailable = isClosed || isFull;
     final int currentParticipants = meetup.participantIds.length;
     final int maxParticipants = meetup.maxParticipants;
     final double progress = maxParticipants > 0
@@ -94,17 +96,17 @@ class MeetupCard extends StatelessWidget {
                           vertical: 6,
                         ),
                         decoration: BoxDecoration(
-                          color: isFull
+                          color: isEntryUnavailable
                               ? Colors.grey[200]
                               : const Color(0xFFE8F5E9),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
-                          isFull ? 'CLOSED' : 'RECRUITING',
+                          isEntryUnavailable ? 'CLOSED' : 'RECRUITING',
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: isFull
+                            color: isEntryUnavailable
                                 ? Colors.grey[500]
                                 : Colors.green[700],
                           ),
@@ -208,7 +210,7 @@ class MeetupCard extends StatelessWidget {
                           value: progress,
                           backgroundColor: Colors.grey[100],
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            isFull
+                            isEntryUnavailable
                                 ? Colors.grey[400]!
                                 : const Color(0xFFFF5A5F),
                           ),

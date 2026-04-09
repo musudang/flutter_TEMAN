@@ -8,6 +8,7 @@ import '../services/firestore_service.dart';
 import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../widgets/interest_selection_sheet.dart';
+import '../utils/image_compress_util.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final app_models.User user;
@@ -94,9 +95,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
-        maxWidth: 600,
-        maxHeight: 600,
-        imageQuality: 50,
       );
       if (picked == null) return;
 
@@ -107,16 +105,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         _uploadError = null;
       });
 
+      final rawBytes = await picked.readAsBytes();
+      final compressedBytes = await ImageCompressUtil.compressImage(rawBytes, minWidth: 600, minHeight: 600);
+
       final ref = FirebaseStorage.instance
           .ref()
           .child('profiles')
           .child(uid)
           .child('profile_pic.jpg');
 
-      final bytes = await picked.readAsBytes();
       final uploadTask = ref.putData(
-        bytes,
-        SettableMetadata(contentType: picked.mimeType ?? 'image/jpeg'),
+        compressedBytes ?? rawBytes,
+        SettableMetadata(contentType: 'image/jpeg'),
       );
 
       await uploadTask

@@ -74,8 +74,10 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
         });
       }
 
-      // Add message
-      await convRef.collection('messages').add({
+      // Add message with batch for immediate local cache update
+      final batch = _db.batch();
+      final messageRef = convRef.collection('messages').doc();
+      batch.set(messageRef, {
         'senderId': user.uid,
         'senderName': userData?.name ?? 'Unknown',
         'senderAvatar': userData?.avatarUrl ?? '',
@@ -100,8 +102,8 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
           updates['unreadCounts.$pid'] = FieldValue.increment(1);
         }
       }
-
-      await convRef.update(updates);
+      batch.update(convRef, updates);
+      await batch.commit();
     } catch (e) {
       debugPrint("??Error sending meetup message: $e");
       rethrow;
@@ -279,32 +281,29 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
     };
 
     try {
-      await _db.runTransaction((transaction) async {
-        final conversationRef = _db
-            .collection('conversations')
-            .doc(conversationId);
+      final conversationRef = _db.collection('conversations').doc(conversationId);
+      final snapshot = await conversationRef.get();
+      final participants = snapshot.exists
+          ? List<String>.from(snapshot.data()?['participantIds'] ?? [])
+          : <String>[];
 
-        final snapshot = await transaction.get(conversationRef);
-        final participants = snapshot.exists
-            ? List<String>.from(snapshot.data()?['participantIds'] ?? [])
-            : <String>[];
+      final batch = _db.batch();
+      final messageRef = conversationRef.collection('messages').doc(messageId);
 
-        final messageRef = conversationRef.collection('messages').doc();
+      final updates = <String, dynamic>{
+        'lastMessage': content,
+        'lastMessageTime': FieldValue.serverTimestamp(),
+      };
 
-        final updates = <String, dynamic>{
-          'lastMessage': content,
-          'lastMessageTime': FieldValue.serverTimestamp(),
-        };
-
-        for (final pid in participants) {
-          if (pid != user.id) {
-            updates['unreadCounts.$pid'] = FieldValue.increment(1);
-          }
+      for (final pid in participants) {
+        if (pid != user.id) {
+          updates['unreadCounts.$pid'] = FieldValue.increment(1);
         }
+      }
 
-        transaction.set(messageRef, messageData);
-        transaction.update(conversationRef, updates);
-      });
+      batch.set(messageRef, messageData);
+      batch.update(conversationRef, updates);
+      await batch.commit();
 
       // Send notification to other participants
       final convDoc = await _db

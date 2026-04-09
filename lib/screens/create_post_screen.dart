@@ -12,6 +12,7 @@ import '../models/marketplace_model.dart';
 import '../models/job_model.dart';
 import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
+import '../utils/image_compress_util.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final String? initialPostText;
@@ -33,14 +34,18 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 800,
-      imageQuality: 70,
     );
     if (picked != null) {
-      final bytes = await picked.readAsBytes();
+      final rawBytes = await picked.readAsBytes();
+      
+      // Compress the image before setting the state
+      setState(() => _isUploadingImage = true);
+      final compressedBytes = await ImageCompressUtil.compressImage(rawBytes);
+
       setState(() {
-        _imageBytes = bytes;
+        _imageBytes = compressedBytes ?? rawBytes;
         _imageUrlController.clear(); // Clear URL if local image picked
+        _isUploadingImage = false;
       });
     }
   }
@@ -219,9 +224,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       // Upload image if selected
       if (_imageBytes != null) {
         setState(() => _isUploadingImage = true);
+        
+        String folder = 'posts';
+        if (_selectedCategory == 'Market') folder = 'marketplace';
+        else if (_selectedCategory == 'Meetup') folder = 'meetups';
+        else if (_selectedCategory == 'Q&A') folder = 'questions';
+
         final ref = FirebaseStorage.instance
             .ref()
-            .child('post_images')
+            .child(folder)
             .child('${const Uuid().v4()}.jpg');
 
         final uploadTask = ref.putData(
@@ -286,7 +297,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       }
 
       if (mounted) {
-        Navigator.pop(context);
+        Navigator.pop(context, true);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('$_selectedCategory created successfully!'),

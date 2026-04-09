@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
+import '../utils/image_compress_util.dart';
 
 class CreateMeetupScreen extends StatefulWidget {
   final Meetup? editingMeetup;
@@ -55,14 +56,17 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
-      maxWidth: 800,
-      imageQuality: 70,
     );
     if (picked != null) {
-      final bytes = await picked.readAsBytes();
+      final rawBytes = await picked.readAsBytes();
+      
+      setState(() => _isUploadingImage = true);
+      final compressedBytes = await ImageCompressUtil.compressImage(rawBytes);
+
       setState(() {
-        _imageBytes = bytes;
+        _imageBytes = compressedBytes ?? rawBytes;
         _imageUrlController.clear(); // Clear URL if local image picked
+        _isUploadingImage = false;
       });
     }
   }
@@ -132,7 +136,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           setState(() => _isUploadingImage = true);
           final ref = FirebaseStorage.instance
               .ref()
-              .child('meetup_images')
+              .child('meetups')
               .child('${const Uuid().v4()}.jpg');
 
           final uploadTask = ref.putData(
