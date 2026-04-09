@@ -2,11 +2,11 @@ import 'dart:typed_data';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
 
 class ImageCompressUtil {
-  static const int maxFileSize = 500 * 1024; // 500KB
+  static const int maxFileSize = 1024 * 1024; // 1MB (increased from 500KB for better quality)
 
   /// Compresses the given image bytes until the size is under [maxFileSize].
   /// Returns the compressed bytes.
-  static Future<Uint8List?> compressImage(Uint8List imageBytes, {int minWidth = 800, int minHeight = 800}) async {
+  static Future<Uint8List?> compressImage(Uint8List imageBytes, {int minWidth = 1080, int minHeight = 1080}) async {
     if (imageBytes.lengthInBytes <= maxFileSize) {
       return imageBytes;
     }
@@ -21,6 +21,7 @@ class ImageCompressUtil {
         minWidth: minWidth,
         minHeight: minHeight,
         quality: quality,
+        format: CompressFormat.jpeg,
       );
     } catch (_) {
       // Fallback in case compression fails
@@ -28,14 +29,16 @@ class ImageCompressUtil {
     }
 
     // Iteratively lower quality until file size is under the limit
-    while (compressed.lengthInBytes > maxFileSize && quality > 10) {
-      quality -= 15;
+    // We use a less aggressive step (10 instead of 15) to preserve quality
+    while (compressed.lengthInBytes > maxFileSize && quality > 20) {
+      quality -= 10;
       try {
         compressed = await FlutterImageCompress.compressWithList(
           imageBytes, // compress from original to avoid compounding artifacts
           minWidth: minWidth,
           minHeight: minHeight,
           quality: quality,
+          format: CompressFormat.jpeg,
         );
       } catch (_) {
         break;

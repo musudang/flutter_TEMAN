@@ -62,10 +62,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
-      body: FutureBuilder<app_models.User?>(
-        future: firestoreService.getCurrentUser(),
+      body: StreamBuilder<app_models.User?>(
+        stream: firestoreService.getUserStream(firestoreService.currentUserId ?? ''),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
 

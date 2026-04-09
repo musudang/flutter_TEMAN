@@ -424,6 +424,20 @@ class _FeedScreenState extends State<FeedScreen> {
       return const MeetupListScreen(embedded: true);
     }
 
+    // Use StreamBuilder for real-time updates on 'All' filter
+    if (_selectedFilter == 'All' && _lastTimestamp == null) {
+      return StreamBuilder<List<dynamic>>(
+        stream: firestoreService.getFeedStream(hiddenUsers: hiddenUsers, limit: 20),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting && _feedItems.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          final items = snapshot.data ?? _feedItems;
+          return _buildListView(items, firestoreService, isRealTime: true);
+        },
+      );
+    }
+
     // Filter items based on hidden users AND selected filter!
     final filteredItems = _feedItems.where((item) {
       // Apply hidden users filter locally
@@ -485,11 +499,19 @@ class _FeedScreenState extends State<FeedScreen> {
       Future.microtask(() => _loadFeed());
     }
 
+    return _buildListView(filteredItems, firestoreService);
+  }
+
+  Widget _buildListView(
+    List<dynamic> items,
+    FirestoreService firestoreService, {
+    bool isRealTime = false,
+  }) {
     return RefreshIndicator(
       onRefresh: () => _loadFeed(refresh: true),
-      child: _feedItems.isEmpty && _isLoading
+      child: items.isEmpty && _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : filteredItems.isEmpty
+          : items.isEmpty
           ? ListView(
               physics: const AlwaysScrollableScrollPhysics(),
               children: [
@@ -514,24 +536,28 @@ class _FeedScreenState extends State<FeedScreen> {
               ],
             )
           : ListView.separated(
-              controller: _scrollController,
+              controller: isRealTime ? null : _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16.0),
-              itemCount: filteredItems.length + (_hasMore ? 1 : 0) + (_selectedFilter == 'All' ? 1 : 0),
+              itemCount: items.length + (!isRealTime && _hasMore ? 1 : 0) + (_selectedFilter == 'All' ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 16),
               itemBuilder: (context, index) {
+                int listIndex = index;
                 if (_selectedFilter == 'All') {
                   if (index == 0) return _buildNoticesBanner();
-                  index -= 1;
+                  listIndex -= 1;
                 }
                 
-                if (index == filteredItems.length) {
+                if (!isRealTime && listIndex == items.length) {
                   return const Padding(
                     padding: EdgeInsets.symmetric(vertical: 20),
                     child: Center(child: CircularProgressIndicator()),
                   );
                 }
-                final item = filteredItems[index];
+                
+                if (listIndex >= items.length || listIndex < 0) return const SizedBox.shrink();
+
+                final item = items[listIndex];
                 if (item is Post) {
                   return _buildPostItem(item, firestoreService);
                 } else if (item is Meetup) {
@@ -559,6 +585,7 @@ class _FeedScreenState extends State<FeedScreen> {
             ),
     );
   }
+
   Widget _buildNoticesBanner() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
@@ -1078,48 +1105,56 @@ class _FeedScreenState extends State<FeedScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                GestureDetector(
+                InkWell(
                   onTap: () => firestoreService.toggleLikePost(post.id),
-                  child: Row(
-                    children: [
-                      Icon(
-                        isLiked ? Icons.favorite : Icons.favorite_border,
-                        size: 20,
-                        color: isLiked ? Colors.red : const Color(0xFF9CA3AF),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${post.likes}',
-                        style: const TextStyle(
-                          color: Color(0xFF6B7280),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isLiked ? Icons.favorite : Icons.favorite_border,
+                          size: 20,
+                          color: isLiked ? Colors.red : const Color(0xFF9CA3AF),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          '${post.likes}',
+                          style: const TextStyle(
+                            color: Color(0xFF6B7280),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(width: 16),
-                GestureDetector(
+                const SizedBox(width: 8),
+                InkWell(
                   onTap: () =>
                       _showCommentSheet(context, post, firestoreService),
-                  child: Row(
-                    children: [
-                      const Icon(
-                        Icons.chat_bubble_outline,
-                        size: 20,
-                        color: Color(0xFF9CA3AF),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${post.comments}',
-                        style: const TextStyle(
-                          color: Color(0xFF6B7280),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                  borderRadius: BorderRadius.circular(12),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.chat_bubble_outline,
+                          size: 20,
+                          color: Color(0xFF9CA3AF),
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 6),
+                        Text(
+                          '${post.comments}',
+                          style: const TextStyle(
+                            color: Color(0xFF6B7280),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],

@@ -13,10 +13,15 @@ mixin MarketplaceService on ChangeNotifier {
   Stream<List<MarketplaceItem>> getMarketplaceItems({
     int limit = 20,
     List<String> hiddenUsers = const [],
+    String? category,
   }) {
-    return _db
-        .collection('marketplace')
-        .orderBy('postedDate', descending: true)
+    Query query = _db.collection('marketplace').orderBy('postedDate', descending: true);
+    
+    if (category != null && category != 'All') {
+      query = query.where('category', isEqualTo: category);
+    }
+
+    return query
         .limit(limit)
         .snapshots()
         .map((snapshot) {

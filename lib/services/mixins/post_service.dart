@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:rxdart/rxdart.dart';
 import '../../constants/app_constants.dart';
 import '../../models/meetup_model.dart';
 import '../../models/post_model.dart';
@@ -42,6 +43,90 @@ mixin PostService on ChangeNotifier {
     required String type,
     String? relatedId,
   });
+
+  Stream<List<dynamic>> getFeedStream({
+    int limit = 20,
+    List<String> hiddenUsers = const [],
+  }) {
+    final postsStream = _db
+        .collection(AppConstants.postsCollection)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map((d) => Post.fromFirestore(d)).toList());
+
+    final meetupsStream = _db
+        .collection(AppConstants.meetupsCollection)
+        .orderBy('createdAt', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map((d) => Meetup.fromFirestore(d)).toList());
+
+    final jobsStream = _db
+        .collection(AppConstants.jobsCollection)
+        .orderBy('postedDate', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map((d) => Job.fromFirestore(d)).toList());
+
+    final marketplaceStream = _db
+        .collection(AppConstants.marketplaceCollection)
+        .orderBy('postedDate', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map((d) => MarketplaceItem.fromFirestore(d)).toList());
+
+    final questionsStream = _db
+        .collection(AppConstants.questionsCollection)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .snapshots()
+        .map((s) => s.docs.map((d) => Question.fromFirestore(d)).toList());
+
+    return CombineLatestStream.list([
+      postsStream,
+      meetupsStream,
+      jobsStream,
+      marketplaceStream,
+      questionsStream,
+    ]).map((lists) {
+      final allItems = lists.expand((i) => i).toList();
+
+      final filtered = allItems.where((item) {
+        String authorId = '';
+        if (item is Post) authorId = item.authorId;
+        else if (item is Meetup) authorId = item.host.id;
+        else if (item is Job) authorId = item.authorId;
+        else if (item is MarketplaceItem) authorId = item.sellerId;
+        else if (item is Question) authorId = item.authorId;
+        return !hiddenUsers.contains(authorId);
+      }).toList();
+
+      filtered.sort((a, b) {
+        DateTime timeA = a is Post
+            ? a.timestamp
+            : a is Meetup
+            ? a.createdAt
+            : a is Job
+            ? a.postedDate
+            : a is MarketplaceItem
+            ? a.postedDate
+            : (a as Question).timestamp;
+        DateTime timeB = b is Post
+            ? b.timestamp
+            : b is Meetup
+            ? b.createdAt
+            : b is Job
+            ? b.postedDate
+            : b is MarketplaceItem
+            ? b.postedDate
+            : (b as Question).timestamp;
+        return timeB.compareTo(timeA);
+      });
+
+      return filtered.take(limit).toList();
+    });
+  }
 
   Future<void> toggleScrapMeetup(String meetupId) async {
     final uid = currentUserId;
@@ -575,15 +660,17 @@ mixin PostService on ChangeNotifier {
         } else {
           likedBy.add(uid);
           if (authorId != uid) {
-            Future.microtask(
-              () => sendNotification(
+            // Fetch current user data to get their name
+            getCurrentUser().then((userData) {
+              final likerName = userData?.name ?? 'Someone';
+              sendNotification(
                 userId: authorId,
                 title: 'New Like ❤️',
-                body: 'Someone liked your post!',
+                body: '$likerName liked your post!',
                 type: 'like',
                 relatedId: postId,
-              ),
-            );
+              );
+            });
           }
         }
 

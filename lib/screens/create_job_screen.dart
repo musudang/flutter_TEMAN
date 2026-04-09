@@ -22,6 +22,16 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
   final _requirementsController = TextEditingController();
   final _contactInfoController = TextEditingController();
 
+  String _selectedJobType = 'Full-time';
+  final List<String> _jobTypes = [
+    'Full-time',
+    'Part-time',
+    'Internship',
+    'Freelance',
+    'Contract',
+    'Others',
+  ];
+
   bool _isLoading = false;
 
   @override
@@ -35,6 +45,9 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
       _descriptionController.text = widget.editingJob!.description;
       _requirementsController.text = widget.editingJob!.requirements.join('\n');
       _contactInfoController.text = widget.editingJob!.contactInfo;
+      if (_jobTypes.contains(widget.editingJob!.jobType)) {
+        _selectedJobType = widget.editingJob!.jobType;
+      }
     }
   }
 
@@ -63,6 +76,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
           companyName: _companyNameController.text.trim(),
           location: _locationController.text.trim(),
           salary: _salaryController.text.trim(),
+          jobType: _selectedJobType,
           description: _descriptionController.text.trim(),
           requirements: _requirementsController.text
               .split('\n')
@@ -82,6 +96,7 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
             'companyName': job.companyName,
             'location': job.location,
             'salary': job.salary,
+            'jobType': job.jobType,
             'description': job.description,
             'requirements': job.requirements,
             'contactInfo': job.contactInfo,
@@ -165,6 +180,27 @@ class _CreateJobScreenState extends State<CreateJobScreen> {
                 validator: (value) => value == null || value.isEmpty
                     ? 'Please enter location'
                     : null,
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<String>(
+                value: _selectedJobType,
+                decoration: const InputDecoration(
+                  labelText: 'Job Type',
+                  border: OutlineInputBorder(),
+                ),
+                items: _jobTypes.map((type) {
+                  return DropdownMenuItem(
+                    value: type,
+                    child: Text(type),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  if (value != null) {
+                    setState(() {
+                      _selectedJobType = value;
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 16),
               TextFormField(

@@ -6,6 +6,7 @@ class Job {
   final String companyName;
   final String location;
   final String salary;
+  final String jobType; // Full-time, Part-time, etc.
   final String description;
   final List<String> requirements;
   final String contactInfo;
@@ -20,6 +21,7 @@ class Job {
     required this.companyName,
     required this.location,
     required this.salary,
+    this.jobType = 'Full-time',
     required this.description,
     required this.requirements,
     required this.contactInfo,
@@ -37,6 +39,7 @@ class Job {
       companyName: data['companyName'] ?? '',
       location: data['location'] ?? '',
       salary: data['salary'] ?? '',
+      jobType: data['jobType'] ?? 'Full-time',
       description: data['description'] ?? '',
       requirements: List<String>.from(data['requirements'] ?? []),
       contactInfo: data['contactInfo'] ?? '',

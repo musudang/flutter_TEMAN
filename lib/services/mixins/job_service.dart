@@ -13,19 +13,18 @@ mixin JobService on ChangeNotifier {
   Stream<List<Job>> getJobs({
     int limit = 20,
     List<String> hiddenUsers = const [],
+    String? jobType,
   }) {
-    return _db
-        .collection('jobs')
-        .orderBy('postedDate', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
-          final jobs = snapshot.docs
-              .map((doc) => Job.fromFirestore(doc))
-              .toList();
-          if (hiddenUsers.isEmpty) return jobs;
-          return jobs.where((j) => !hiddenUsers.contains(j.authorId)).toList();
-        });
+    Query query = _db.collection('jobs').orderBy('postedDate', descending: true);
+    if (jobType != null && jobType != 'All') {
+      query = query.where('jobType', isEqualTo: jobType);
+    }
+
+    return query.limit(limit).snapshots().map((snapshot) {
+      final jobs = snapshot.docs.map((doc) => Job.fromFirestore(doc)).toList();
+      if (hiddenUsers.isEmpty) return jobs;
+      return jobs.where((j) => !hiddenUsers.contains(j.authorId)).toList();
+    });
   }
 
   Future<void> addJob(Job job) async {
@@ -39,6 +38,7 @@ mixin JobService on ChangeNotifier {
         'companyName': job.companyName,
         'location': job.location,
         'salary': job.salary,
+        'jobType': job.jobType,
         'description': job.description,
         'requirements': job.requirements,
         'contactInfo': job.contactInfo,

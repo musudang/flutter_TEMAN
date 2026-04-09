@@ -21,10 +21,10 @@ class UserProfileScreen extends StatelessWidget {
       listen: false,
     );
 
-    return FutureBuilder<app_models.User?>(
-      future: firestoreService.getUserById(userId),
+    return StreamBuilder<app_models.User?>(
+      stream: firestoreService.getUserStream(userId),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
           return Scaffold(
             appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
             body: const Center(child: CircularProgressIndicator()),
