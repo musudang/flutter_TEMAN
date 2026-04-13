@@ -279,7 +279,7 @@ class _SearchScreenState extends State<SearchScreen>
                 ),
               ),
               title: Text(job.title),
-              subtitle: Text(job.companyName),
+              subtitle: Text(job.location),
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => JobDetailScreen(job: job)),

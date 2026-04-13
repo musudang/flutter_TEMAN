@@ -1064,11 +1064,11 @@ class _FeedScreenState extends State<FeedScreen> {
                 );
               },
             ),
-            if (post.imageUrl.isNotEmpty) ...[
+            if (post.imageUrls.isNotEmpty) ...[
               ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Image.network(
-                  post.imageUrl,
+                  post.imageUrls.first,
                   height: 200,
                   width: double.infinity,
                   fit: BoxFit.cover,
@@ -1100,6 +1100,74 @@ class _FeedScreenState extends State<FeedScreen> {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
+            if (post.sharedItemId != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  children: [
+                    if (post.sharedItemImage != null && post.sharedItemImage!.isNotEmpty)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.network(
+                          post.sharedItemImage!,
+                          width: 48,
+                          height: 48,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            width: 48,
+                            height: 48,
+                            color: Colors.grey[200],
+                            child: const Icon(Icons.image_not_supported, color: Colors.grey, size: 20),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        width: 48,
+                        height: 48,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[200],
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.article, color: Colors.grey, size: 20),
+                      ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Shared ${post.sharedItemType ?? 'Item'}',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.teal[600],
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            post.sharedItemTitle ?? 'Untitled',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1A1F36),
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             const Divider(height: 1, color: Color(0xFFF3F4F6)),
             const SizedBox(height: 12),
@@ -1284,7 +1352,7 @@ class _FeedScreenState extends State<FeedScreen> {
                             ),
                           ),
                           Text(
-                            job.companyName,
+                            job.location,
                             style: TextStyle(
                               color: Colors.grey[600],
                               fontSize: 12,

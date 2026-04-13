@@ -44,6 +44,19 @@ mixin MeetupService on ChangeNotifier {
       throw Exception('User must be logged in to create a meetup');
     }
 
+    final uid = _auth.currentUser!.uid;
+    if (meetup.id.isEmpty) {
+      final existingHostedQuery = await _db
+          .collection('meetups')
+          .where('hostId', isEqualTo: uid)
+          .limit(1)
+          .get();
+      
+      if (existingHostedQuery.docs.isNotEmpty) {
+        throw Exception('You can only have one active meetup created at a time.');
+      }
+    }
+
     debugPrint("Attempting to save meetup... Title: ${meetup.title}");
     try {
       debugPrint("Meetup saved successfully!");
@@ -77,6 +90,21 @@ mixin MeetupService on ChangeNotifier {
     if (uid == null) {
       debugPrint("Error: User not logged in trying to join meetup.");
       return false;
+    }
+
+    // Check if user is already participating in another meetup
+    final existingJoinedQuery = await _db
+        .collection('meetups')
+        .where('participantIds', arrayContains: uid)
+        .get();
+
+    // Filter out meetups where they are the host, to only count meetups they JOINED as a non-host.
+    final joinedAsParticipant = existingJoinedQuery.docs
+        .where((doc) => doc.data()['hostId'] != uid && doc.id != meetupId)
+        .toList();
+
+    if (joinedAsParticipant.isNotEmpty) {
+      throw Exception('You can only participate in one meetup at a time.');
     }
 
     final docRef = _db.collection('meetups').doc(meetupId);
@@ -545,7 +573,7 @@ mixin MeetupService on ChangeNotifier {
         avatarUrl: data['hostAvatar'] ?? '',
       ),
       participantIds: List<String>.from(data['participantIds'] ?? []),
-      imageUrl: data['imageUrl'] ?? '',
+      imageUrls: List<String>.from(data['imageUrls'] ?? (data['imageUrl'] != null ? [data['imageUrl']] : [])),
       likes: data['likes'] ?? 0,
       comments: data['comments'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
@@ -573,7 +601,7 @@ mixin MeetupService on ChangeNotifier {
       'hostName': meetup.host.name,
       'hostAvatar': meetup.host.avatarUrl,
       'participantIds': meetup.participantIds,
-      'imageUrl': meetup.imageUrl,
+      'imageUrls': meetup.imageUrls,
       'likes': meetup.likes,
       'comments': meetup.comments,
       'likedBy': meetup.likedBy,

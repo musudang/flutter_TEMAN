@@ -11,11 +11,17 @@ class Post {
   final int comments;
   final List<String> likedBy;
   final List<String> scrappedBy; // [NEW] For bookmarking meetups
-  final String imageUrl;
+  final List<String> imageUrls;
   final String category;
   final String authorAvatar; // [NEW] Shared preference for avatar
   final String? subCategory; // [NEW] Subcategories for Events & Q&A
   final DateTime? eventDate; // [NEW] Date for Events
+
+  // [NEW] Shared content fields
+  final String? sharedItemId;
+  final String? sharedItemType;
+  final String? sharedItemTitle;
+  final String? sharedItemImage;
 
   Post({
     required this.id,
@@ -28,11 +34,15 @@ class Post {
     this.comments = 0,
     this.likedBy = const [],
     this.scrappedBy = const [],
-    this.imageUrl = '',
+    this.imageUrls = const [],
     this.category = 'general',
     this.authorAvatar = '',
     this.subCategory,
     this.eventDate,
+    this.sharedItemId,
+    this.sharedItemType,
+    this.sharedItemTitle,
+    this.sharedItemImage,
   });
 
   factory Post.fromFirestore(DocumentSnapshot doc) {
@@ -47,12 +57,18 @@ class Post {
       likes: data['likes'] ?? 0,
       comments: data['comments'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
-      imageUrl: data['imageUrl'] ?? '',
+      imageUrls: data['imageUrls'] != null 
+          ? List<String>.from(data['imageUrls']) 
+          : (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty ? [data['imageUrl']] : []),
       category: data['category'] ?? 'general',
       scrappedBy: List<String>.from(data['scrappedBy'] ?? []),
       authorAvatar: data['authorAvatar'] ?? '',
       subCategory: data['subCategory'],
       eventDate: (data['eventDate'] as Timestamp?)?.toDate(),
+      sharedItemId: data['sharedItemId'],
+      sharedItemType: data['sharedItemType'],
+      sharedItemTitle: data['sharedItemTitle'],
+      sharedItemImage: data['sharedItemImage'],
     );
   }
 }

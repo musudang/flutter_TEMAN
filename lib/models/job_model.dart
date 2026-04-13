@@ -3,7 +3,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class Job {
   final String id;
   final String title;
-  final String companyName;
   final String location;
   final String salary;
   final String jobType; // Full-time, Part-time, etc.
@@ -14,11 +13,11 @@ class Job {
   final DateTime postedDate;
   final DateTime? deadline;
   final bool isActive;
+  final List<String> imageUrls; // [NEW] Added for multi-image support
 
   Job({
     required this.id,
     required this.title,
-    required this.companyName,
     required this.location,
     required this.salary,
     this.jobType = 'Full-time',
@@ -29,6 +28,7 @@ class Job {
     required this.postedDate,
     this.deadline,
     this.isActive = true,
+    this.imageUrls = const [],
   });
 
   factory Job.fromFirestore(DocumentSnapshot doc) {
@@ -36,7 +36,6 @@ class Job {
     return Job(
       id: doc.id,
       title: data['title'] ?? '',
-      companyName: data['companyName'] ?? '',
       location: data['location'] ?? '',
       salary: data['salary'] ?? '',
       jobType: data['jobType'] ?? 'Full-time',
@@ -50,6 +49,9 @@ class Job {
           ? (data['deadline'] as Timestamp?)?.toDate() ?? DateTime.now()
           : null,
       isActive: data['isActive'] ?? true,
+      imageUrls: data['imageUrls'] != null 
+          ? List<String>.from(data['imageUrls']) 
+          : [],
     );
   }
 }

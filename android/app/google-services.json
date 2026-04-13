@@ -12,7 +12,20 @@
           "package_name": "com.example.teman_flutter_app_code"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "1065473302917-lr9ajn3m1506lc0a5md4ek5co0o5tmip.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.teman_flutter_app_code",
+            "certificate_hash": "e3f13489de6f6a7ecf6ff2348a6b7bea407e3af2"
+          }
+        },
+        {
+          "client_id": "1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDjTCNI8oL2zBw1b4Dc1A5WlWOGDZX5yvU"
@@ -20,7 +33,19 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.temanFlutterAppCode"
+              }
+            }
+          ]
         }
       }
     }

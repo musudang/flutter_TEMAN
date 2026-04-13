@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../models/marketplace_model.dart';
 import 'dart:io';
 
@@ -95,7 +96,17 @@ mixin MarketplaceService on ChangeNotifier {
 
     final docData = doc.data()!;
     if (docData['sellerId'] == uid) {
-      // Note: We should delete images from storage here as well eventually
+      // Delete images from Storage
+      final imageUrls = List<String>.from(docData['imageUrls'] ?? []);
+      for (final url in imageUrls) {
+        try {
+          final ref = FirebaseStorage.instance.refFromURL(url);
+          await ref.delete();
+        } catch (e) {
+          debugPrint("Warning: Could not delete storage file: $e");
+        }
+      }
+
       await _db.collection('marketplace').doc(itemId).delete();
     } else {
       throw Exception('Permission denied');

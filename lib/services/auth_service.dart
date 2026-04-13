@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart' as google_sign_in;
@@ -475,6 +476,10 @@ class AuthService extends ChangeNotifier {
           .get();
       for (final postDoc in userPostsQuery.docs) {
         final postData = postDoc.data();
+        // Delete post images from Storage
+        final postImages = List<String>.from(postData['imageUrls'] ?? []);
+        await _deleteStorageUrls(postImages);
+
         await _db.collection('deleted_posts').doc(postDoc.id).set({
           ...postData,
           'originalPostId': postDoc.id,
@@ -488,6 +493,13 @@ class AuthService extends ChangeNotifier {
       // 2. Back up to deleted_users for records
       final userDoc = await _db.collection('users').doc(uid).get();
       final userData = userDoc.data() ?? {};
+
+      // Delete profile avatar from Storage
+      final avatarUrl = userData['avatarUrl'] as String? ?? '';
+      if (avatarUrl.isNotEmpty) {
+        await _deleteStorageUrls([avatarUrl]);
+      }
+
       await _db.collection('deleted_users').doc(uid).set({
         ...userData,
         'deletedAt': FieldValue.serverTimestamp(),
@@ -503,6 +515,16 @@ class AuthService extends ChangeNotifier {
             .get();
         for (final meetup in hostedMeetups.docs) {
           final meetupData = meetup.data();
+          // Delete meetup images from Storage
+          final meetupImages = List<String>.from(meetupData['imageUrls'] ?? []);
+          if (meetupImages.isEmpty) {
+            final singleUrl = meetupData['imageUrl'] as String? ?? '';
+            if (singleUrl.isNotEmpty && singleUrl.startsWith('https://firebasestorage')) {
+              meetupImages.add(singleUrl);
+            }
+          }
+          await _deleteStorageUrls(meetupImages);
+
           // Migrate meetup to deleted_posts for record keeping
           await _db.collection('deleted_posts').doc(meetup.id).set({
             ...meetupData,
@@ -587,6 +609,38 @@ class AuthService extends ChangeNotifier {
         );
       }
 
+      // 4a. Delete user's jobs and their images
+      try {
+        final userJobs = await _db
+            .collection('jobs')
+            .where('authorId', isEqualTo: uid)
+            .get();
+        for (final jobDoc in userJobs.docs) {
+          final jobData = jobDoc.data();
+          final jobImages = List<String>.from(jobData['imageUrls'] ?? []);
+          await _deleteStorageUrls(jobImages);
+          await _db.collection('jobs').doc(jobDoc.id).delete();
+        }
+      } catch (e) {
+        debugPrint("Error cleaning up jobs during account deletion: $e");
+      }
+
+      // 4b. Delete user's marketplace items and their images
+      try {
+        final userItems = await _db
+            .collection('marketplace')
+            .where('sellerId', isEqualTo: uid)
+            .get();
+        for (final itemDoc in userItems.docs) {
+          final itemData = itemDoc.data();
+          final itemImages = List<String>.from(itemData['imageUrls'] ?? []);
+          await _deleteStorageUrls(itemImages);
+          await _db.collection('marketplace').doc(itemDoc.id).delete();
+        }
+      } catch (e) {
+        debugPrint("Error cleaning up marketplace items during account deletion: $e");
+      }
+
       // 5. Delete user data from public user collection
       await _db.collection('users').doc(uid).delete();
 
@@ -609,6 +663,19 @@ class AuthService extends ChangeNotifier {
       return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
     } catch (e) {
       return AuthResult.failure(e.toString());
+    }
+  }
+
+  /// Helper: Delete files from Firebase Storage given their download URLs
+  Future<void> _deleteStorageUrls(List<String> urls) async {
+    for (final url in urls) {
+      if (url.isEmpty) continue;
+      try {
+        final ref = FirebaseStorage.instance.refFromURL(url);
+        await ref.delete();
+      } catch (e) {
+        debugPrint("Warning: Could not delete storage file: $e");
+      }
     }
   }
 }

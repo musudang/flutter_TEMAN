@@ -4,17 +4,199 @@ import '../models/job_model.dart';
 import '../services/firestore_service.dart';
 import 'package:intl/intl.dart';
 import 'create_job_screen.dart';
+import 'chat_screen.dart';
 import '../widgets/report_dialog.dart';
 
-class JobDetailScreen extends StatelessWidget {
+class JobDetailScreen extends StatefulWidget {
   final Job job;
 
   const JobDetailScreen({super.key, required this.job});
 
   @override
+  State<JobDetailScreen> createState() => _JobDetailScreenState();
+}
+
+class _JobDetailScreenState extends State<JobDetailScreen> {
+  bool _hasApplied = false;
+  bool _checkingStatus = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkApplicationStatus();
+  }
+
+  Future<void> _checkApplicationStatus() async {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final applied = await fs.hasAppliedToJob(widget.job.id);
+    if (mounted) {
+      setState(() {
+        _hasApplied = applied;
+        _checkingStatus = false;
+      });
+    }
+  }
+
+  void _showApplyBottomSheet() {
+    final messageController = TextEditingController(
+      text: 'Hi! I\'m interested in the "${widget.job.title}" position.',
+    );
+    bool isSending = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 20,
+                bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Apply to "${widget.job.title}"',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Write a message to the employer',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 14),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: messageController,
+                    maxLines: 4,
+                    decoration: InputDecoration(
+                      hintText: 'Introduce yourself and explain why you\'re a great fit...',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: Colors.teal, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: isSending
+                          ? null
+                          : () async {
+                              final msg = messageController.text.trim();
+                              if (msg.isEmpty) {
+                                ScaffoldMessenger.of(ctx).showSnackBar(
+                                  const SnackBar(content: Text('Please write a message.')),
+                                );
+                                return;
+                              }
+                              setSheetState(() => isSending = true);
+
+                              try {
+                                final fs = Provider.of<FirestoreService>(
+                                  context,
+                                  listen: false,
+                                );
+
+                                // Record the application
+                                await fs.applyToJob(
+                                  jobId: widget.job.id,
+                                  jobTitle: widget.job.title,
+                                  employerId: widget.job.authorId,
+                                  message: msg,
+                                );
+
+                                // Open chat with employer
+                                final conversationId =
+                                    await fs.getOrCreateConversation(widget.job.authorId);
+
+                                if (mounted) {
+                                  setState(() => _hasApplied = true);
+                                }
+                                if (ctx.mounted) Navigator.pop(ctx); // close bottom sheet
+
+                                if (mounted) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => ChatScreen(
+                                        conversationId: conversationId,
+                                        chatTitle: widget.job.title,
+                                        otherUserId: widget.job.authorId,
+                                        initialMessage: msg,
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } catch (e) {
+                                setSheetState(() => isSending = false);
+                                if (ctx.mounted) {
+                                  ScaffoldMessenger.of(ctx).showSnackBar(
+                                    SnackBar(content: Text('$e')),
+                                  );
+                                }
+                              }
+                            },
+                      icon: isSending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.send),
+                      label: Text(isSending ? 'Sending...' : 'Submit Application'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.teal,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final fs = Provider.of<FirestoreService>(context, listen: false);
-    final isOwner = fs.currentUserId == job.authorId;
+    final isOwner = fs.currentUserId == widget.job.authorId;
+    final job = widget.job;
 
     return Scaffold(
       appBar: AppBar(
@@ -83,20 +265,6 @@ class JobDetailScreen extends StatelessWidget {
             const SizedBox(height: 8),
             Row(
               children: [
-                const Icon(Icons.business, color: Colors.grey, size: 20),
-                const SizedBox(width: 8),
-                Text(
-                  job.companyName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
                 const Icon(Icons.location_on, color: Colors.grey, size: 20),
                 const SizedBox(width: 8),
                 Text(job.location, style: const TextStyle(color: Colors.grey)),
@@ -144,6 +312,57 @@ class JobDetailScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 24),
+
+            // Images
+            if (job.imageUrls.isNotEmpty) ...[
+              SizedBox(
+                height: 220,
+                child: job.imageUrls.length == 1
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          job.imageUrls.first,
+                          width: double.infinity,
+                          height: 220,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+                        ),
+                      )
+                    : PageView.builder(
+                        itemCount: job.imageUrls.length,
+                        itemBuilder: (context, index) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: Image.network(
+                                job.imageUrls[index],
+                                width: double.infinity,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) =>
+                                    const SizedBox.shrink(),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+              ),
+              if (job.imageUrls.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Center(
+                    child: Text(
+                      'Swipe for more (${job.imageUrls.length} photos)',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+            ],
+
             const Divider(),
 
             // Description
@@ -203,28 +422,43 @@ class JobDetailScreen extends StatelessWidget {
             ),
 
             const SizedBox(height: 40),
-            Center(
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  // Apply action (could be email launch or in-app apply)
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Please contact the employer directly.'),
+            // Apply Now button
+            if (_checkingStatus)
+              const Center(child: CircularProgressIndicator())
+            else
+              Center(
+                child: ElevatedButton.icon(
+                  onPressed: isOwner
+                      ? null
+                      : _hasApplied
+                          ? null
+                          : _showApplyBottomSheet,
+                  icon: Icon(
+                    isOwner
+                        ? Icons.info_outline
+                        : _hasApplied
+                            ? Icons.check_circle
+                            : Icons.send,
+                  ),
+                  label: Text(
+                    isOwner
+                        ? 'This is your post'
+                        : _hasApplied
+                            ? 'Already Applied'
+                            : 'Apply Now',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isOwner || _hasApplied
+                        ? Colors.grey
+                        : Colors.teal,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 32,
+                      vertical: 12,
                     ),
-                  );
-                },
-                icon: const Icon(Icons.send),
-                label: const Text('Apply Now'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 32,
-                    vertical: 12,
                   ),
                 ),
               ),
-            ),
           ],
         ),
       ),

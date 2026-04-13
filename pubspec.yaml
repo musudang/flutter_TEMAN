@@ -50,6 +50,8 @@ dependencies:
   sign_in_with_apple: ^7.0.1
   flutter_image_compress: ^2.4.0
   firebase_app_check: ^0.4.2
+  shared_preferences: ^2.5.5
+  google_fonts: ^8.0.2
 
 dev_dependencies:
   flutter_test:

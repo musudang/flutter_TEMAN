@@ -513,6 +513,20 @@ class _ChatScreenState extends State<ChatScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
+                                  if (message.sharedPostImage != null && message.sharedPostImage!.isNotEmpty) ...[
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(8),
+                                      child: Image.network(
+                                        message.sharedPostImage!,
+                                        width: 200,
+                                        height: 120,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            const SizedBox.shrink(),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                  ],
                                   Row(
                                     children: [
                                       Icon(

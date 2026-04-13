@@ -13,7 +13,7 @@ class Meetup {
   final int maxParticipants;
   final User host;
   final List<String> participantIds; // List of User IDs
-  final String imageUrl;
+  final List<String> imageUrls;
   final int likes;
   final int comments;
   final List<String> likedBy;
@@ -34,7 +34,7 @@ class Meetup {
     required this.maxParticipants,
     required this.host,
     this.participantIds = const [],
-    required this.imageUrl,
+    this.imageUrls = const [],
     this.likes = 0,
     this.comments = 0,
     this.likedBy = const [],
@@ -74,7 +74,9 @@ class Meetup {
         avatarUrl: data['hostAvatar'] ?? '',
       ),
       participantIds: List<String>.from(data['participantIds'] ?? []),
-      imageUrl: data['imageUrl'] ?? '',
+      imageUrls: data['imageUrls'] != null 
+          ? List<String>.from(data['imageUrls']) 
+          : (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty ? [data['imageUrl']] : []),
       likes: data['likes'] ?? 0,
       comments: data['comments'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),

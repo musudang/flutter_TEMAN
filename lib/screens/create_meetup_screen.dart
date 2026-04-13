@@ -39,7 +39,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
       _titleController.text = widget.editingMeetup!.title;
       _descriptionController.text = widget.editingMeetup!.description;
       _locationController.text = widget.editingMeetup!.location;
-      _imageUrlController.text = widget.editingMeetup!.imageUrl;
+      _imageUrlController.text = widget.editingMeetup!.imageUrls.isNotEmpty ? widget.editingMeetup!.imageUrls.first : '';
       _selectedDate = widget.editingMeetup!.dateTime;
       _selectedTime = TimeOfDay.fromDateTime(widget.editingMeetup!.dateTime);
       _selectedCategory = widget.editingMeetup!.category;
@@ -235,7 +235,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
             requiresApproval: _requiresApproval, // [NEW] Accept/Decline toggle
             host: user,
             participantIds: [user.id],
-            imageUrl: finalImageUrl,
+            imageUrls: finalImageUrl.isNotEmpty ? [finalImageUrl] : [],
             createdAt: DateTime.now(),
           );
 

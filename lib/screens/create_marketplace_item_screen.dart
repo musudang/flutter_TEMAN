@@ -19,12 +19,21 @@ class _CreateMarketplaceItemScreenState
   final _titleController = TextEditingController();
   final _priceController = TextEditingController();
   final _descriptionController = TextEditingController();
-  final _categoryController = TextEditingController(); // Could be dropdown
+  String _selectedCategory = 'Electronics'; // Default
   String _condition = 'Used'; // Default
 
   bool _isLoading = false;
 
   final List<String> _conditions = ['New', 'Like New', 'Used', 'Refurbished'];
+  final List<String> _categories = [
+    'Electronics',
+    'Fashion',
+    'Books',
+    'Home',
+    'Beauty',
+    'Sports',
+    'Others',
+  ];
 
   @override
   void initState() {
@@ -33,7 +42,9 @@ class _CreateMarketplaceItemScreenState
       _titleController.text = widget.editingItem!.title;
       _priceController.text = widget.editingItem!.price.toString();
       _descriptionController.text = widget.editingItem!.description;
-      _categoryController.text = widget.editingItem!.category;
+      if (_categories.contains(widget.editingItem!.category)) {
+        _selectedCategory = widget.editingItem!.category;
+      }
       _condition = widget.editingItem!.condition;
     }
   }
@@ -43,7 +54,6 @@ class _CreateMarketplaceItemScreenState
     _titleController.dispose();
     _priceController.dispose();
     _descriptionController.dispose();
-    _categoryController.dispose();
     super.dispose();
   }
 
@@ -62,9 +72,7 @@ class _CreateMarketplaceItemScreenState
           price: price,
           description: _descriptionController.text.trim(),
           condition: _condition,
-          category: _categoryController.text.trim().isEmpty
-              ? 'Other'
-              : _categoryController.text.trim(),
+          category: _selectedCategory,
           imageUrls: [], // Placeholder for now
           sellerId: '',
           sellerName: '',
@@ -182,12 +190,18 @@ class _CreateMarketplaceItemScreenState
                 },
               ),
               const SizedBox(height: 16),
-              TextFormField(
-                controller: _categoryController,
+              DropdownButtonFormField<String>(
+                initialValue: _selectedCategory,
                 decoration: const InputDecoration(
-                  labelText: 'Category (Optional)',
+                  labelText: 'Category',
                   border: OutlineInputBorder(),
                 ),
+                items: _categories.map((cat) {
+                  return DropdownMenuItem(value: cat, child: Text(cat));
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _selectedCategory = val);
+                },
               ),
               const SizedBox(height: 24),
               // Image upload placeholder

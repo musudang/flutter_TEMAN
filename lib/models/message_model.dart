@@ -11,6 +11,7 @@ class Message {
   final String? sharedPostType; // 'meetup' or 'post'
   final String? sharedPostTitle;
   final String? sharedPostDescription;
+  final String? sharedPostImage;
 
   // New fields
   final String? replyToMessageId;
@@ -29,6 +30,7 @@ class Message {
     this.sharedPostType,
     this.sharedPostTitle,
     this.sharedPostDescription,
+    this.sharedPostImage,
     this.replyToMessageId,
     this.replyToMessageText,
     this.replyToMessageSender,
@@ -48,6 +50,7 @@ class Message {
       sharedPostType: data['sharedPostType'],
       sharedPostTitle: data['sharedPostTitle'],
       sharedPostDescription: data['sharedPostDescription'],
+      sharedPostImage: data['sharedPostImage'],
       replyToMessageId: data['replyToMessageId'],
       replyToMessageText: data['replyToMessageText'],
       replyToMessageSender: data['replyToMessageSender'],

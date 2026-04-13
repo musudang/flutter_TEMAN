@@ -95,7 +95,9 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
         onAutoVerified: () {
           if (!mounted) return;
           setState(() => _isLoading = false);
-          // auto-verified, navigator pops automatically via auth state change
+          if (Navigator.canPop(context)) {
+            Navigator.pop(context);
+          }
         },
       );
     } catch (e) {
@@ -127,8 +129,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
       _showError(
         result.errorMessage ?? 'Verification failed. Please try again.',
       );
+    } else {
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context);
+      }
     }
-    // On success, auth state change in main.dart will handle navigation
   }
 
   void _showError(String message) {
@@ -256,7 +261,9 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                         Expanded(
                           child: TextField(
                             controller: _phoneController,
-                            keyboardType: TextInputType.phone,
+                            keyboardType: TextInputType.number,
+                            enableSuggestions: false,
+                            autocorrect: false,
                             inputFormatters: [
                               FilteringTextInputFormatter.digitsOnly,
                             ],
@@ -344,24 +351,26 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                     child: TextField(
                       controller: _otpController,
                       keyboardType: TextInputType.number,
+                      enableSuggestions: false,
+                      autocorrect: false,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly,
                         LengthLimitingTextInputFormatter(6),
                       ],
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 28,
+                        fontSize: 32,
                         fontWeight: FontWeight.w700,
-                        letterSpacing: 12,
+                        letterSpacing: 2,
                         color: Color(0xFF1A1A2E),
                       ),
                       decoration: const InputDecoration(
                         border: InputBorder.none,
-                        hintText: '------',
+                        hintText: '000000',
                         hintStyle: TextStyle(
                           color: Colors.grey,
-                          letterSpacing: 12,
-                          fontSize: 28,
+                          letterSpacing: 2,
+                          fontSize: 32,
                         ),
                       ),
                     ),

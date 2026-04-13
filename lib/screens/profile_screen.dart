@@ -515,9 +515,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            item.companyName.isNotEmpty
-                                ? item.companyName
-                                : item.location,
+                            item.location,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

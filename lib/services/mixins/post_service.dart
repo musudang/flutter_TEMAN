@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:rxdart/rxdart.dart';
 import '../../constants/app_constants.dart';
 import '../../models/meetup_model.dart';
@@ -25,10 +26,12 @@ mixin PostService on ChangeNotifier {
   Stream<List<Job>> getJobs({
     int limit = 20,
     List<String> hiddenUsers = const [],
+    String? jobType,
   });
   Stream<List<MarketplaceItem>> getMarketplaceItems({
     int limit = 20,
     List<String> hiddenUsers = const [],
+    String? category,
   });
   Stream<List<Question>> getQuestions({
     int limit = 20,
@@ -94,11 +97,17 @@ mixin PostService on ChangeNotifier {
 
       final filtered = allItems.where((item) {
         String authorId = '';
-        if (item is Post) authorId = item.authorId;
-        else if (item is Meetup) authorId = item.host.id;
-        else if (item is Job) authorId = item.authorId;
-        else if (item is MarketplaceItem) authorId = item.sellerId;
-        else if (item is Question) authorId = item.authorId;
+        if (item is Post) {
+          authorId = item.authorId;
+        } else if (item is Meetup) {
+          authorId = item.host.id;
+        } else if (item is Job) {
+          authorId = item.authorId;
+        } else if (item is MarketplaceItem) {
+          authorId = item.sellerId;
+        } else if (item is Question) {
+          authorId = item.authorId;
+        }
         return !hiddenUsers.contains(authorId);
       }).toList();
 
@@ -410,11 +419,15 @@ mixin PostService on ChangeNotifier {
     String content,
     String authorId,
     String authorName, {
-    String? imageUrl,
+    List<String> imageUrls = const [],
     String category = 'general',
     String authorAvatar = '',
     String? subCategory,
     DateTime? eventDate,
+    String? sharedItemId,
+    String? sharedItemType,
+    String? sharedItemTitle,
+    String? sharedItemImage,
   }) async {
     if (_auth.currentUser == null) {
       throw Exception('User must be logged in to post');
@@ -430,10 +443,15 @@ mixin PostService on ChangeNotifier {
         'likes': 0,
         'comments': 0,
         'likedBy': [],
-        'imageUrl': imageUrl ?? '',
+        'imageUrls': imageUrls,
         'category': category,
         'authorAvatar': authorAvatar,
       };
+
+      if (sharedItemId != null) docData['sharedItemId'] = sharedItemId;
+      if (sharedItemType != null) docData['sharedItemType'] = sharedItemType;
+      if (sharedItemTitle != null) docData['sharedItemTitle'] = sharedItemTitle;
+      if (sharedItemImage != null) docData['sharedItemImage'] = sharedItemImage;
 
       if (subCategory != null) {
         docData['subCategory'] = subCategory;
@@ -464,6 +482,17 @@ mixin PostService on ChangeNotifier {
     final admin = await isAdmin();
 
     if (authorId == uid || admin) {
+      // Delete images from Storage
+      final imageUrls = List<String>.from(data['imageUrls'] ?? []);
+      for (final url in imageUrls) {
+        try {
+          final ref = FirebaseStorage.instance.refFromURL(url);
+          await ref.delete();
+        } catch (e) {
+          debugPrint("Warning: Could not delete storage file: $e");
+        }
+      }
+
       final now = DateTime.now();
       await _db.collection('admin_deleted_posts').doc(postId).set({
         ...data,

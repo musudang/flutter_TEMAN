@@ -269,7 +269,7 @@ class PostDetailScreen extends StatelessWidget {
                             context,
                             MaterialPageRoute(
                               builder: (_) =>
-                                  CreatePostScreen(editingPost: post),
+                                  CreatePostScreen(editingItem: post),
                             ),
                           );
                         } else if (value == 'delete') {
@@ -361,40 +361,87 @@ class PostDetailScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          if (post.imageUrl.isNotEmpty) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: Image.network(
-                post.imageUrl,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                loadingBuilder: (context, child, loadingProgress) {
-                  if (loadingProgress == null) return child;
-                  return Container(
+          if (post.imageUrls.isNotEmpty) ...[
+            if (post.imageUrls.length == 1)
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.network(
+                  post.imageUrls.first,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  loadingBuilder: (context, child, loadingProgress) {
+                    if (loadingProgress == null) return child;
+                    return Container(
+                      height: 200,
+                      color: Colors.grey[100],
+                      child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                    );
+                  },
+                  errorBuilder: (context, error, stackTrace) => Container(
                     height: 200,
-                    color: Colors.grey[100],
-                    child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-                  );
-                },
-                errorBuilder: (context, error, stackTrace) => Container(
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.broken_image_outlined, size: 48, color: Colors.grey),
-                        SizedBox(height: 8),
-                        Text('Image failed to load', style: TextStyle(color: Colors.grey)),
-                      ],
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.broken_image_outlined, size: 48, color: Colors.grey),
+                          SizedBox(height: 8),
+                          Text('Image failed to load', style: TextStyle(color: Colors.grey)),
+                        ],
+                      ),
                     ),
                   ),
                 ),
+              )
+            else
+              SizedBox(
+                height: 250,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: post.imageUrls.length,
+                  separatorBuilder: (context, index) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    return ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: Image.network(
+                        post.imageUrls[index],
+                        height: 250,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Container(
+                            height: 250,
+                            width: 250,
+                            color: Colors.grey[100],
+                            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) => Container(
+                          height: 250,
+                          width: 250,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image_outlined, size: 48, color: Colors.grey),
+                                SizedBox(height: 8),
+                                Text('Failed to load', style: TextStyle(color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            ),
             const SizedBox(height: 16),
           ],
           const Divider(height: 1, color: Color(0xFFF3F4F6)),

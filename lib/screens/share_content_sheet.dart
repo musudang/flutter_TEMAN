@@ -11,6 +11,7 @@ class ShareContentSheet extends StatefulWidget {
   final String itemType; // 'meetup' or 'post'
   final String itemTitle;
   final String itemDescription;
+  final String? itemImage;
 
   const ShareContentSheet({
     super.key,
@@ -18,6 +19,7 @@ class ShareContentSheet extends StatefulWidget {
     required this.itemType,
     required this.itemTitle,
     required this.itemDescription,
+    this.itemImage,
   });
 
   @override
@@ -40,8 +42,11 @@ class _ShareContentSheetState extends State<ShareContentSheet> {
       context,
       MaterialPageRoute(
         builder: (context) => CreatePostScreen(
-          initialPostText:
-              'Check out this ${widget.itemType}!\nTitle: ${widget.itemTitle}\nDescription: ${widget.itemDescription}',
+          sharedItemId: widget.itemId,
+          sharedItemType: widget.itemType,
+          sharedItemTitle: widget.itemTitle,
+          sharedItemImage: widget.itemImage,
+          sharedItemDescription: widget.itemDescription,
         ),
       ),
     );
@@ -67,6 +72,7 @@ class _ShareContentSheetState extends State<ShareContentSheet> {
       sharedPostType: widget.itemType,
       sharedPostTitle: widget.itemTitle,
       sharedPostDescription: widget.itemDescription,
+      sharedPostImage: widget.itemImage,
     );
 
     if (!mounted) return;

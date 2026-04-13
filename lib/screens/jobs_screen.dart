@@ -120,14 +120,26 @@ class _JobsScreenState extends State<JobsScreen> {
                           ),
                           child: ListTile(
                             contentPadding: const EdgeInsets.all(16),
-                            leading: Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: Colors.teal.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(8),
+                            leading: ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: SizedBox(
+                                width: 56,
+                                height: 56,
+                                child: job.imageUrls.isNotEmpty
+                                    ? Image.network(
+                                        job.imageUrls.first,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) =>
+                                            Container(
+                                          color: Colors.teal.withValues(alpha: 0.1),
+                                          child: const Icon(Icons.business, color: Colors.teal),
+                                        ),
+                                      )
+                                    : Container(
+                                        color: Colors.teal.withValues(alpha: 0.1),
+                                        child: const Icon(Icons.business, color: Colors.teal),
+                                      ),
                               ),
-                              child: const Icon(Icons.business, color: Colors.teal),
                             ),
                             title: Text(
                               job.title,
@@ -137,29 +149,20 @@ class _JobsScreenState extends State<JobsScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 const SizedBox(height: 4),
-                                Row(
-                                  children: [
-                                    Text(
-                                      job.companyName,
-                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.blue[50],
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    job.jobType,
+                                    style: TextStyle(
+                                      color: Colors.blue[700],
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
                                     ),
-                                    const SizedBox(width: 8),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.blue[50],
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        job.jobType,
-                                        style: TextStyle(
-                                          color: Colors.blue[700],
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Row(

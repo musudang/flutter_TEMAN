@@ -6,7 +6,8 @@ import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
 import 'meetup_detail_screen.dart';
 import 'create_meetup_screen.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import '../widgets/meetup_safety_dialog.dart';
 class MeetupListScreen extends StatefulWidget {
   final bool embedded;
   const MeetupListScreen({super.key, this.embedded = false});
@@ -17,6 +18,29 @@ class MeetupListScreen extends StatefulWidget {
 
 class _MeetupListScreenState extends State<MeetupListScreen> {
   MeetupCategory? _selectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAndShowSafetyDialog();
+    });
+  }
+
+  Future<void> _checkAndShowSafetyDialog() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hiddenDateStr = prefs.getString('meetup_safety_guide_hidden_date');
+    final todayStr = DateTime.now().toIso8601String().split('T')[0];
+
+    if (hiddenDateStr != todayStr) {
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const MeetupSafetyDialog(),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,10 +207,10 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
                 Container(
                   height: 180, // Taller image
                   decoration: BoxDecoration(
-                    image: DecorationImage(
-                      image: NetworkImage(meetup.imageUrl),
+                    image: meetup.imageUrls.isNotEmpty ? DecorationImage(
+                      image: NetworkImage(meetup.imageUrls.first),
                       fit: BoxFit.cover,
-                    ),
+                    ) : null,
                   ),
                 ),
                 // Blue Category Badge (Top Left)

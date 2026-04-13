@@ -217,10 +217,10 @@ class MeetupDetailScreen extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: Colors.grey[200],
                             borderRadius: BorderRadius.circular(16),
-                            image: DecorationImage(
-                              image: NetworkImage(meetup.imageUrl),
+                            image: meetup.imageUrls.isNotEmpty ? DecorationImage(
+                              image: NetworkImage(meetup.imageUrls.first),
                               fit: BoxFit.cover,
-                            ),
+                            ) : null,
                           ),
                         ),
                         const SizedBox(height: 24),

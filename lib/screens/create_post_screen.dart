@@ -16,9 +16,23 @@ import '../utils/image_compress_util.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final String? initialPostText;
-  final Post? editingPost;
+  final dynamic editingItem;
+  final String? sharedItemId;
+  final String? sharedItemType;
+  final String? sharedItemTitle;
+  final String? sharedItemDescription;
+  final String? sharedItemImage;
 
-  const CreatePostScreen({super.key, this.initialPostText, this.editingPost});
+  const CreatePostScreen({
+    super.key,
+    this.initialPostText,
+    this.editingItem,
+    this.sharedItemId,
+    this.sharedItemType,
+    this.sharedItemTitle,
+    this.sharedItemDescription,
+    this.sharedItemImage,
+  });
 
   @override
   State<CreatePostScreen> createState() => _CreatePostScreenState();
@@ -27,24 +41,42 @@ class CreatePostScreen extends StatefulWidget {
 class _CreatePostScreenState extends State<CreatePostScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _isSubmitting = false;
-  Uint8List? _imageBytes;
+  final List<Uint8List> _imageBytesList = [];
+  List<String> _existingImageUrls = [];
   bool _isUploadingImage = false;
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImages() async {
+    if (_imageBytesList.length >= 5) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maximum 5 images allowed.')),
+        );
+      }
+      return;
+    }
+
     final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: ImageSource.gallery,
-    );
-    if (picked != null) {
-      final rawBytes = await picked.readAsBytes();
-      
-      // Compress the image before setting the state
+    final pickedFiles = await picker.pickMultiImage();
+    
+    if (pickedFiles.isNotEmpty) {
+      if (_existingImageUrls.length + _imageBytesList.length + pickedFiles.length > 5) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Maximum 5 images allowed globally. Ignored additional images.')),
+          );
+        }
+      }
+
       setState(() => _isUploadingImage = true);
-      final compressedBytes = await ImageCompressUtil.compressImage(rawBytes);
+      
+      final toAdd = pickedFiles.take(5 - (_existingImageUrls.length + _imageBytesList.length));
+      for (var file in toAdd) {
+        final rawBytes = await file.readAsBytes();
+        final compressedBytes = await ImageCompressUtil.compressImage(rawBytes);
+        _imageBytesList.add(compressedBytes ?? rawBytes);
+      }
 
       setState(() {
-        _imageBytes = compressedBytes ?? rawBytes;
-        _imageUrlController.clear(); // Clear URL if local image picked
         _isUploadingImage = false;
       });
     }
@@ -86,7 +118,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   // Common fields
   final _titleController = TextEditingController();
   final _contentController = TextEditingController();
-  final _imageUrlController = TextEditingController();
 
   // Meetup-specific fields
   final _locationController = TextEditingController();
@@ -110,7 +141,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   ];
 
   // Job-specific fields
-  final _companyNameController = TextEditingController();
   final _salaryController = TextEditingController();
   String _jobType = 'Full-time';
   final List<String> _jobTypes = [
@@ -155,31 +185,60 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     if (widget.initialPostText != null) {
       _contentController.text = widget.initialPostText!;
     }
-    if (widget.editingPost != null) {
-      _titleController.text = widget.editingPost!.title;
-      _contentController.text = widget.editingPost!.content;
-      _imageUrlController.text = widget.editingPost!.imageUrl;
-      switch (widget.editingPost!.category) {
-        case 'qna':
-          _selectedCategory = 'Q&A';
-          _qnaSubCategory = widget.editingPost!.subCategory ?? 'ALL';
-          break;
-        case 'meetups':
-          _selectedCategory = 'Meetup';
-          break;
-        case 'market':
-          _selectedCategory = 'Market';
-          break;
-        case 'jobs':
-          _selectedCategory = 'Job';
-          break;
-        case 'events':
-          _selectedCategory = 'Event';
-          _eventSubCategory = widget.editingPost!.subCategory ?? 'ALL';
-          _eventDate = widget.editingPost!.eventDate;
-          break;
-        default:
-          _selectedCategory = 'General';
+    if (widget.editingItem != null) {
+      final item = widget.editingItem;
+      if (item is Post) {
+        _titleController.text = item.title;
+        _contentController.text = item.content;
+        _existingImageUrls = List<String>.from(item.imageUrls);
+        switch (item.category) {
+          case 'qna':
+            _selectedCategory = 'Q&A';
+            _qnaSubCategory = item.subCategory ?? 'ALL';
+            break;
+          case 'meetups':
+            _selectedCategory = 'Meetup';
+            break;
+          case 'market':
+            _selectedCategory = 'Market';
+            break;
+          case 'jobs':
+            _selectedCategory = 'Job';
+            break;
+          case 'events':
+            _selectedCategory = 'Event';
+            _eventSubCategory = item.subCategory ?? 'ALL';
+            _eventDate = item.eventDate;
+            break;
+          default:
+            _selectedCategory = 'General';
+        }
+      } else if (item is Job) {
+        _selectedCategory = 'Job';
+        _titleController.text = item.title;
+        _contentController.text = item.description;
+        _locationController.text = item.location;
+        _salaryController.text = item.salary;
+        _jobType = item.jobType;
+        _existingImageUrls = List<String>.from(item.imageUrls);
+      } else if (item is MarketplaceItem) {
+        _selectedCategory = 'Market';
+        _titleController.text = item.title;
+        _contentController.text = item.description;
+        _priceController.text = item.price.toString();
+        _productCategory = item.category;
+        _existingImageUrls = List<String>.from(item.imageUrls);
+      } else if (item is Meetup) {
+        _selectedCategory = 'Meetup';
+        _titleController.text = item.title;
+        _contentController.text = item.description;
+        _locationController.text = item.location;
+        _maxParticipantsController.text = item.maxParticipants.toString();
+        _meetupDate = item.dateTime;
+        _meetupTime = TimeOfDay.fromDateTime(item.dateTime);
+        _meetupCategory = item.category;
+        _requiresApproval = item.requiresApproval;
+        _existingImageUrls = List<String>.from(item.imageUrls);
       }
     }
   }
@@ -188,11 +247,9 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   void dispose() {
     _titleController.dispose();
     _contentController.dispose();
-    _imageUrlController.dispose();
     _locationController.dispose();
     _maxParticipantsController.dispose();
     _priceController.dispose();
-    _companyNameController.dispose();
     _salaryController.dispose();
     super.dispose();
   }
@@ -221,55 +278,64 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         return;
       }
 
-      // Upload image if selected
-      if (_imageBytes != null) {
+      // Upload newly selected images
+      List<String> uploadedUrls = [];
+      if (_imageBytesList.isNotEmpty) {
         setState(() => _isUploadingImage = true);
         
         String folder = 'posts';
-        if (_selectedCategory == 'Market') folder = 'marketplace';
-        else if (_selectedCategory == 'Meetup') folder = 'meetups';
-        else if (_selectedCategory == 'Q&A') folder = 'questions';
+        if (_selectedCategory == 'Market') {
+          folder = 'marketplace';
+        } else if (_selectedCategory == 'Meetup') {
+          folder = 'meetups';
+        } else if (_selectedCategory == 'Q&A') {
+          folder = 'questions';
+        }
 
-        final ref = FirebaseStorage.instance
-            .ref()
-            .child(folder)
-            .child('${const Uuid().v4()}.jpg');
+        for (var bytes in _imageBytesList) {
+          final ref = FirebaseStorage.instance
+              .ref()
+              .child(folder)
+              .child('${const Uuid().v4()}.jpg');
 
-        final uploadTask = ref.putData(
-          _imageBytes!,
-          SettableMetadata(contentType: 'image/jpeg'),
-        );
-        await uploadTask;
-        final url = await ref.getDownloadURL();
-        _imageUrlController.text = url;
+          final uploadTask = ref.putData(
+            bytes,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+          await uploadTask;
+          final url = await ref.getDownloadURL();
+          uploadedUrls.add(url);
+        }
         setState(() => _isUploadingImage = false);
       }
 
-      if (widget.editingPost != null &&
-          widget.editingPost!.category == 'general' &&
+      final finalImageUrls = [..._existingImageUrls, ...uploadedUrls];
+
+      if (widget.editingItem != null && widget.editingItem is Post &&
+          (widget.editingItem as Post).category == 'general' &&
           _selectedCategory == 'General') {
-        await firestoreService.updatePost(widget.editingPost!.id, {
+        await firestoreService.updatePost((widget.editingItem as Post).id, {
           'title': _titleController.text.trim(),
           'content': _contentController.text.trim(),
-          'imageUrl': _imageUrlController.text.trim(),
+          'imageUrls': finalImageUrls,
           'category': _firestoreCategory,
           'subCategory': null,
           'eventDate': null,
         });
       } else {
         if (_selectedCategory == 'Meetup') {
-          await _submitMeetup(firestoreService, user);
+          await _submitMeetup(firestoreService, user, finalImageUrls);
         } else if (_selectedCategory == 'Market') {
-          await _submitMarketItem(firestoreService, user);
+          await _submitMarketItem(firestoreService, user, finalImageUrls);
         } else if (_selectedCategory == 'Job') {
-          await _submitJob(firestoreService, user);
+          await _submitJob(firestoreService, user, finalImageUrls);
         } else {
           // General, Q&A, Event → standard post with correct category
-          if (widget.editingPost != null) {
-            await firestoreService.updatePost(widget.editingPost!.id, {
+          if (widget.editingItem != null && widget.editingItem is Post) {
+            await firestoreService.updatePost((widget.editingItem as Post).id, {
               'title': _titleController.text.trim(),
               'content': _contentController.text.trim(),
-              'imageUrl': _imageUrlController.text.trim(),
+              'imageUrls': finalImageUrls,
               'category': _firestoreCategory,
               'subCategory': _selectedCategory == 'Event'
                   ? _eventSubCategory
@@ -284,13 +350,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               _contentController.text.trim(),
               user.id,
               user.name,
-              imageUrl: _imageUrlController.text.trim(),
+              imageUrls: finalImageUrls,
               category: _firestoreCategory,
               authorAvatar: user.avatarUrl,
               subCategory: _selectedCategory == 'Event'
                   ? _eventSubCategory
                   : (_selectedCategory == 'Q&A' ? _qnaSubCategory : null),
               eventDate: _selectedCategory == 'Event' ? _eventDate : null,
+              sharedItemId: widget.sharedItemId,
+              sharedItemType: widget.sharedItemType,
+              sharedItemTitle: widget.sharedItemTitle,
+              sharedItemImage: widget.sharedItemImage,
             );
           }
         }
@@ -322,6 +392,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   Future<void> _submitMeetup(
     FirestoreService service,
     app_models.User user,
+    List<String> imageUrls,
   ) async {
     final meetupDateTime = DateTime(
       _meetupDate.year,
@@ -342,16 +413,30 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       maxParticipants: int.tryParse(_maxParticipantsController.text) ?? 5,
       host: user,
       participantIds: [user.id],
-      imageUrl: _imageUrlController.text.trim(),
+      imageUrls: imageUrls,
       createdAt: DateTime.now(),
     );
 
-    await service.addMeetup(meetup);
+    if (widget.editingItem != null && widget.editingItem is Meetup) {
+      await service.updateMeetup((widget.editingItem as Meetup).id, {
+        'title': meetup.title,
+        'description': meetup.description,
+        'location': meetup.location,
+        'dateTime': Timestamp.fromDate(meetup.dateTime),
+        'category': meetup.category.toString().split('.').last,
+        'requiresApproval': meetup.requiresApproval,
+        'maxParticipants': meetup.maxParticipants,
+        'imageUrls': meetup.imageUrls,
+      });
+    } else {
+      await service.addMeetup(meetup);
+    }
   }
 
   Future<void> _submitMarketItem(
     FirestoreService service,
     app_models.User user,
+    List<String> imageUrls,
   ) async {
     final price = double.tryParse(_priceController.text.trim()) ?? 0;
     final item = MarketplaceItem(
@@ -361,34 +446,56 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       description: _contentController.text.trim(),
       condition: 'New',
       category: _productCategory,
-      imageUrls: _imageUrlController.text.trim().isNotEmpty
-          ? [_imageUrlController.text.trim()]
-          : [],
+      imageUrls: imageUrls,
       sellerId: user.id,
       sellerName: user.name,
       sellerAvatar: user.avatarUrl,
       postedDate: DateTime.now(),
     );
-    await service.addMarketplaceItem(item);
+    if (widget.editingItem != null && widget.editingItem is MarketplaceItem) {
+      await service.updateMarketplaceItem((widget.editingItem as MarketplaceItem).id, {
+        'title': item.title,
+        'price': item.price,
+        'description': item.description,
+        'condition': item.condition,
+        'category': item.category,
+        'imageUrls': item.imageUrls,
+      });
+    } else {
+      await service.addMarketplaceItem(item);
+    }
   }
 
   Future<void> _submitJob(
     FirestoreService service,
     app_models.User user,
+    List<String> imageUrls,
   ) async {
     final job = Job(
       id: '',
       title: _titleController.text.trim(),
-      companyName: _companyNameController.text.trim(),
       location: _locationController.text.trim(),
       salary: _salaryController.text.trim(),
+      jobType: _jobType,
       description: _contentController.text.trim(),
+      imageUrls: imageUrls,
       requirements: [],
       contactInfo: '',
       authorId: user.id,
       postedDate: DateTime.now(),
     );
-    await service.addJob(job);
+    if (widget.editingItem != null && widget.editingItem is Job) {
+      await service.updateJob((widget.editingItem as Job).id, {
+        'title': job.title,
+        'location': job.location,
+        'salary': job.salary,
+        'jobType': job.jobType,
+        'description': job.description,
+        'imageUrls': job.imageUrls,
+      });
+    } else {
+      await service.addJob(job);
+    }
   }
 
   Future<void> _pickDate() async {
@@ -415,7 +522,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
         title: Text(
-          widget.editingPost != null ? 'Edit Post' : 'Create',
+          widget.editingItem != null ? 'Edit Post' : 'Create',
           style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         backgroundColor: Colors.white,
@@ -433,7 +540,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : Text(
-                      widget.editingPost != null ? 'Update' : 'Post',
+                      widget.editingItem != null ? 'Update' : 'Post',
                       style: const TextStyle(
                         color: Colors.teal,
                         fontWeight: FontWeight.bold,
@@ -547,23 +654,121 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
               const SizedBox(height: 16),
 
-              // Image URL (common)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: _buildField(
-                      controller: _imageUrlController,
-                      label: 'Image URL',
-                      hint: 'https://example.com/image.jpg',
-                      icon: Icons.image_outlined,
-                    ),
+              // Image Selection
+              const Text(
+                'Images (Max 5)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF4B5563),
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (_existingImageUrls.isNotEmpty || _imageBytesList.isNotEmpty)
+                SizedBox(
+                  height: 100,
+                  child: ListView(
+                    scrollDirection: Axis.horizontal,
+                    children: [
+                      ..._existingImageUrls.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final url = entry.value;
+                        return Stack(
+                          key: ValueKey('existing_$idx'),
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                image: DecorationImage(
+                                  image: NetworkImage(url),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: () => setState(() => _existingImageUrls.removeAt(idx)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                      ..._imageBytesList.asMap().entries.map((entry) {
+                        final idx = entry.key;
+                        final bytes = entry.value;
+                        return Stack(
+                          key: ValueKey('new_$idx'),
+                          children: [
+                            Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                image: DecorationImage(
+                                  image: MemoryImage(bytes),
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 12,
+                              child: GestureDetector(
+                                onTap: () => setState(() => _imageBytesList.removeAt(idx)),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.black54,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                      if (_existingImageUrls.length + _imageBytesList.length < 5)
+                        GestureDetector(
+                          onTap: _isUploadingImage ? null : _pickImages,
+                          child: Container(
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              color: Colors.teal.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.teal.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: _isUploadingImage
+                                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.add_photo_alternate_outlined, color: Colors.teal, size: 32),
+                          ),
+                        ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 2),
-                    height: 56,
-                    width: 56,
+                )
+              else
+                GestureDetector(
+                  onTap: _isUploadingImage ? null : _pickImages,
+                  child: Container(
+                    height: 100,
+                    width: double.infinity,
                     decoration: BoxDecoration(
                       color: Colors.teal.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
@@ -572,60 +777,17 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                       ),
                     ),
                     child: _isUploadingImage
-                        ? const Center(
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : IconButton(
-                            onPressed: _pickImage,
-                            icon: const Icon(
-                              Icons.add_photo_alternate_outlined,
-                            ),
-                            color: Colors.teal,
-                            tooltip: 'Upload Image',
+                        ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.add_photo_alternate_outlined, color: Colors.teal, size: 32),
+                              SizedBox(height: 4),
+                              Text('Add Photos', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.w600)),
+                            ],
                           ),
                   ),
-                ],
-              ),
-              if (_imageBytes != null) ...[
-                const SizedBox(height: 12),
-                Stack(
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: Image.memory(
-                        _imageBytes!,
-                        height: 200,
-                        width: double.infinity,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: GestureDetector(
-                        onTap: () {
-                          setState(() {
-                            _imageBytes = null;
-                            _imageUrlController.clear();
-                          });
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
-                            color: Colors.black54,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
-              ],
 
               const SizedBox(height: 16),
 
@@ -770,15 +932,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
               // ── Job-specific fields ──
               if (_selectedCategory == 'Job') ...[
-                _buildField(
-                  controller: _companyNameController,
-                  label: 'Company Name',
-                  hint: 'e.g. Samsung Electronics',
-                  icon: Icons.business_outlined,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
                 _buildDropdown(
                   label: 'Job Type',
                   value: _jobType,
@@ -849,6 +1002,75 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
+              ],
+
+              // ── Quote Post Preview ──
+              if (widget.sharedItemId != null) ...[
+                Container(
+                  margin: const EdgeInsets.only(bottom: 16),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[300]!),
+                  ),
+                  child: Row(
+                    children: [
+                      if (widget.sharedItemImage != null && widget.sharedItemImage!.isNotEmpty)
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.network(
+                            widget.sharedItemImage!,
+                            width: 60,
+                            height: 60,
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              width: 60,
+                              height: 60,
+                              color: Colors.grey[300],
+                              child: const Icon(Icons.image_not_supported, color: Colors.grey),
+                            ),
+                          ),
+                        )
+                      else
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Icon(Icons.article, color: Colors.grey),
+                        ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Shared ${widget.sharedItemType ?? 'Item'}',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.teal[600],
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.sharedItemTitle ?? 'Untitled',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
 
               // Content field (common)
