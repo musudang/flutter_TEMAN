@@ -10,6 +10,8 @@ class Job {
   final List<String> requirements;
   final String contactInfo;
   final String authorId;
+  final String authorName;
+  final String authorAvatar;
   final DateTime postedDate;
   final DateTime? deadline;
   final bool isActive;
@@ -25,6 +27,8 @@ class Job {
     required this.requirements,
     required this.contactInfo,
     required this.authorId,
+    required this.authorName,
+    required this.authorAvatar,
     required this.postedDate,
     this.deadline,
     this.isActive = true,
@@ -43,6 +47,8 @@ class Job {
       requirements: List<String>.from(data['requirements'] ?? []),
       contactInfo: data['contactInfo'] ?? '',
       authorId: data['authorId'] ?? '',
+      authorName: data['authorName'] ?? 'Unknown',
+      authorAvatar: data['authorAvatar'] ?? '',
       postedDate:
           (data['postedDate'] as Timestamp?)?.toDate() ?? DateTime.now(),
       deadline: data['deadline'] != null

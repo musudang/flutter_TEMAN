@@ -11,11 +11,19 @@ import '../models/auth_result.dart'; // import the new AuthResult and AuthUser
 class AuthService extends ChangeNotifier {
   final firebase_auth.FirebaseAuth _auth = firebase_auth.FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  final google_sign_in.GoogleSignIn _googleSignIn = google_sign_in.GoogleSignIn(
-    clientId: kIsWeb
-        ? '1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com'
-        : null,
-  );
+  final google_sign_in.GoogleSignIn _googleSignIn = google_sign_in.GoogleSignIn.instance;
+  bool _googleSignInInitialized = false;
+
+  Future<void> _ensureGoogleSignInInitialized() async {
+    if (!_googleSignInInitialized) {
+      await _googleSignIn.initialize(
+        clientId: kIsWeb
+            ? '1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com'
+            : null,
+      );
+      _googleSignInInitialized = true;
+    }
+  }
 
   // Convert Firebase User to our unified AuthUser
   AuthUser? _toAuthUser(firebase_auth.User? firebaseUser) {
@@ -235,7 +243,9 @@ class AuthService extends ChangeNotifier {
     await _auth.signOut();
     // Google 계정 연결도 끊어서 다음 로그인 시 계정 선택 팝업이 뜨도록 함
     try {
-      await _googleSignIn.disconnect();
+      if (_googleSignInInitialized) {
+        await _googleSignIn.disconnect();
+      }
     } catch (_) {
       // Google로 로그인하지 않은 경우 무시
     }
@@ -244,22 +254,34 @@ class AuthService extends ChangeNotifier {
   // Sign In with Google
   Future<AuthResult> signInWithGoogle() async {
     try {
-      final google_sign_in.GoogleSignInAccount? googleUser = await _googleSignIn
-          .signIn();
-      if (googleUser == null) {
-        return AuthResult.failure('Google sign in cancelled');
+      firebase_auth.UserCredential result;
+
+      if (kIsWeb) {
+        // On Web, use FirebaseAuth's built-in popup to allow custom UI buttons
+        final googleProvider = firebase_auth.GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+        result = await _auth.signInWithPopup(googleProvider);
+      } else {
+        // On Mobile, use google_sign_in package
+        await _ensureGoogleSignInInitialized();
+        final google_sign_in.GoogleSignInAccount googleUser = await _googleSignIn
+            .authenticate();
+
+        final google_sign_in.GoogleSignInAuthentication googleAuth =
+            googleUser.authentication;
+            
+        final authz = await googleUser.authorizationClient.authorizationForScopes(['email', 'profile']);
+
+        final firebase_auth.AuthCredential credential =
+            firebase_auth.GoogleAuthProvider.credential(
+              accessToken: authz?.accessToken,
+              idToken: googleAuth.idToken,
+            );
+
+        result = await _auth.signInWithCredential(credential);
       }
 
-      final google_sign_in.GoogleSignInAuthentication googleAuth =
-          await googleUser.authentication;
-      final firebase_auth.AuthCredential credential =
-          firebase_auth.GoogleAuthProvider.credential(
-            accessToken: googleAuth.accessToken,
-            idToken: googleAuth.idToken,
-          );
-
-      final firebase_auth.UserCredential result = await _auth
-          .signInWithCredential(credential);
       final firebase_auth.User? user = result.user;
 
       if (user != null) {

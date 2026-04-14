@@ -34,6 +34,14 @@ mixin MarketplaceService on ChangeNotifier {
         });
   }
 
+  Future<MarketplaceItem?> getMarketplaceItemById(String itemId) async {
+    final doc = await _db.collection('marketplace').doc(itemId).get();
+    if (doc.exists) {
+      return MarketplaceItem.fromFirestore(doc);
+    }
+    return null;
+  }
+
   Future<void> addMarketplaceItem(
     MarketplaceItem item, [
     List<File> imageFiles = const [],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/marketplace_model.dart';
 import '../services/firestore_service.dart';
+import '../services/auth_service.dart';
 
 class CreateMarketplaceItemScreen extends StatefulWidget {
   final MarketplaceItem? editingItem;
@@ -64,6 +65,8 @@ class _CreateMarketplaceItemScreenState
       });
 
       try {
+        final authService = Provider.of<AuthService>(context, listen: false);
+        final user = authService.currentUser;
         final price = double.tryParse(_priceController.text.trim()) ?? 0.0;
 
         final item = MarketplaceItem(
@@ -74,9 +77,9 @@ class _CreateMarketplaceItemScreenState
           condition: _condition,
           category: _selectedCategory,
           imageUrls: [], // Placeholder for now
-          sellerId: '',
-          sellerName: '',
-          sellerAvatar: '',
+          sellerId: user?.uid ?? '',
+          sellerName: user?.displayName ?? 'Unknown',
+          sellerAvatar: user?.photoURL ?? '',
           postedDate: DateTime.now(),
         );
 

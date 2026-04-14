@@ -82,6 +82,7 @@ mixin SearchService on ChangeNotifier {
               content: data['content'] ?? '',
               authorId: data['authorId'] ?? '',
               authorName: data['authorName'] ?? 'Unknown',
+              authorAvatar: data['authorAvatar'] ?? '',
               timestamp:
                   (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
               answersCount: data['answersCount'] ?? 0,

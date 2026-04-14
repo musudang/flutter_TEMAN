@@ -3,7 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/job_model.dart';
 import '../services/firestore_service.dart';
 import 'package:intl/intl.dart';
-import 'create_job_screen.dart';
+import 'create_post_screen.dart';
 import 'chat_screen.dart';
 import '../widgets/report_dialog.dart';
 
@@ -209,7 +209,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => CreateJobScreen(editingJob: job),
+                      builder: (context) => CreatePostScreen(editingItem: job),
                     ),
                   );
                 } else if (value == 'delete') {
@@ -402,6 +402,49 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
             ),
 
             const SizedBox(height: 24),
+            const Divider(),
+
+            // Employer Profile
+            const SizedBox(height: 16),
+            const Text(
+              'Employer',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: widget.job.authorAvatar.isNotEmpty
+                      ? NetworkImage(widget.job.authorAvatar)
+                      : null,
+                  child: widget.job.authorAvatar.isEmpty
+                      ? const Icon(Icons.person)
+                      : null,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.job.authorName,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Text(
+                        'Verified Employer',
+                        style: TextStyle(color: Colors.grey, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+
             const Divider(),
 
             // Contact

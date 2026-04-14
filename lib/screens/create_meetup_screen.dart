@@ -25,6 +25,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   final _descriptionController = TextEditingController();
   final _locationController = TextEditingController();
   final _imageUrlController = TextEditingController(); // Added for URL input
+  String? _existingImageUrl; // Track existing image URL during edit
 
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
@@ -39,7 +40,10 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
       _titleController.text = widget.editingMeetup!.title;
       _descriptionController.text = widget.editingMeetup!.description;
       _locationController.text = widget.editingMeetup!.location;
-      _imageUrlController.text = widget.editingMeetup!.imageUrls.isNotEmpty ? widget.editingMeetup!.imageUrls.first : '';
+      if (widget.editingMeetup!.imageUrls.isNotEmpty) {
+        _existingImageUrl = widget.editingMeetup!.imageUrls.first;
+        _imageUrlController.text = _existingImageUrl!;
+      }
       _selectedDate = widget.editingMeetup!.dateTime;
       _selectedTime = TimeOfDay.fromDateTime(widget.editingMeetup!.dateTime);
       _selectedCategory = widget.editingMeetup!.category;
@@ -65,6 +69,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
 
       setState(() {
         _imageBytes = compressedBytes ?? rawBytes;
+        _existingImageUrl = null; // Clear existing image since user picked a new one
         _imageUrlController.clear(); // Clear URL if local image picked
         _isUploadingImage = false;
       });
@@ -131,7 +136,8 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
           return;
         }
 
-        // Upload image if selected
+        // Upload image if a new one was selected
+        String? newUploadedUrl;
         if (_imageBytes != null) {
           setState(() => _isUploadingImage = true);
           final ref = FirebaseStorage.instance
@@ -144,14 +150,15 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
             SettableMetadata(contentType: 'image/jpeg'),
           );
           await uploadTask;
-          final url = await ref.getDownloadURL();
-          _imageUrlController.text = url;
+          newUploadedUrl = await ref.getDownloadURL();
           setState(() => _isUploadingImage = false);
         }
 
-        // Use controller URL or fallback default
-        final String finalImageUrl = _imageUrlController.text.trim().isNotEmpty
-            ? _imageUrlController.text.trim()
+        // Priority: newly uploaded > existing image > fallback default
+        final String finalImageUrl = newUploadedUrl ??
+            (_existingImageUrl ?? '') .trim();
+        final String safeImageUrl = finalImageUrl.isNotEmpty
+            ? finalImageUrl
             : 'https://images.unsplash.com/photo-1517457373958-b7bdd4587205?ixlib=rb-1.2.1&auto=format&fit=crop&w=500&q=60';
 
         final dateTime = DateTime(
@@ -214,7 +221,8 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
             'category': _selectedCategory.name,
             'maxParticipants': _maxParticipants,
             'requiresApproval': _requiresApproval,
-            'imageUrl': finalImageUrl,
+            'imageUrl': safeImageUrl,
+            'imageUrls': [safeImageUrl],
           });
           if (mounted) {
             Navigator.pop(context);
@@ -235,7 +243,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
             requiresApproval: _requiresApproval, // [NEW] Accept/Decline toggle
             host: user,
             participantIds: [user.id],
-            imageUrls: finalImageUrl.isNotEmpty ? [finalImageUrl] : [],
+            imageUrls: safeImageUrl.isNotEmpty ? [safeImageUrl] : [],
             createdAt: DateTime.now(),
           );
 
@@ -308,6 +316,49 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                   ),
                 ],
               ),
+              // Show existing image preview (from edit)
+              if (_imageBytes == null && _existingImageUrl != null && _existingImageUrl!.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Stack(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        _existingImageUrl!,
+                        height: 200,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (ctx, err, stack) => Container(
+                          height: 200,
+                          color: Colors.grey[200],
+                          child: const Center(child: Icon(Icons.broken_image, size: 48, color: Colors.grey)),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _existingImageUrl = null;
+                            _imageUrlController.clear();
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: const BoxDecoration(
+                            color: Colors.black54,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              // Show newly picked image preview
               if (_imageBytes != null) ...[
                 const SizedBox(height: 12),
                 Stack(
@@ -337,11 +388,7 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
                             color: Colors.black54,
                             shape: BoxShape.circle,
                           ),
-                          child: const Icon(
-                            Icons.close,
-                            color: Colors.white,
-                            size: 20,
-                          ),
+                          child: const Icon(Icons.close, color: Colors.white, size: 20),
                         ),
                       ),
                     ),

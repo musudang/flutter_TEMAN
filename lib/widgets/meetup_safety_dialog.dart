@@ -11,12 +11,17 @@ class MeetupSafetyDialog extends StatefulWidget {
 class _MeetupSafetyDialogState extends State<MeetupSafetyDialog> {
   bool _hideForToday = false;
 
-  void _onConfirm() async {
+  Future<void> _onConfirm() async {
     if (_hideForToday) {
-      final prefs = await SharedPreferences.getInstance();
-      final today = DateTime.now();
-      final todayStr = '${today.year}-${today.month}-${today.day}';
-      await prefs.setString('meetup_safety_guide_hidden_date', todayStr);
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final todayStr = DateTime.now().toIso8601String().split('T')[0];
+        await prefs.setString('meetup_safety_guide_hidden_date', todayStr);
+        // Force flush to disk so value is available immediately
+        await prefs.reload();
+      } catch (e) {
+        debugPrint('Error saving safety dialog preference: $e');
+      }
     }
     if (mounted) {
       Navigator.of(context).pop();

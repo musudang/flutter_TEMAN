@@ -44,6 +44,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final List<Uint8List> _imageBytesList = [];
   List<String> _existingImageUrls = [];
   bool _isUploadingImage = false;
+  bool _isAnonymous = false;
 
   Future<void> _pickImages() async {
     if (_imageBytesList.length >= 5) {
@@ -290,6 +291,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           folder = 'meetups';
         } else if (_selectedCategory == 'Q&A') {
           folder = 'questions';
+        } else if (_selectedCategory == 'Job') {
+          folder = 'jobs';
         }
 
         for (var bytes in _imageBytesList) {
@@ -361,6 +364,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               sharedItemType: widget.sharedItemType,
               sharedItemTitle: widget.sharedItemTitle,
               sharedItemImage: widget.sharedItemImage,
+              isAnonymous: _isAnonymous,
             );
           }
         }
@@ -482,6 +486,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       requirements: [],
       contactInfo: '',
       authorId: user.id,
+      authorName: user.name,
+      authorAvatar: user.avatarUrl,
       postedDate: DateTime.now(),
     );
     if (widget.editingItem != null && widget.editingItem is Job) {
@@ -576,8 +582,15 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     return Padding(
                       padding: const EdgeInsets.only(right: 10),
                       child: GestureDetector(
-                        onTap: () =>
-                            setState(() => _selectedCategory = cat['label']),
+                        onTap: () => setState(() {
+                          _selectedCategory = cat['label'];
+                          // Reset anonymous toggle for non-eligible categories
+                          if (_selectedCategory != 'General' &&
+                              _selectedCategory != 'Q&A' &&
+                              _selectedCategory != 'Event') {
+                            _isAnonymous = false;
+                          }
+                        }),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(
@@ -1071,6 +1084,51 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     ],
                   ),
                 ),
+              ],
+
+              // ── Anonymous posting toggle (only for General, Q&A, Event) ──
+              if (_selectedCategory == 'General' ||
+                  _selectedCategory == 'Q&A' ||
+                  _selectedCategory == 'Event') ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: _isAnonymous
+                        ? Colors.deepPurple.withValues(alpha: 0.08)
+                        : Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _isAnonymous
+                          ? Colors.deepPurple.withValues(alpha: 0.3)
+                          : Colors.grey[200]!,
+                    ),
+                  ),
+                  child: CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text(
+                      'Post Anonymously',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF4B5563),
+                      ),
+                    ),
+                    subtitle: const Text(
+                      'Your name and profile will be hidden from others.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    secondary: Icon(
+                      _isAnonymous ? Icons.visibility_off : Icons.visibility,
+                      color: _isAnonymous ? Colors.deepPurple : Colors.grey,
+                    ),
+                    value: _isAnonymous,
+                    activeColor: Colors.deepPurple,
+                    onChanged: (v) => setState(() => _isAnonymous = v ?? false),
+                    controlAffinity: ListTileControlAffinity.trailing,
+                  ),
+                ),
+                const SizedBox(height: 8),
               ],
 
               // Content field (common)

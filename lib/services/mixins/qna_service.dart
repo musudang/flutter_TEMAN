@@ -41,6 +41,7 @@ mixin QnaService on ChangeNotifier implements QnaDependencies {
     String content,
     String authorId,
     String authorName,
+    String authorAvatar,
   ) async {
     if (_auth.currentUser == null) {
       debugPrint('Error: User must be logged in to write to Firestore');
@@ -51,6 +52,7 @@ mixin QnaService on ChangeNotifier implements QnaDependencies {
       'content': content,
       'authorId': authorId,
       'authorName': authorName,
+      'authorAvatar': authorAvatar,
       'timestamp': FieldValue.serverTimestamp(),
       'answersCount': 0,
     });

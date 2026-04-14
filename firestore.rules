@@ -29,6 +29,11 @@ service cloud.firestore {
         (userDoc.data.role == 'admin' || userDoc.data.isAdmin == true || userDoc.data.isAdmin == 'true');
     }
 
+    // Helper to check if a field is not being changed
+    function isUnchanged(field) {
+      return !(field in request.resource.data.diff(resource.data).affectedKeys());
+    }
+
     // ==========================================================
     // NOTICES
     // ==========================================================
@@ -45,7 +50,7 @@ service cloud.firestore {
     match /posts/{postId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+      allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'comments', 'reportCount'])
       );
@@ -58,7 +63,7 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-        allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+        allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount'])
         );
@@ -70,7 +75,7 @@ service cloud.firestore {
     match /meetups/{meetupId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.hostId == request.auth.uid;
-      allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+      allow update: if (isDocumentOwner(resource.data) && isUnchanged('hostId')) || isAdmin() || (
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
           'likes', 'likedBy', 'scrappedBy', 'comments', 
@@ -85,7 +90,7 @@ service cloud.firestore {
       match /comments/{commentId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-        allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+        allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount'])
         );
@@ -97,7 +102,7 @@ service cloud.firestore {
     match /jobs/{jobId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+      allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'reportCount'])
       );
@@ -109,10 +114,10 @@ service cloud.firestore {
     // Marketplace: Public Read, Owner Write + Public Like/Report
     match /marketplace/{itemId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+      allow create: if isAuthenticated() && request.resource.data.sellerId == request.auth.uid;
+      allow update: if (isDocumentOwner(resource.data) && (isUnchanged('sellerId') || isUnchanged('authorId'))) || isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'reportCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'reportCount', 'isSold'])
       );
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
         isAuthenticated() && resource.data.reportCount >= 5
@@ -162,12 +167,14 @@ service cloud.firestore {
       // Profiles are readable by authenticated users
       allow read: if isAuthenticated(); 
       
-      allow create: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+                      (!('role' in request.resource.data) || request.resource.data.role == 'user') &&
+                      (!('isAdmin' in request.resource.data) || request.resource.data.isAdmin == false || request.resource.data.isAdmin == 'false');
       allow delete: if isOwner(userId) || isAdmin();
       
-      // A user can fully update their own profile
+      // A user can fully update their own profile EXCEPT role and isAdmin
       // OR another user can ONLY update specific social fields
-      allow update: if isOwner(userId) || (
+      allow update: if (isOwner(userId) && isUnchanged('role') && isUnchanged('isAdmin')) || (
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['followers', 'following', 'blockedBy'])
       ) || isAdmin();

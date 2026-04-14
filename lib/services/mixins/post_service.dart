@@ -428,6 +428,7 @@ mixin PostService on ChangeNotifier {
     String? sharedItemType,
     String? sharedItemTitle,
     String? sharedItemImage,
+    bool isAnonymous = false,
   }) async {
     if (_auth.currentUser == null) {
       throw Exception('User must be logged in to post');
@@ -446,6 +447,7 @@ mixin PostService on ChangeNotifier {
         'imageUrls': imageUrls,
         'category': category,
         'authorAvatar': authorAvatar,
+        'isAnonymous': isAnonymous,
       };
 
       if (sharedItemId != null) docData['sharedItemId'] = sharedItemId;

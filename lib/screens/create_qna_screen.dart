@@ -68,7 +68,13 @@ class _CreateQnaScreenState extends State<CreateQnaScreen> {
           );
         }
       } else {
-        await firestoreService.addQuestion(title, content, user.id, user.name);
+        await firestoreService.addQuestion(
+          title,
+          content,
+          user.id,
+          user.name,
+          user.avatarUrl,
+        );
 
         if (mounted) {
           Navigator.pop(context);

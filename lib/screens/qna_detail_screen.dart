@@ -163,11 +163,16 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
                           children: [
                             CircleAvatar(
                               radius: 12,
-                              backgroundColor: Colors.grey[200],
-                              child: Text(
-                                widget.question.authorName[0].toUpperCase(),
-                                style: const TextStyle(fontSize: 10),
-                              ),
+                              backgroundImage:
+                                  widget.question.authorAvatar.isNotEmpty
+                                      ? NetworkImage(widget.question.authorAvatar)
+                                      : null,
+                              child: widget.question.authorAvatar.isEmpty
+                                  ? Text(
+                                      widget.question.authorName[0].toUpperCase(),
+                                      style: const TextStyle(fontSize: 10),
+                                    )
+                                  : null,
                             ),
                             const SizedBox(width: 8),
                             Text(

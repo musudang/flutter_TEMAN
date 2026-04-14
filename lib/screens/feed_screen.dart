@@ -805,31 +805,37 @@ class _FeedScreenState extends State<FeedScreen> {
             StreamBuilder<app_models.User?>(
               stream: firestoreService.getUserStream(post.authorId),
               builder: (context, userSnap) {
-                final user = userSnap.data;
-                final authorName = user?.name ?? post.authorName;
-                final authorAvatar = user?.avatarUrl ?? '';
+              final user = userSnap.data;
+                final authorName = post.isAnonymous
+                    ? 'Anonymous'
+                    : (user?.name ?? post.authorName);
+                final authorAvatar = post.isAnonymous
+                    ? ''
+                    : (user?.avatarUrl ?? '');
 
                 return Row(
                   children: [
                     GestureDetector(
-                      onTap: () {
-                        if (post.authorId == uid) {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const ProfileScreen(),
-                            ),
-                          );
-                        } else {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) =>
-                                  UserProfileScreen(userId: post.authorId),
-                            ),
-                          );
-                        }
-                      },
+                      onTap: post.isAnonymous
+                          ? null
+                          : () {
+                              if (post.authorId == uid) {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const ProfileScreen(),
+                                  ),
+                                );
+                              } else {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        UserProfileScreen(userId: post.authorId),
+                                  ),
+                                );
+                              }
+                            },
                       child: CircleAvatar(
                         radius: 20,
                         backgroundColor: Colors.teal[50],
@@ -855,25 +861,27 @@ class _FeedScreenState extends State<FeedScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           GestureDetector(
-                            onTap: () {
-                              if (post.authorId == uid) {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const ProfileScreen(),
-                                  ),
-                                );
-                              } else {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => UserProfileScreen(
-                                      userId: post.authorId,
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
+                            onTap: post.isAnonymous
+                                ? null
+                                : () {
+                                    if (post.authorId == uid) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => const ProfileScreen(),
+                                        ),
+                                      );
+                                    } else {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => UserProfileScreen(
+                                            userId: post.authorId,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
                             child: Text(
                               authorName,
                               style: const TextStyle(

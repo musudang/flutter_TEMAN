@@ -126,30 +126,36 @@ class PostDetailScreen extends StatelessWidget {
             stream: fs.getUserStream(post.authorId),
             builder: (ctx, userSnap) {
               final user = userSnap.data;
-              final authorName = user?.name ?? post.authorName;
-              final authorAvatar = user?.avatarUrl ?? '';
+              final authorName = post.isAnonymous
+                  ? 'Anonymous'
+                  : (user?.name ?? post.authorName);
+              final authorAvatar = post.isAnonymous
+                  ? ''
+                  : (user?.avatarUrl ?? '');
 
               return Row(
                 children: [
                   GestureDetector(
-                    onTap: () {
-                      if (post.authorId == uid) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ProfileScreen(),
-                          ),
-                        );
-                      } else {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                UserProfileScreen(userId: post.authorId),
-                          ),
-                        );
-                      }
-                    },
+                    onTap: post.isAnonymous
+                        ? null
+                        : () {
+                            if (post.authorId == uid) {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const ProfileScreen(),
+                                ),
+                              );
+                            } else {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      UserProfileScreen(userId: post.authorId),
+                                ),
+                              );
+                            }
+                          },
                     child: CircleAvatar(
                       radius: 20,
                       backgroundColor: Colors.teal[50],
@@ -175,24 +181,26 @@ class PostDetailScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         GestureDetector(
-                          onTap: () {
-                            if (post.authorId == uid) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const ProfileScreen(),
-                                ),
-                              );
-                            } else {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) =>
-                                      UserProfileScreen(userId: post.authorId),
-                                ),
-                              );
-                            }
-                          },
+                          onTap: post.isAnonymous
+                              ? null
+                              : () {
+                                  if (post.authorId == uid) {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => const ProfileScreen(),
+                                      ),
+                                    );
+                                  } else {
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) =>
+                                            UserProfileScreen(userId: post.authorId),
+                                      ),
+                                    );
+                                  }
+                                },
                           child: Text(
                             authorName,
                             style: const TextStyle(
@@ -488,7 +496,7 @@ class PostDetailScreen extends StatelessWidget {
                         itemType: 'post',
                         itemTitle: post.title.isNotEmpty
                             ? post.title
-                            : 'Post by ${post.authorName}',
+                            : 'Post by ${post.isAnonymous ? 'Anonymous' : post.authorName}',
                         itemDescription: post.content,
                       ),
                     );

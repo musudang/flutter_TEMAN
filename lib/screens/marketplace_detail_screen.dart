@@ -6,7 +6,7 @@ import 'package:intl/intl.dart';
 import 'user_profile_screen.dart';
 import 'profile_screen.dart';
 import 'chat_screen.dart';
-import 'create_marketplace_item_screen.dart';
+import 'create_post_screen.dart';
 import '../widgets/report_dialog.dart';
 
 class MarketplaceDetailScreen extends StatefulWidget {
@@ -75,7 +75,7 @@ class _MarketplaceDetailScreenState extends State<MarketplaceDetailScreen> {
                     context,
                     MaterialPageRoute(
                       builder: (context) =>
-                          CreateMarketplaceItemScreen(editingItem: widget.item),
+                          CreatePostScreen(editingItem: widget.item),
                     ),
                   );
                 } else if (value == 'delete') {

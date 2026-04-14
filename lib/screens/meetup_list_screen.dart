@@ -29,6 +29,8 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
 
   Future<void> _checkAndShowSafetyDialog() async {
     final prefs = await SharedPreferences.getInstance();
+    // Force reload to get the latest persisted value
+    await prefs.reload();
     final hiddenDateStr = prefs.getString('meetup_safety_guide_hidden_date');
     final todayStr = DateTime.now().toIso8601String().split('T')[0];
 

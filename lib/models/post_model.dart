@@ -22,6 +22,9 @@ class Post {
   final String? sharedItemType;
   final String? sharedItemTitle;
   final String? sharedItemImage;
+  
+  // [NEW] Anonymous posting field
+  final bool isAnonymous;
 
   Post({
     required this.id,
@@ -43,6 +46,7 @@ class Post {
     this.sharedItemType,
     this.sharedItemTitle,
     this.sharedItemImage,
+    this.isAnonymous = false,
   });
 
   factory Post.fromFirestore(DocumentSnapshot doc) {
@@ -69,6 +73,7 @@ class Post {
       sharedItemType: data['sharedItemType'],
       sharedItemTitle: data['sharedItemTitle'],
       sharedItemImage: data['sharedItemImage'],
+      isAnonymous: data['isAnonymous'] ?? false,
     );
   }
 }

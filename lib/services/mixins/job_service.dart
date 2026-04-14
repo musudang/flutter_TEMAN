@@ -28,6 +28,14 @@ mixin JobService on ChangeNotifier {
     });
   }
 
+  Future<Job?> getJobById(String jobId) async {
+    final doc = await _db.collection('jobs').doc(jobId).get();
+    if (doc.exists) {
+      return Job.fromFirestore(doc);
+    }
+    return null;
+  }
+
   Future<void> addJob(Job job) async {
     if (_auth.currentUser == null) {
       throw Exception('User must be logged in to post a job');
@@ -43,6 +51,8 @@ mixin JobService on ChangeNotifier {
         'requirements': job.requirements,
         'contactInfo': job.contactInfo,
         'authorId': _auth.currentUser!.uid,
+        'authorName': job.authorName,
+        'authorAvatar': job.authorAvatar,
         'postedDate': FieldValue.serverTimestamp(),
         'deadline': job.deadline != null
             ? Timestamp.fromDate(job.deadline!)
