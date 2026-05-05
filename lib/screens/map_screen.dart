@@ -2,9 +2,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
-import '../widgets/platform_map.dart';
 import 'chat_screen.dart';
 
 class MapScreen extends StatefulWidget {
@@ -21,6 +22,7 @@ class _MapScreenState extends State<MapScreen> {
   List<app_models.User> _nearbyFriends = [];
   bool _locationSharingEnabled = true;
   Timer? _refreshTimer;
+  final MapController _mapController = MapController();
 
   @override
   void initState() {
@@ -31,12 +33,12 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _mapController.dispose();
     super.dispose();
   }
 
   Future<void> _initializeMap() async {
     try {
-      // Load current user's sharing preference
       final firestoreService =
           Provider.of<FirestoreService>(context, listen: false);
       final currentUser = await firestoreService.getCurrentUser();
@@ -71,7 +73,6 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (mounted && _currentPosition != null) {
-        // Only update location in Firestore if sharing is enabled
         if (_locationSharingEnabled) {
           await firestoreService.updateUserLocation(
             _currentPosition!.latitude,
@@ -82,7 +83,6 @@ class _MapScreenState extends State<MapScreen> {
         await _refreshFriends();
         setState(() => _isLoading = false);
 
-        // Auto-refresh friends list every 30 seconds
         _refreshTimer = Timer.periodic(
           const Duration(seconds: 30),
           (_) => _refreshFriends(),
@@ -124,14 +124,12 @@ class _MapScreenState extends State<MapScreen> {
     await firestoreService.toggleLocationSharing(newValue);
 
     if (newValue && _currentPosition != null) {
-      // Re-enable: upload location again
       await firestoreService.updateUserLocation(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
       );
     }
 
-    // Refresh friends list (will be empty if disabled)
     await _refreshFriends();
   }
 
@@ -192,13 +190,98 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
+    final myLatLng = LatLng(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+    );
+
     return Scaffold(
       body: Stack(
         children: [
-          // Map (platform-specific)
-          PlatformMapWidget(
-            latitude: _currentPosition!.latitude,
-            longitude: _currentPosition!.longitude,
+          // flutter_map — works on web, mobile, desktop
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: myLatLng,
+              initialZoom: 14.0,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.teman.app',
+              ),
+              // 3km radius circle
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: myLatLng,
+                    radius: 3000,
+                    useRadiusInMeter: true,
+                    color: Colors.red.withValues(alpha: 0.08),
+                    borderColor: Colors.red.withValues(alpha: 0.8),
+                    borderStrokeWidth: 2,
+                  ),
+                ],
+              ),
+              // Markers
+              MarkerLayer(
+                markers: [
+                  // My location marker
+                  Marker(
+                    point: myLatLng,
+                    width: 30,
+                    height: 30,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 3),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 6,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  // Friend markers
+                  ..._nearbyFriends
+                      .where((f) => f.latitude != null && f.longitude != null)
+                      .map((f) => Marker(
+                            point: LatLng(f.latitude!, f.longitude!),
+                            width: 40,
+                            height: 40,
+                            child: GestureDetector(
+                              onTap: () => _openChatWithFriend(f),
+                              child: Column(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 4, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: Colors.teal,
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      f.name,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const Icon(Icons.location_pin,
+                                      color: Colors.teal, size: 20),
+                                ],
+                              ),
+                            ),
+                          )),
+                ],
+              ),
+            ],
           ),
 
           // Right-side friend list panel
@@ -221,7 +304,7 @@ class _MapScreenState extends State<MapScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Header with toggle button
+                  // Header
                   Container(
                     padding: const EdgeInsets.only(
                         top: 48, left: 12, right: 8, bottom: 12),
@@ -232,7 +315,7 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                     child: Column(
                       children: [
-                        // Location sharing toggle
+                        // Location toggle
                         Row(
                           children: [
                             Icon(
@@ -262,7 +345,8 @@ class _MapScreenState extends State<MapScreen> {
                             Switch(
                               value: _locationSharingEnabled,
                               onChanged: (_) => _toggleLocationSharing(),
-                              activeTrackColor: Colors.teal.withValues(alpha: 0.5),
+                              activeTrackColor:
+                                  Colors.teal.withValues(alpha: 0.5),
                               activeThumbColor: Colors.teal,
                               materialTapTargetSize:
                                   MaterialTapTargetSize.shrinkWrap,
@@ -281,7 +365,7 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                           ),
                         const SizedBox(height: 8),
-                        // Nearby friends title
+                        // Friends title
                         Row(
                           children: [
                             const Icon(Icons.people,
@@ -299,7 +383,6 @@ class _MapScreenState extends State<MapScreen> {
                                 ),
                               ),
                             ),
-                            // Manual refresh button
                             SizedBox(
                               width: 28,
                               height: 28,
@@ -381,8 +464,7 @@ class _MapScreenState extends State<MapScreen> {
                                       size: 18,
                                       color: Colors.teal,
                                     ),
-                                    onTap: () =>
-                                        _openChatWithFriend(friend),
+                                    onTap: () => _openChatWithFriend(friend),
                                   );
                                 },
                               ),
