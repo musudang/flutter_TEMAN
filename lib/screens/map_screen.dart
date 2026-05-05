@@ -21,6 +21,7 @@ class _MapScreenState extends State<MapScreen> {
   Position? _currentPosition;
   List<app_models.User> _nearbyFriends = [];
   bool _locationSharingEnabled = true;
+  bool _panelOpen = false;
   Timer? _refreshTimer;
   final MapController _mapController = MapController();
 
@@ -106,7 +107,7 @@ class _MapScreenState extends State<MapScreen> {
     final friends = await firestoreService.getNearbyFriends(
       _currentPosition!.latitude,
       _currentPosition!.longitude,
-      radiusInMeters: 3000,
+      radiusInMeters: 1000,
     );
 
     if (mounted) {
@@ -195,10 +196,12 @@ class _MapScreenState extends State<MapScreen> {
       _currentPosition!.longitude,
     );
 
+    final panelHeight = MediaQuery.of(context).size.height * 0.45;
+
     return Scaffold(
       body: Stack(
         children: [
-          // flutter_map — works on web, mobile, desktop
+          // Full-screen map
           FlutterMap(
             mapController: _mapController,
             options: MapOptions(
@@ -210,12 +213,11 @@ class _MapScreenState extends State<MapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.teman.app',
               ),
-              // 3km radius circle
               CircleLayer(
                 circles: [
                   CircleMarker(
                     point: myLatLng,
-                    radius: 3000,
+                    radius: 1000,
                     useRadiusInMeter: true,
                     color: Colors.red.withValues(alpha: 0.08),
                     borderColor: Colors.red.withValues(alpha: 0.8),
@@ -223,10 +225,8 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ],
               ),
-              // Markers
               MarkerLayer(
                 markers: [
-                  // My location marker
                   Marker(
                     point: myLatLng,
                     width: 30,
@@ -245,7 +245,6 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                   ),
-                  // Friend markers
                   ..._nearbyFriends
                       .where((f) => f.latitude != null && f.longitude != null)
                       .map((f) => Marker(
@@ -284,153 +283,153 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
 
-          // Right-side friend list panel
+          // Top-right location toggle chip
           Positioned(
-            right: 0,
-            top: 0,
-            bottom: 0,
-            width: 250,
+            top: MediaQuery.of(context).padding.top + 8,
+            right: 12,
             child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.95),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(-2, 0),
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 8,
                   ),
                 ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Header
-                  Container(
-                    padding: const EdgeInsets.only(
-                        top: 48, left: 12, right: 8, bottom: 12),
+                  Icon(
+                    _locationSharingEnabled
+                        ? Icons.location_on
+                        : Icons.location_off,
+                    color: _locationSharingEnabled ? Colors.teal : Colors.grey,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _locationSharingEnabled ? 'ON' : 'OFF',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color:
+                          _locationSharingEnabled ? Colors.teal : Colors.grey,
+                    ),
+                  ),
+                  SizedBox(
+                    height: 28,
+                    child: Switch(
+                      value: _locationSharingEnabled,
+                      onChanged: (_) => _toggleLocationSharing(),
+                      activeTrackColor: Colors.teal.withValues(alpha: 0.5),
+                      activeThumbColor: Colors.teal,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Bottom sliding panel
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            left: 0,
+            right: 0,
+            bottom: _panelOpen ? 0 : -panelHeight,
+            height: panelHeight + 48, // 48 for the handle
+            child: Column(
+              children: [
+                // Pull handle / toggle button
+                GestureDetector(
+                  onTap: () => setState(() => _panelOpen = !_panelOpen),
+                  child: Container(
+                    width: double.infinity,
+                    height: 48,
                     decoration: BoxDecoration(
-                      border: Border(
-                        bottom: BorderSide(color: Colors.grey.shade200),
+                      color: Colors.white,
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(16),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, -2),
+                        ),
+                      ],
                     ),
                     child: Column(
                       children: [
-                        // Location toggle
-                        Row(
-                          children: [
-                            Icon(
-                              _locationSharingEnabled
-                                  ? Icons.location_on
-                                  : Icons.location_off,
-                              color: _locationSharingEnabled
-                                  ? Colors.teal
-                                  : Colors.grey,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                _locationSharingEnabled
-                                    ? 'Location ON'
-                                    : 'Location OFF',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: _locationSharingEnabled
-                                      ? Colors.teal
-                                      : Colors.grey,
-                                ),
-                              ),
-                            ),
-                            Switch(
-                              value: _locationSharingEnabled,
-                              onChanged: (_) => _toggleLocationSharing(),
-                              activeTrackColor:
-                                  Colors.teal.withValues(alpha: 0.5),
-                              activeThumbColor: Colors.teal,
-                              materialTapTargetSize:
-                                  MaterialTapTargetSize.shrinkWrap,
-                            ),
-                          ],
-                        ),
-                        if (!_locationSharingEnabled)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              'Your location is hidden from others',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ),
                         const SizedBox(height: 8),
-                        // Friends title
+                        // Drag handle bar
+                        Container(
+                          width: 40,
+                          height: 4,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(2),
+                          ),
+                        ),
+                        const SizedBox(height: 6),
                         Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             const Icon(Icons.people,
                                 color: Colors.teal, size: 18),
                             const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                'Nearby Friends (3km)',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: _locationSharingEnabled
-                                      ? Colors.black87
-                                      : Colors.grey,
-                                ),
+                            Text(
+                              'Nearby Friends (${_nearbyFriends.length})',
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
                               ),
                             ),
-                            SizedBox(
-                              width: 28,
-                              height: 28,
-                              child: IconButton(
-                                icon: const Icon(Icons.refresh, size: 18),
-                                padding: EdgeInsets.zero,
-                                onPressed: _locationSharingEnabled
-                                    ? _refreshFriends
-                                    : null,
-                                color: Colors.teal,
-                              ),
+                            const SizedBox(width: 4),
+                            Icon(
+                              _panelOpen
+                                  ? Icons.keyboard_arrow_down
+                                  : Icons.keyboard_arrow_up,
+                              color: Colors.grey,
+                              size: 20,
                             ),
                           ],
                         ),
                       ],
                     ),
                   ),
-                  // Friends list
-                  Expanded(
+                ),
+                // Panel body
+                Expanded(
+                  child: Container(
+                    color: Colors.white,
                     child: !_locationSharingEnabled
                         ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(16.0),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(Icons.location_off,
-                                      size: 40, color: Colors.grey),
-                                  SizedBox(height: 8),
-                                  Text(
-                                    'Enable location sharing\nto see nearby friends',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                        color: Colors.grey, fontSize: 13),
-                                  ),
-                                ],
-                              ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.location_off,
+                                    size: 40, color: Colors.grey),
+                                SizedBox(height: 8),
+                                Text(
+                                  'Enable location sharing\nto see nearby friends',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                      color: Colors.grey, fontSize: 13),
+                                ),
+                              ],
                             ),
                           )
                         : _nearbyFriends.isEmpty
                             ? const Center(
-                                child: Padding(
-                                  padding: EdgeInsets.all(16.0),
-                                  child: Text(
-                                    'No friends found\nwithin 3km.',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(color: Colors.grey),
-                                  ),
+                                child: Text(
+                                  'No friends found within 1km.',
+                                  style: TextStyle(color: Colors.grey),
                                 ),
                               )
                             : ListView.builder(
@@ -469,8 +468,8 @@ class _MapScreenState extends State<MapScreen> {
                                 },
                               ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ],
