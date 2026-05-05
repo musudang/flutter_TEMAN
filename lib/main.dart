@@ -16,6 +16,7 @@ import 'screens/onboarding_screen.dart';
 import 'services/firestore_service.dart';
 import 'services/auth_service.dart';
 import 'models/auth_result.dart';
+import 'providers/feed_state_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +55,7 @@ class MyApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => FirestoreService()),
         ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => FeedStateProvider()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,

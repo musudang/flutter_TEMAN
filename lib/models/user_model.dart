@@ -20,6 +20,9 @@ class User {
   final List<String> blockedUsers;
   final List<String> blockedBy;
 
+  // University affiliation
+  final String universityId;
+
   User({
     required this.id,
     required this.name,
@@ -39,6 +42,7 @@ class User {
     this.following = const [],
     this.blockedUsers = const [],
     this.blockedBy = const [],
+    this.universityId = '',
   });
 
   bool get isAdmin => role == 'admin';

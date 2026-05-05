@@ -9,6 +9,7 @@ import 'mixins/marketplace_service.dart';
 import 'mixins/search_service.dart';
 import 'mixins/notification_service.dart';
 import 'mixins/dev_service.dart';
+import 'mixins/university_service.dart';
 
 class FirestoreService extends ChangeNotifier
     with
@@ -21,4 +22,5 @@ class FirestoreService extends ChangeNotifier
         MarketplaceService,
         SearchService,
         NotificationService,
-        DevService {}
+        DevService,
+        UniversityService {}

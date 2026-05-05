@@ -105,6 +105,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       following: List<String>.from(data['following'] ?? []),
       blockedUsers: List<String>.from(data['blockedUsers'] ?? []),
       blockedBy: List<String>.from(data['blockedBy'] ?? []),
+      universityId: data['universityId'] ?? '',
     );
   }
 
@@ -143,6 +144,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     String? phoneNumber,
     String? email,
     List<String>? interests,
+    String? universityId,
   }) async {
     final uid = currentUserId;
     if (uid == null) return;
@@ -160,6 +162,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     if (phoneNumber != null) data['phoneNumber'] = phoneNumber;
     if (email != null) data['email'] = email;
     if (interests != null) data['interests'] = interests;
+    if (universityId != null) data['universityId'] = universityId;
 
     // We use a WriteBatch to update the user profile AND propagate changes to their posts
     final batch = _db.batch();

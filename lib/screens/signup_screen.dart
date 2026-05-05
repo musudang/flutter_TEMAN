@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/auth_service.dart';
+import '../constants/university_constants.dart';
 import '../widgets/interest_selection_sheet.dart';
 
 class SignupScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _phoneController = TextEditingController();
   List<String> _selectedInterests = [];
   String? _nationality;
+  String? _universityId;
   bool _isLoading = false;
 
   @override
@@ -64,6 +66,7 @@ class _SignupScreenState extends State<SignupScreen> {
         age: int.tryParse(_ageController.text.trim()),
         phoneNumber: _phoneController.text.trim(),
         interests: _selectedInterests,
+        universityId: _universityId ?? '',
       );
 
       setState(() => _isLoading = false);
@@ -199,6 +202,23 @@ class _SignupScreenState extends State<SignupScreen> {
                   ],
                   onChanged: (val) => _nationality = val,
                   validator: (val) => val == null ? 'Select nationality' : null,
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(
+                    labelText: 'University (대학교)',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.school),
+                  ),
+                  items: UniversityConstants.universities
+                      .map((uni) => DropdownMenuItem(
+                            value: uni.id,
+                            child: Text('${uni.nameEn} (${uni.nameKo})'),
+                          ))
+                      .toList(),
+                  onChanged: (val) => _universityId = val,
+                  validator: (val) =>
+                      val == null ? 'Select your university' : null,
                 ),
                 const SizedBox(height: 16),
                 InkWell(

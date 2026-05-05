@@ -6,6 +6,7 @@ import '../models/post_model.dart';
 import 'chat_screen.dart';
 import 'follow_list_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../widgets/university_badge.dart';
 
 /// A screen that shows another user's public profile.
 /// Accessible by tapping a participant avatar in MeetupDetailScreen, etc.
@@ -229,6 +230,17 @@ class UserProfileScreen extends StatelessWidget {
                                   fontWeight: FontWeight.w600,
                                   color: Colors.blue[700],
                                 ),
+                              ),
+                            ),
+                          ],
+                          if (user.universityId.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            UniversityBadge(
+                              universityId: user.universityId,
+                              fontSize: 11,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
                               ),
                             ),
                           ],

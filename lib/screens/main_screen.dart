@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
+import '../providers/feed_state_provider.dart';
 import 'feed_screen.dart';
 import 'conversation_list_screen.dart';
 import 'create_post_screen.dart';
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
+import 'university_feed_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -18,7 +20,14 @@ class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
   final List<Widget> _screens = [
-    const FeedScreen(), // 0 = Home
+    Consumer<FeedStateProvider>(
+      builder: (context, feedState, child) {
+        if (feedState.selectedUniversity != null) {
+          return UniversityFeedScreen(university: feedState.selectedUniversity!);
+        }
+        return const FeedScreen();
+      },
+    ), // 0 = Home (Dynamic Feed)
     const ConversationListScreen(), // 1 = Messages
     const SizedBox(), // 2 = placeholder (Create opens as modal)
     const NotificationsScreen(), // 3 = Notifications
@@ -45,10 +54,19 @@ class _MainScreenState extends State<MainScreen> {
       context,
       listen: false,
     );
+    final feedState = Provider.of<FeedStateProvider>(context);
 
-    return Scaffold(
-      body: IndexedStack(index: _selectedIndex, children: _screens),
-      bottomNavigationBar: Container(
+    return PopScope(
+      canPop: _selectedIndex != 0 || feedState.selectedUniversity == null,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        if (_selectedIndex == 0 && feedState.selectedUniversity != null) {
+          feedState.setUniversity(null);
+        }
+      },
+      child: Scaffold(
+        body: IndexedStack(index: _selectedIndex, children: _screens),
+        bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [
             BoxShadow(
@@ -156,6 +174,7 @@ class _MainScreenState extends State<MainScreen> {
           unselectedLabelStyle: const TextStyle(
             fontWeight: FontWeight.normal,
             fontSize: 12,
+          ),
           ),
         ),
       ),

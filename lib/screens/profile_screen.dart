@@ -16,6 +16,7 @@ import '../models/job_model.dart';
 import '../models/marketplace_model.dart';
 import 'post_detail_screen.dart';
 import 'settings_screen.dart';
+import '../widgets/university_badge.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -276,6 +277,17 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     fontWeight: FontWeight.bold,
                                     color: Colors.orange,
                                   ),
+                                ),
+                              ),
+                            ],
+                            if (user.universityId.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              UniversityBadge(
+                                universityId: user.universityId,
+                                fontSize: 11,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
                                 ),
                               ),
                             ],

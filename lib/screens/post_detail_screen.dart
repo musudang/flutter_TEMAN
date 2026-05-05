@@ -9,6 +9,7 @@ import 'profile_screen.dart';
 import 'share_content_sheet.dart';
 import 'create_post_screen.dart';
 import '../widgets/report_dialog.dart';
+import '../widgets/university_badge.dart';
 
 class PostDetailScreen extends StatelessWidget {
   final String postId;
@@ -263,6 +264,13 @@ class PostDetailScreen extends StatelessWidget {
                                 fontSize: 12,
                               ),
                             ),
+                            if (user != null && user.universityId.isNotEmpty)
+                              Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: UniversityBadge(
+                                  universityId: user.universityId,
+                                ),
+                              ),
                           ],
                         ),
                       ],

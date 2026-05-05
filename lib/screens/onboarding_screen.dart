@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../constants/university_constants.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,7 +13,7 @@ import 'main_screen.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // OnboardingScreen — drives the entire new-user onboarding flow
-// Steps: 0=Rules  1=Name  2=Birthday  3=Gender  4=Welcome
+// Steps: 0=Rules  1=Name  2=Birthday  3=Gender  4=University  5=Extras  6=Welcome
 // ──────────────────────────────────────────────────────────────────────────────
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -23,13 +24,14 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with TickerProviderStateMixin {
-  int _step = 0; // 0..5
+  int _step = 0; // 0..6
 
   // Collected data
   String _name = '';
   DateTime? _birthday;
   String _gender = '';
-  // Optional step 4
+  // Optional step 4 (university) & step 5 (extras)
+  String _universityId = '';
   String _bio = '';
   String _instagram = '';
   List<String> _interests = [];
@@ -85,6 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       bio: _bio,
       instagram: _instagram,
       interests: _interests,
+      universityId: _universityId.isNotEmpty ? _universityId : null,
     );
     if (!mounted) return;
     _nextStep(); // go to step 4 (extras)
@@ -155,6 +158,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           onBack: _prevStep,
         );
       case 4:
+        return _UniversityStep(
+          onNext: (uniId) {
+            _universityId = uniId;
+            _nextStep();
+          },
+          onBack: _prevStep,
+        );
+      case 5:
         return _ProfileExtrasStep(
           onNext: (profilePic, bio, instagram, interests) async {
             setState(() => _isSavingExtras = true);
@@ -196,6 +207,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 instagram: instagram,
                 interests: interests,
                 avatarUrl: avatarUrl,
+                universityId: _universityId.isNotEmpty ? _universityId : null,
               );
 
               _bio = bio;
@@ -227,6 +239,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 instagram: '',
                 interests: [],
                 avatarUrl: avatarUrl,
+                universityId: _universityId.isNotEmpty ? _universityId : null,
               );
             } catch (e) {
               // Ignore
@@ -238,7 +251,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           },
           onBack: _prevStep,
         );
-      case 5:
+      case 6:
         return _WelcomeStep(
           name: _name,
           onEnter: () {
@@ -1055,7 +1068,166 @@ class _GenderOption extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Step 4 — Profile Extras (Optional: Bio, Instagram, Interests)
+// Step 4 — University Selection
+// ──────────────────────────────────────────────────────────────────────────────
+class _UniversityStep extends StatefulWidget {
+  final Function(String universityId) onNext;
+  final VoidCallback onBack;
+  const _UniversityStep({required this.onNext, required this.onBack});
+
+  @override
+  State<_UniversityStep> createState() => _UniversityStepState();
+}
+
+class _UniversityStepState extends State<_UniversityStep> {
+  String? _selectedId;
+
+  @override
+  Widget build(BuildContext context) {
+    final universities = UniversityConstants.universities;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Back button
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 0, 0),
+          child: IconButton(
+            icon: const Icon(
+              Icons.arrow_back_ios,
+              color: Colors.black87,
+              size: 20,
+            ),
+            onPressed: widget.onBack,
+          ),
+        ),
+
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 16),
+                const Text(
+                  '🏫 Which university\nare you from?',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1A1A2E),
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Select your university to join its community.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 24),
+                Expanded(
+                  child: ListView.separated(
+                    itemCount: universities.length,
+                    separatorBuilder: (context, index) => const SizedBox(height: 8),
+                    itemBuilder: (context, index) {
+                      final uni = universities[index];
+                      final color = Color(uni.colorValue);
+                      final isSelected = _selectedId == uni.id;
+                      return GestureDetector(
+                        onTap: () => setState(() => _selectedId = uni.id),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 14,
+                            horizontal: 16,
+                          ),
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? color.withValues(alpha: 0.08)
+                                : Colors.white,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: isSelected ? color : Colors.grey.shade300,
+                              width: isSelected ? 2 : 1.5,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: color.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    uni.shortName,
+                                    style: TextStyle(
+                                      color: color,
+                                      fontWeight: FontWeight.w800,
+                                      fontSize:
+                                          uni.shortName.length > 3 ? 9 : 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 14),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      uni.nameKo,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: isSelected
+                                            ? FontWeight.w700
+                                            : FontWeight.w600,
+                                        color: isSelected
+                                            ? color
+                                            : const Color(0xFF1A1A2E),
+                                      ),
+                                    ),
+                                    Text(
+                                      uni.nameEn,
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.grey.shade500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (isSelected)
+                                Icon(Icons.check_circle, color: color, size: 22),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 0, 28, 32),
+          child: _NextButton(
+            enabled: _selectedId != null,
+            onTap: () {
+              if (_selectedId == null) return;
+              widget.onNext(_selectedId!);
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Step 5 — Profile Extras (Optional: Bio, Instagram, Interests)
 // ──────────────────────────────────────────────────────────────────────────────
 class _ProfileExtrasStep extends StatefulWidget {
   final Function(

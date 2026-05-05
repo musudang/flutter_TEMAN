@@ -9,6 +9,7 @@ import '../services/auth_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../widgets/interest_selection_sheet.dart';
 import '../utils/image_compress_util.dart';
+import '../constants/university_constants.dart';
 
 class EditProfileScreen extends StatefulWidget {
   final app_models.User user;
@@ -30,6 +31,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _phoneController;
   late TextEditingController _emailController;
   late List<String> _selectedInterests;
+  String _selectedUniversityId = '';
 
   // 비밀번호 변경
   final _currentPasswordController = TextEditingController();
@@ -61,6 +63,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _phoneController = TextEditingController(text: widget.user.phoneNumber);
     _emailController = TextEditingController(text: widget.user.email);
     _selectedInterests = List<String>.from(widget.user.interests);
+    _selectedUniversityId = widget.user.universityId;
   }
 
   @override
@@ -188,6 +191,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         phoneNumber: _phoneController.text.trim(),
         email: _emailController.text.trim(),
         interests: _selectedInterests,
+        universityId: _selectedUniversityId,
       );
 
       if (mounted) {
@@ -358,6 +362,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _ageController,
               'e.g. 25',
               keyboardType: TextInputType.number,
+            ),
+
+            const SizedBox(height: 20),
+            _buildLabel('University'),
+            const SizedBox(height: 8),
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.grey[50],
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: DropdownButtonFormField<String>(
+                initialValue: _selectedUniversityId.isEmpty
+                    ? null
+                    : _selectedUniversityId,
+                decoration: const InputDecoration(
+                  border: InputBorder.none,
+                  contentPadding: EdgeInsets.symmetric(vertical: 12),
+                ),
+                hint: const Text('Select your university'),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('None'),
+                  ),
+                  ...UniversityConstants.universities.map((uni) {
+                    return DropdownMenuItem(
+                      value: uni.id,
+                      child: Text(
+                        '${uni.shortName} – ${uni.nameKo}',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    );
+                  }),
+                ],
+                onChanged: (val) {
+                  setState(() => _selectedUniversityId = val ?? '');
+                },
+              ),
             ),
 
             const SizedBox(height: 20),

@@ -71,6 +71,7 @@ class AuthService extends ChangeNotifier {
     String instagram = '',
     List<String> interests = const [],
     String? avatarUrl,
+    String? universityId,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
@@ -86,6 +87,9 @@ class AuthService extends ChangeNotifier {
     };
     if (avatarUrl != null) {
       updateData['avatarUrl'] = avatarUrl;
+    }
+    if (universityId != null) {
+      updateData['universityId'] = universityId;
     }
 
     await _db
@@ -105,6 +109,7 @@ class AuthService extends ChangeNotifier {
     String phoneNumber = '',
     String personalInfo = '',
     List<String> interests = const [],
+    String universityId = '',
   }) async {
     try {
       // 1. Create User in backend
@@ -128,6 +133,7 @@ class AuthService extends ChangeNotifier {
         age: age,
         personalInfo: personalInfo,
         interests: interests,
+        universityId: universityId,
       );
 
       await _db.collection('users').doc(user.uid).set({
@@ -143,6 +149,7 @@ class AuthService extends ChangeNotifier {
         'age': age,
         'personalInfo': personalInfo,
         'interests': interests,
+        'universityId': universityId,
         'createdAt': FieldValue.serverTimestamp(),
       });
 

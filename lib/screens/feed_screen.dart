@@ -26,6 +26,8 @@ import '../widgets/teman_logo.dart';
 import '../widgets/report_dialog.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'notices_screen.dart';
+import '../widgets/university_drawer.dart';
+import '../widgets/university_badge.dart';
 
 class FeedScreen extends StatefulWidget {
   const FeedScreen({super.key});
@@ -46,6 +48,7 @@ class _FeedScreenState extends State<FeedScreen> {
   DateTime? _lastTimestamp;
 
   final ScrollController _scrollController = ScrollController();
+  final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   final List<String> _eventSubCategories = [
     'ALL',
@@ -165,8 +168,14 @@ class _FeedScreenState extends State<FeedScreen> {
     );
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: const Color(0xFFF8F9FA),
+      drawer: const UniversityDrawer(),
       appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.menu_rounded, color: Color(0xFF1A1F36)),
+          onPressed: () => _scaffoldKey.currentState?.openDrawer(),
+        ),
         title: GestureDetector(
           onTap: () {
             setState(() {
@@ -946,6 +955,10 @@ class _FeedScreenState extends State<FeedScreen> {
                                   fontSize: 12,
                                 ),
                               ),
+                              if (user != null && user.universityId.isNotEmpty)
+                                UniversityBadge(
+                                  universityId: user.universityId,
+                                ),
                             ],
                           ),
                         ],
