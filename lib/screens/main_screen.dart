@@ -4,10 +4,11 @@ import '../services/firestore_service.dart';
 import '../providers/feed_state_provider.dart';
 import 'feed_screen.dart';
 import 'conversation_list_screen.dart';
-import 'create_post_screen.dart';
+
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'university_feed_screen.dart';
+import 'map_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -29,20 +30,13 @@ class _MainScreenState extends State<MainScreen> {
       },
     ), // 0 = Home (Dynamic Feed)
     const ConversationListScreen(), // 1 = Messages
-    const SizedBox(), // 2 = placeholder (Create opens as modal)
+    const MapScreen(), // 2 = Map
+
     const NotificationsScreen(), // 3 = Notifications
     const ProfileScreen(), // 4 = Profile
   ];
 
   void _onItemTapped(int index) {
-    if (index == 2) {
-      // Create – open as modal
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const CreatePostScreen()),
-      );
-      return;
-    }
     setState(() {
       _selectedIndex = index;
     });
@@ -117,9 +111,9 @@ class _MainScreenState extends State<MainScreen> {
               label: 'Messages',
             ),
             const BottomNavigationBarItem(
-              icon: Icon(Icons.add_circle_outline),
-              activeIcon: Icon(Icons.add_circle),
-              label: 'Create',
+              icon: Icon(Icons.map_outlined),
+              activeIcon: Icon(Icons.map),
+              label: 'Map',
             ),
             // Notification tab with real-time badge
             BottomNavigationBarItem(

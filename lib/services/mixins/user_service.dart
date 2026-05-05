@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_model.dart' as app_models;
 import 'dart:async';
+import 'package:geolocator/geolocator.dart';
 
 // Since mixins might call methods from each other (e.g. UserService calling sendNotification),
 // they need a common base interface. But for simplicity and to avoid cyclic dependencies,
@@ -106,6 +107,8 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       blockedUsers: List<String>.from(data['blockedUsers'] ?? []),
       blockedBy: List<String>.from(data['blockedBy'] ?? []),
       universityId: data['universityId'] ?? '',
+      latitude: data['latitude']?.toDouble(),
+      longitude: data['longitude']?.toDouble(),
     );
   }
 
@@ -130,6 +133,49 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       }
       return null;
     });
+  }
+
+  Future<void> updateUserLocation(double lat, double lng) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    
+    try {
+      await _db.collection('users').doc(uid).update({
+        'latitude': lat,
+        'longitude': lng,
+        'locationUpdatedAt': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('Error updating user location: $e');
+    }
+  }
+
+  Future<List<app_models.User>> getNearbyFriends(double lat, double lng, {double radiusInMeters = 3000}) async {
+    final currentUser = await getCurrentUser();
+    if (currentUser == null || currentUser.following.isEmpty) return [];
+
+    List<app_models.User> nearbyFriends = [];
+    
+    // Process in batches of 10 for whereIn query
+    for (int i = 0; i < currentUser.following.length; i += 10) {
+      final end = (i + 10 < currentUser.following.length) ? i + 10 : currentUser.following.length;
+      final batch = currentUser.following.sublist(i, end);
+      
+      final snapshot = await _db.collection('users').where('id', whereIn: batch).get();
+      for (var doc in snapshot.docs) {
+        final data = doc.data();
+        final friendLat = data['latitude']?.toDouble();
+        final friendLng = data['longitude']?.toDouble();
+        if (friendLat != null && friendLng != null) {
+          final distance = Geolocator.distanceBetween(lat, lng, friendLat, friendLng);
+          if (distance <= radiusInMeters) {
+             nearbyFriends.add(_userFromData(data, doc.id));
+          }
+        }
+      }
+    }
+    
+    return nearbyFriends;
   }
 
   Future<void> updateUserProfile({

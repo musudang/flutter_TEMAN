@@ -22,6 +22,9 @@ class User {
 
   // University affiliation
   final String universityId;
+  // Location
+  final double? latitude;
+  final double? longitude;
 
   User({
     required this.id,
@@ -43,6 +46,8 @@ class User {
     this.blockedUsers = const [],
     this.blockedBy = const [],
     this.universityId = '',
+    this.latitude,
+    this.longitude,
   });
 
   bool get isAdmin => role == 'admin';

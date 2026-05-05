@@ -8,6 +8,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'package:flutter/foundation.dart'; // kIsWeb을 사용하기 위해 추가
+import 'package:kakao_map_plugin/kakao_map_plugin.dart';
 
 import 'firebase_options.dart';
 import 'screens/main_screen.dart';
@@ -22,15 +23,19 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   
-  // Pass all uncaught "fatal" errors from the framework to Crashlytics
-  FlutterError.onError = (errorDetails) {
-    FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
-  };
-  // Pass all uncaught asynchronous errors that aren't handled by the Flutter framework to Crashlytics
-  PlatformDispatcher.instance.onError = (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    return true;
-  };
+  // Initialize Kakao Map Plugin with JavaScript Key
+  AuthRepository.initialize(appKey: 'a6e36ae0b5f7259156d9c7dd2b9fc113');
+  
+  // Pass all uncaught errors to Crashlytics (not supported on Web)
+  if (!kIsWeb) {
+    FlutterError.onError = (errorDetails) {
+      FirebaseCrashlytics.instance.recordFlutterFatalError(errorDetails);
+    };
+    PlatformDispatcher.instance.onError = (error, stack) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+      return true;
+    };
+  }
 
   // Activate App Check (웹을 제외한 모바일에서만 실행되도록 분기 처리)
   if (!kIsWeb) {
