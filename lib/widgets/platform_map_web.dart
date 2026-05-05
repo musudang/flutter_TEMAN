@@ -34,7 +34,7 @@ class _PlatformMapWidgetState extends State<PlatformMapWidget> {
           ..style.width = '100%'
           ..style.height = '100%';
 
-        // Initialize map after div is attached to DOM
+        // Wait for div to be in DOM, then init map
         Future.delayed(const Duration(milliseconds: 500), () {
           _initKakaoMap(div.id);
         });
@@ -51,51 +51,53 @@ class _PlatformMapWidgetState extends State<PlatformMapWidget> {
 
       js.context.callMethod('eval', ['''
         (function() {
+          var retryCount = 0;
           function tryInit() {
+            retryCount++;
             var container = document.getElementById('$containerId');
             if (!container) {
-              console.log('Container not found, retrying...');
-              setTimeout(tryInit, 500);
+              if (retryCount < 20) setTimeout(tryInit, 500);
               return;
             }
-            if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined') {
-              console.log('Kakao SDK not loaded yet, retrying...');
-              setTimeout(tryInit, 500);
+            // Check if kakao.maps.LatLng exists (autoload=true means full API loaded)
+            if (typeof kakao === 'undefined' || typeof kakao.maps === 'undefined' || typeof kakao.maps.LatLng === 'undefined') {
+              console.log('Kakao Maps API not ready (attempt ' + retryCount + ')');
+              if (retryCount < 20) setTimeout(tryInit, 500);
               return;
             }
-            
-            // Use kakao.maps.load for autoload=false
-            kakao.maps.load(function() {
-              var options = {
-                center: new kakao.maps.LatLng($lat, $lng),
-                level: 6
-              };
-              var map = new kakao.maps.Map(container, options);
 
-              // Red dot marker
-              var dot = document.createElement('div');
-              dot.style.cssText = 'width:20px;height:20px;background:#FF4444;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
-              new kakao.maps.CustomOverlay({
-                position: new kakao.maps.LatLng($lat, $lng),
-                content: dot,
-                yAnchor: 0.5,
-                xAnchor: 0.5,
-                map: map
-              });
-
-              // 3km radius circle
-              new kakao.maps.Circle({
-                center: new kakao.maps.LatLng($lat, $lng),
-                radius: 3000,
-                strokeWeight: 2,
-                strokeColor: '#FF4444',
-                strokeOpacity: 0.8,
-                strokeStyle: 'solid',
-                fillColor: '#FF4444',
-                fillOpacity: 0.08,
-                map: map
-              });
+            console.log('Kakao Maps API ready, creating map...');
+            var center = new kakao.maps.LatLng($lat, $lng);
+            var map = new kakao.maps.Map(container, {
+              center: center,
+              level: 6
             });
+
+            // Red dot marker
+            var dot = document.createElement('div');
+            dot.style.cssText = 'width:20px;height:20px;background:#FF4444;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
+            new kakao.maps.CustomOverlay({
+              position: center,
+              content: dot,
+              yAnchor: 0.5,
+              xAnchor: 0.5,
+              map: map
+            });
+
+            // 3km radius circle
+            new kakao.maps.Circle({
+              center: center,
+              radius: 3000,
+              strokeWeight: 2,
+              strokeColor: '#FF4444',
+              strokeOpacity: 0.8,
+              strokeStyle: 'solid',
+              fillColor: '#FF4444',
+              fillOpacity: 0.08,
+              map: map
+            });
+
+            console.log('Kakao Map created successfully!');
           }
           tryInit();
         })();
