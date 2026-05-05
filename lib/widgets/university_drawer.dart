@@ -362,14 +362,20 @@ class _UniversityTile extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Center(
-                  child: Text(
-                    university.shortName,
-                    style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w800,
-                      fontSize:
-                          university.shortName.length > 3 ? 10 : 12,
-                      letterSpacing: -0.3,
+                  child: Image.asset(
+                    university.badgePath,
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.contain,
+                    errorBuilder: (context, error, stackTrace) => Text(
+                      university.shortName,
+                      style: TextStyle(
+                        color: color,
+                        fontWeight: FontWeight.w800,
+                        fontSize:
+                            university.shortName.length > 3 ? 10 : 12,
+                        letterSpacing: -0.3,
+                      ),
                     ),
                   ),
                 ),

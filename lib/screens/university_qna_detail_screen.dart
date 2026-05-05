@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../models/question_model.dart';
+import '../widgets/university_badge.dart';
 import 'user_profile_screen.dart';
 
 /// Detail screen for a university Q&A question.
@@ -168,24 +169,37 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                                   : null,
                             ),
                             const SizedBox(width: 10),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  q.authorName,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 14,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Flexible(
+                                        child: Text(
+                                          q.authorName,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 14,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                      ),
+                                      if (q.authorUniversityId != null && q.authorUniversityId!.isNotEmpty) ...[
+                                        const SizedBox(width: 6),
+                                        UniversityBadge(universityId: q.authorUniversityId!),
+                                      ],
+                                    ],
                                   ),
-                                ),
-                                Text(
-                                  _timeAgo(q.timestamp),
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: Colors.grey[500],
+                                  Text(
+                                    _timeAgo(q.timestamp),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: Colors.grey[500],
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ],
                         ),
@@ -310,13 +324,20 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                                             : null,
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
-                                    answer['authorName'] ?? 'Unknown',
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
+                                  Flexible(
+                                    child: Text(
+                                      answer['authorName'] ?? 'Unknown',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                        fontSize: 13,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  if ((answer['authorUniversityId'] ?? '').isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    UniversityBadge(universityId: answer['authorUniversityId'], fontSize: 9),
+                                  ],
                                   const Spacer(),
                                   Text(
                                     _timeAgo(timestamp),

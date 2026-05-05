@@ -17,6 +17,8 @@ class University {
     required this.shortName,
     required this.colorValue,
   });
+
+  String get badgePath => 'images/universities/$id.png';
 }
 
 class UniversityConstants {

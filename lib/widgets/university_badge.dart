@@ -36,15 +36,27 @@ class UniversityBadge extends StatelessWidget {
           width: 1,
         ),
       ),
-      child: Text(
-        uni.shortName,
-        style: TextStyle(
-          color: color,
-          fontWeight: FontWeight.w800,
-          fontSize: fontSize,
-          letterSpacing: -0.3,
-          height: 1.2,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Image.asset(
+            uni.badgePath,
+            width: fontSize * 1.5,
+            height: fontSize * 1.5,
+            errorBuilder: (context, error, stackTrace) => const SizedBox.shrink(),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            uni.shortName,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: fontSize,
+              letterSpacing: -0.3,
+              height: 1.2,
+            ),
+          ),
+        ],
       ),
     );
   }

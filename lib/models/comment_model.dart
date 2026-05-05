@@ -14,6 +14,9 @@ class Comment {
   final String? replyToCommentText;
   final String? replyToCommentAuthor;
   final Map<String, String>? reactions;
+  
+  // [NEW] University badge
+  final String? authorUniversityId;
 
   Comment({
     required this.id,
@@ -27,6 +30,7 @@ class Comment {
     this.replyToCommentText,
     this.replyToCommentAuthor,
     this.reactions,
+    this.authorUniversityId,
   });
 
   factory Comment.fromFirestore(DocumentSnapshot doc, {String? defaultPostId}) {
@@ -45,6 +49,7 @@ class Comment {
       reactions: (data['reactions'] as Map<dynamic, dynamic>?)?.map(
         (k, v) => MapEntry(k.toString(), v.toString()),
       ),
+      authorUniversityId: data['authorUniversityId'],
     );
   }
 }

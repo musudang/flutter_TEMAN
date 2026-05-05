@@ -9,6 +9,9 @@ class Question {
   final String authorAvatar;
   final DateTime timestamp;
   final int answersCount;
+  
+  // [NEW] University badge
+  final String? authorUniversityId;
 
   Question({
     required this.id,
@@ -19,6 +22,7 @@ class Question {
     required this.authorAvatar,
     required this.timestamp,
     this.answersCount = 0,
+    this.authorUniversityId,
   });
 
   factory Question.fromFirestore(DocumentSnapshot doc) {
@@ -32,6 +36,7 @@ class Question {
       authorAvatar: data['authorAvatar'] ?? '',
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       answersCount: data['answersCount'] ?? 0,
+      authorUniversityId: data['authorUniversityId'],
     );
   }
 }

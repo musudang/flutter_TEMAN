@@ -202,12 +202,23 @@ class PostDetailScreen extends StatelessWidget {
                                     );
                                   }
                                 },
-                          child: Text(
-                            authorName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
+                          child: Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  authorName,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 16,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if ((post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[
+                                const SizedBox(width: 6),
+                                UniversityBadge(universityId: post.authorUniversityId?.isNotEmpty == true ? post.authorUniversityId! : user!.universityId),
+                              ],
+                            ],
                           ),
                         ),
                         Row(
@@ -264,13 +275,6 @@ class PostDetailScreen extends StatelessWidget {
                                 fontSize: 12,
                               ),
                             ),
-                            if (user != null && user.universityId.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: UniversityBadge(
-                                  universityId: user.universityId,
-                                ),
-                              ),
                           ],
                         ),
                       ],
@@ -663,52 +667,63 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
   Widget _buildCommentItem(Comment c, {bool isReply = false}) {
     bool hasReactions = c.reactions != null && c.reactions!.isNotEmpty;
 
-    return GestureDetector(
-      onLongPress: () => _showReactionReplySheet(c),
-      child: Container(
-        color: Colors.transparent,
-        padding: EdgeInsets.only(
-          left: isReply ? 56 : 16,
-          right: 16,
-          top: 8,
-          bottom: 8,
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: isReply ? 14 : 18,
-              backgroundColor: Colors.teal[50],
-              child: Text(
-                c.authorName[0].toUpperCase(),
-                style: TextStyle(
-                  color: Colors.teal[700],
-                  fontSize: isReply ? 12 : 14,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+    return StreamBuilder<app_models.User?>(
+      stream: widget.fs.getUserStream(c.authorId),
+      builder: (context, snapshot) {
+        final user = snapshot.data;
+        return GestureDetector(
+          onLongPress: () => _showReactionReplySheet(c),
+          child: Container(
+            color: Colors.transparent,
+            padding: EdgeInsets.only(
+              left: isReply ? 56 : 16,
+              right: 16,
+              top: 8,
+              bottom: 8,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Text(
-                        c.authorName,
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: isReply ? 13 : 14,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        _formatCommentTime(c.timestamp),
-                        style: TextStyle(color: Colors.grey[400], fontSize: 12),
-                      ),
-                    ],
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  radius: isReply ? 14 : 18,
+                  backgroundColor: Colors.teal[50],
+                  child: Text(
+                    c.authorName[0].toUpperCase(),
+                    style: TextStyle(
+                      color: Colors.teal[700],
+                      fontSize: isReply ? 12 : 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              c.authorName,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: isReply ? 13 : 14,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if ((c.authorUniversityId != null && c.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[
+                            const SizedBox(width: 4),
+                            UniversityBadge(universityId: c.authorUniversityId?.isNotEmpty == true ? c.authorUniversityId! : user!.universityId),
+                          ],
+                          const SizedBox(width: 8),
+                          Text(
+                            _formatCommentTime(c.timestamp),
+                            style: TextStyle(color: Colors.grey[400], fontSize: 12),
+                          ),
+                        ],
+                      ),
                   if (c.replyToCommentId != null && !isReply) ...[
                     const SizedBox(height: 4),
                     Container(
@@ -778,6 +793,8 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
           ],
         ),
       ),
+    );
+      },
     );
   }
 

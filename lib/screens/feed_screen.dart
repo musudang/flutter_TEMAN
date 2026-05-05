@@ -891,13 +891,24 @@ class _FeedScreenState extends State<FeedScreen> {
                                       );
                                     }
                                   },
-                            child: Text(
-                              authorName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                                color: Color(0xFF1A1F36),
-                              ),
+                            child: Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    authorName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                      color: Color(0xFF1A1F36),
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                if ((post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[
+                                  const SizedBox(width: 6),
+                                  UniversityBadge(universityId: post.authorUniversityId?.isNotEmpty == true ? post.authorUniversityId! : user!.universityId),
+                                ],
+                              ],
                             ),
                           ),
                           const SizedBox(height: 2),
@@ -955,10 +966,6 @@ class _FeedScreenState extends State<FeedScreen> {
                                   fontSize: 12,
                                 ),
                               ),
-                              if (user != null && user.universityId.isNotEmpty)
-                                UniversityBadge(
-                                  universityId: user.universityId,
-                                ),
                             ],
                           ),
                         ],

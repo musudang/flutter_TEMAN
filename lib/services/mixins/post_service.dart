@@ -435,6 +435,8 @@ mixin PostService on ChangeNotifier {
     }
 
     try {
+      final userData = await getCurrentUser();
+      
       final docData = <String, dynamic>{
         'authorId': authorId,
         'authorName': authorName,
@@ -448,6 +450,7 @@ mixin PostService on ChangeNotifier {
         'category': category,
         'authorAvatar': authorAvatar,
         'isAnonymous': isAnonymous,
+        'authorUniversityId': userData?.universityId,
       };
 
       if (sharedItemId != null) docData['sharedItemId'] = sharedItemId;
@@ -798,6 +801,7 @@ mixin PostService on ChangeNotifier {
           'authorAvatar': userData?.avatarUrl ?? '',
           'timestamp': FieldValue.serverTimestamp(),
           'reactions': {},
+          'authorUniversityId': userData?.universityId,
         };
 
         if (replyToCommentId != null) {

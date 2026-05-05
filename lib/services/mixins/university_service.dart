@@ -71,6 +71,8 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       throw Exception('User must be logged in to post');
     }
 
+    final userData = await getCurrentUser();
+
     await _uniDb
         .collection('universities')
         .doc(uniId)
@@ -89,6 +91,7 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       'imageUrls': imageUrls,
       'category': category,
       'isAnonymous': isAnonymous,
+      'authorUniversityId': userData?.universityId,
     });
   }
 
@@ -191,6 +194,8 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       throw Exception('User must be logged in to ask a question');
     }
 
+    final userData = await getCurrentUser();
+
     await _uniDb
         .collection('universities')
         .doc(uniId)
@@ -203,6 +208,7 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       'authorAvatar': authorAvatar,
       'timestamp': FieldValue.serverTimestamp(),
       'answersCount': 0,
+      'authorUniversityId': userData?.universityId,
     });
   }
 
@@ -280,6 +286,7 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
         'authorName': userData?.name ?? 'Unknown',
         'authorAvatar': userData?.avatarUrl ?? '',
         'timestamp': FieldValue.serverTimestamp(),
+        'authorUniversityId': userData?.universityId,
       });
 
       transaction.update(questionRef, {

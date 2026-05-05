@@ -9,6 +9,7 @@ import '../providers/feed_state_provider.dart';
 import 'university_create_post_screen.dart';
 import 'university_qna_detail_screen.dart';
 import '../widgets/university_drawer.dart';
+import '../widgets/university_badge.dart';
 
 import 'user_profile_screen.dart';
 
@@ -512,14 +513,21 @@ class _UniversityPostCard extends StatelessWidget {
                       : null,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  post.isAnonymous ? 'Anonymous' : post.authorName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Color(0xFF1A1F36),
+                Flexible(
+                  child: Text(
+                    post.isAnonymous ? 'Anonymous' : post.authorName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Color(0xFF1A1F36),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (!post.isAnonymous && post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  UniversityBadge(universityId: post.authorUniversityId!, fontSize: 9),
+                ],
               ],
             ),
             const SizedBox(height: 10),
@@ -691,14 +699,21 @@ class _UniversityQuestionCard extends StatelessWidget {
                       : null,
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  question.authorName,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: Color(0xFF1A1F36),
+                Flexible(
+                  child: Text(
+                    question.authorName,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      color: Color(0xFF1A1F36),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (question.authorUniversityId != null && question.authorUniversityId!.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  UniversityBadge(universityId: question.authorUniversityId!, fontSize: 9),
+                ],
               ],
             ),
             const SizedBox(height: 10),
@@ -834,26 +849,39 @@ class _UniversityPostDetailSheet extends StatelessWidget {
                           ),
                         ),
                         const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              post.isAnonymous
-                                  ? 'Anonymous'
-                                  : post.authorName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      post.isAnonymous
+                                          ? 'Anonymous'
+                                          : post.authorName,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 15,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (!post.isAnonymous && post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    UniversityBadge(universityId: post.authorUniversityId!),
+                                  ],
+                                ],
                               ),
-                            ),
-                            Text(
-                              _timeAgo(post.timestamp),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey[500],
+                              Text(
+                                _timeAgo(post.timestamp),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey[500],
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
