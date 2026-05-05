@@ -25,6 +25,7 @@ class User {
   // Location
   final double? latitude;
   final double? longitude;
+  final bool locationSharingEnabled;
 
   User({
     required this.id,
@@ -48,6 +49,7 @@ class User {
     this.universityId = '',
     this.latitude,
     this.longitude,
+    this.locationSharingEnabled = true,
   });
 
   bool get isAdmin => role == 'admin';

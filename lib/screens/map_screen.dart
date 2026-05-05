@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:geolocator/geolocator.dart';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../widgets/platform_map.dart';
+import 'chat_screen.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -17,6 +19,8 @@ class _MapScreenState extends State<MapScreen> {
   String _errorMessage = '';
   Position? _currentPosition;
   List<app_models.User> _nearbyFriends = [];
+  bool _locationSharingEnabled = true;
+  Timer? _refreshTimer;
 
   @override
   void initState() {
@@ -24,8 +28,22 @@ class _MapScreenState extends State<MapScreen> {
     _initializeMap();
   }
 
+  @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
   Future<void> _initializeMap() async {
     try {
+      // Load current user's sharing preference
+      final firestoreService =
+          Provider.of<FirestoreService>(context, listen: false);
+      final currentUser = await firestoreService.getCurrentUser();
+      if (currentUser != null) {
+        _locationSharingEnabled = currentUser.locationSharingEnabled;
+      }
+
       LocationPermission permission = await Geolocator.checkPermission();
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
@@ -53,22 +71,22 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (mounted && _currentPosition != null) {
-        final firestoreService =
-            Provider.of<FirestoreService>(context, listen: false);
+        // Only update location in Firestore if sharing is enabled
+        if (_locationSharingEnabled) {
+          await firestoreService.updateUserLocation(
+            _currentPosition!.latitude,
+            _currentPosition!.longitude,
+          );
+        }
 
-        await firestoreService.updateUserLocation(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-        );
-
-        final friends = await firestoreService.getNearbyFriends(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          radiusInMeters: 3000,
-        );
-
-        _nearbyFriends = friends;
+        await _refreshFriends();
         setState(() => _isLoading = false);
+
+        // Auto-refresh friends list every 30 seconds
+        _refreshTimer = Timer.periodic(
+          const Duration(seconds: 30),
+          (_) => _refreshFriends(),
+        );
       }
     } catch (e) {
       debugPrint('Map init error: $e');
@@ -76,6 +94,67 @@ class _MapScreenState extends State<MapScreen> {
         _errorMessage = 'Error initializing map: $e';
         _isLoading = false;
       });
+    }
+  }
+
+  Future<void> _refreshFriends() async {
+    if (!mounted || _currentPosition == null) return;
+
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+
+    final friends = await firestoreService.getNearbyFriends(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+      radiusInMeters: 3000,
+    );
+
+    if (mounted) {
+      setState(() => _nearbyFriends = friends);
+    }
+  }
+
+  Future<void> _toggleLocationSharing() async {
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+
+    final newValue = !_locationSharingEnabled;
+    setState(() => _locationSharingEnabled = newValue);
+
+    await firestoreService.toggleLocationSharing(newValue);
+
+    if (newValue && _currentPosition != null) {
+      // Re-enable: upload location again
+      await firestoreService.updateUserLocation(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+    }
+
+    // Refresh friends list (will be empty if disabled)
+    await _refreshFriends();
+  }
+
+  Future<void> _openChatWithFriend(app_models.User friend) async {
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+
+    final conversationId =
+        await firestoreService.getOrCreateConversation(friend.id);
+
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: conversationId,
+            chatTitle: friend.name,
+            otherUserId: friend.id,
+            otherUserName: friend.name,
+            otherUserAvatar: friend.avatarUrl,
+          ),
+        ),
+      );
     }
   }
 
@@ -142,71 +221,171 @@ class _MapScreenState extends State<MapScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Header with toggle button
                   Container(
                     padding: const EdgeInsets.only(
-                        top: 48, left: 16, right: 16, bottom: 16),
+                        top: 48, left: 12, right: 8, bottom: 12),
                     decoration: BoxDecoration(
                       border: Border(
                         bottom: BorderSide(color: Colors.grey.shade200),
                       ),
                     ),
-                    child: const Row(
+                    child: Column(
                       children: [
-                        Icon(Icons.people, color: Colors.teal),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Nearby Friends (3km)',
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
+                        // Location sharing toggle
+                        Row(
+                          children: [
+                            Icon(
+                              _locationSharingEnabled
+                                  ? Icons.location_on
+                                  : Icons.location_off,
+                              color: _locationSharingEnabled
+                                  ? Colors.teal
+                                  : Colors.grey,
+                              size: 20,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _locationSharingEnabled
+                                    ? 'Location ON'
+                                    : 'Location OFF',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: _locationSharingEnabled
+                                      ? Colors.teal
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            Switch(
+                              value: _locationSharingEnabled,
+                              onChanged: (_) => _toggleLocationSharing(),
+                              activeTrackColor: Colors.teal.withValues(alpha: 0.5),
+                              activeThumbColor: Colors.teal,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ],
+                        ),
+                        if (!_locationSharingEnabled)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'Your location is hidden from others',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
                             ),
                           ),
+                        const SizedBox(height: 8),
+                        // Nearby friends title
+                        Row(
+                          children: [
+                            const Icon(Icons.people,
+                                color: Colors.teal, size: 18),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'Nearby Friends (3km)',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  color: _locationSharingEnabled
+                                      ? Colors.black87
+                                      : Colors.grey,
+                                ),
+                              ),
+                            ),
+                            // Manual refresh button
+                            SizedBox(
+                              width: 28,
+                              height: 28,
+                              child: IconButton(
+                                icon: const Icon(Icons.refresh, size: 18),
+                                padding: EdgeInsets.zero,
+                                onPressed: _locationSharingEnabled
+                                    ? _refreshFriends
+                                    : null,
+                                color: Colors.teal,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
                   ),
+                  // Friends list
                   Expanded(
-                    child: _nearbyFriends.isEmpty
+                    child: !_locationSharingEnabled
                         ? const Center(
                             child: Padding(
                               padding: EdgeInsets.all(16.0),
-                              child: Text(
-                                'No friends found\nwithin 3km.',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(color: Colors.grey),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.location_off,
+                                      size: 40, color: Colors.grey),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    'Enable location sharing\nto see nearby friends',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                        color: Colors.grey, fontSize: 13),
+                                  ),
+                                ],
                               ),
                             ),
                           )
-                        : ListView.builder(
-                            padding: EdgeInsets.zero,
-                            itemCount: _nearbyFriends.length,
-                            itemBuilder: (context, index) {
-                              final friend = _nearbyFriends[index];
-                              return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage:
-                                      friend.avatarUrl.isNotEmpty
-                                          ? NetworkImage(friend.avatarUrl)
+                        : _nearbyFriends.isEmpty
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(16.0),
+                                  child: Text(
+                                    'No friends found\nwithin 3km.',
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(color: Colors.grey),
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: EdgeInsets.zero,
+                                itemCount: _nearbyFriends.length,
+                                itemBuilder: (context, index) {
+                                  final friend = _nearbyFriends[index];
+                                  return ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundImage:
+                                          friend.avatarUrl.isNotEmpty
+                                              ? NetworkImage(friend.avatarUrl)
+                                              : null,
+                                      child: friend.avatarUrl.isEmpty
+                                          ? const Icon(Icons.person)
                                           : null,
-                                  child: friend.avatarUrl.isEmpty
-                                      ? const Icon(Icons.person)
-                                      : null,
-                                ),
-                                title: Text(friend.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                subtitle: Text(
-                                  friend.universityId.isNotEmpty
-                                      ? friend.universityId
-                                      : friend.nationality,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              );
-                            },
-                          ),
+                                    ),
+                                    title: Text(friend.name,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis),
+                                    subtitle: Text(
+                                      friend.universityId.isNotEmpty
+                                          ? friend.universityId
+                                          : friend.nationality,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    trailing: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 18,
+                                      color: Colors.teal,
+                                    ),
+                                    onTap: () =>
+                                        _openChatWithFriend(friend),
+                                  );
+                                },
+                              ),
                   ),
                 ],
               ),

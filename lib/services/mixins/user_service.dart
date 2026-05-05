@@ -109,6 +109,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       universityId: data['universityId'] ?? '',
       latitude: data['latitude']?.toDouble(),
       longitude: data['longitude']?.toDouble(),
+      locationSharingEnabled: data['locationSharingEnabled'] ?? true,
     );
   }
 
@@ -150,9 +151,31 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     }
   }
 
+  Future<void> toggleLocationSharing(bool enabled) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    try {
+      final updateData = <String, dynamic>{
+        'locationSharingEnabled': enabled,
+      };
+      // When disabling, clear location so others can't see it
+      if (!enabled) {
+        updateData['latitude'] = null;
+        updateData['longitude'] = null;
+      }
+      await _db.collection('users').doc(uid).update(updateData);
+    } catch (e) {
+      debugPrint('Error toggling location sharing: $e');
+    }
+  }
+
   Future<List<app_models.User>> getNearbyFriends(double lat, double lng, {double radiusInMeters = 3000}) async {
     final currentUser = await getCurrentUser();
     if (currentUser == null || currentUser.following.isEmpty) return [];
+
+    // If current user disabled sharing, return empty
+    if (!currentUser.locationSharingEnabled) return [];
 
     List<app_models.User> nearbyFriends = [];
     
@@ -164,6 +187,9 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       final snapshot = await _db.collection('users').where('id', whereIn: batch).get();
       for (var doc in snapshot.docs) {
         final data = doc.data();
+        // Skip friends who disabled location sharing
+        if (data['locationSharingEnabled'] == false) continue;
+        
         final friendLat = data['latitude']?.toDouble();
         final friendLng = data['longitude']?.toDouble();
         if (friendLat != null && friendLng != null) {

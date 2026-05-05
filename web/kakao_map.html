@@ -3,60 +3,60 @@
 <head>
   <meta charset="utf-8">
   <style>
-    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; }
+    html, body, #map { width: 100%; height: 100%; margin: 0; padding: 0; overflow: hidden; }
   </style>
-  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=a6e36ae0b5f7259156d9c7dd2b9fc113"></script>
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=a6e36ae0b5f7259156d9c7dd2b9fc113&autoload=false"></script>
 </head>
 <body>
   <div id="map"></div>
   <script>
-    var map;
-    var markers = [];
     var params = new URLSearchParams(window.location.search);
     var lat = parseFloat(params.get('lat')) || 37.5665;
     var lng = parseFloat(params.get('lng')) || 126.9780;
 
-    var container = document.getElementById('map');
-    var options = {
-      center: new kakao.maps.LatLng(lat, lng),
-      level: 5
-    };
-    map = new kakao.maps.Map(container, options);
+    // Wait for SDK to fully load before creating map
+    kakao.maps.load(function() {
+      var container = document.getElementById('map');
+      var options = {
+        center: new kakao.maps.LatLng(lat, lng),
+        level: 6
+      };
+      var map = new kakao.maps.Map(container, options);
 
-    // My location marker (blue)
-    var myMarker = new kakao.maps.Marker({
-      position: new kakao.maps.LatLng(lat, lng),
-      map: map
-    });
-    var myInfo = new kakao.maps.InfoWindow({
-      content: '<div style="padding:5px;font-size:12px;font-weight:bold;">📍 Me</div>'
-    });
-    myInfo.open(map, myMarker);
+      // My location marker (red dot)
+      var markerPosition = new kakao.maps.LatLng(lat, lng);
+      var markerContent = document.createElement('div');
+      markerContent.style.cssText = 'width:20px;height:20px;background:#FF4444;border:3px solid white;border-radius:50%;box-shadow:0 2px 6px rgba(0,0,0,0.3);';
+      var customOverlay = new kakao.maps.CustomOverlay({
+        position: markerPosition,
+        content: markerContent,
+        yAnchor: 0.5,
+        xAnchor: 0.5
+      });
+      customOverlay.setMap(map);
 
-    // Listen for messages from Flutter to add friend markers
-    window.addEventListener('message', function(event) {
-      try {
-        var data = JSON.parse(event.data);
-        if (data.type === 'addFriendMarkers' && data.friends) {
-          // Clear old friend markers
-          markers.forEach(function(m) { m.setMap(null); });
-          markers = [];
-          data.friends.forEach(function(f) {
-            var pos = new kakao.maps.LatLng(f.lat, f.lng);
-            var marker = new kakao.maps.Marker({ position: pos, map: map });
-            var info = new kakao.maps.InfoWindow({
-              content: '<div style="padding:5px;font-size:12px;">' + f.name + '</div>'
-            });
-            kakao.maps.event.addListener(marker, 'click', function() {
-              info.open(map, marker);
-            });
-            markers.push(marker);
-          });
-        }
-        if (data.type === 'panTo') {
-          map.panTo(new kakao.maps.LatLng(data.lat, data.lng));
-        }
-      } catch(e) {}
+      // 3km radius circle
+      var circle = new kakao.maps.Circle({
+        center: markerPosition,
+        radius: 3000,
+        strokeWeight: 2,
+        strokeColor: '#FF4444',
+        strokeOpacity: 0.8,
+        strokeStyle: 'solid',
+        fillColor: '#FF4444',
+        fillOpacity: 0.08
+      });
+      circle.setMap(map);
+
+      // Listen for messages from Flutter
+      window.addEventListener('message', function(event) {
+        try {
+          var data = JSON.parse(event.data);
+          if (data.type === 'panTo') {
+            map.panTo(new kakao.maps.LatLng(data.lat, data.lng));
+          }
+        } catch(e) {}
+      });
     });
   </script>
 </body>
