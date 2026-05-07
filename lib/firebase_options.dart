@@ -69,7 +69,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'teman-flutter-2.firebasestorage.app',
     androidClientId: '1065473302917-lr9ajn3m1506lc0a5md4ek5co0o5tmip.apps.googleusercontent.com',
     iosClientId: '1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com',
-    iosBundleId: 'com.example.temanFlutterAppCode',
+    iosBundleId: 'com.teman.app',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
@@ -92,7 +92,7 @@ class DefaultFirebaseOptions {
     storageBucket: 'teman-flutter-2.firebasestorage.app',
     androidClientId: '1065473302917-lr9ajn3m1506lc0a5md4ek5co0o5tmip.apps.googleusercontent.com',
     iosClientId: '1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com',
-    iosBundleId: 'com.example.temanFlutterAppCode',
+    iosBundleId: 'com.teman.app',
   );
 
 }

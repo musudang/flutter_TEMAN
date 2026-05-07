@@ -1,4 +1,4 @@
-package com.example.teman_flutter_app_code
+package com.teman.app
 
 import io.flutter.embedding.android.FlutterActivity
 
