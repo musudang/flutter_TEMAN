@@ -20,22 +20,6 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  final List<Widget> _screens = [
-    Consumer<FeedStateProvider>(
-      builder: (context, feedState, child) {
-        if (feedState.selectedUniversity != null) {
-          return UniversityFeedScreen(university: feedState.selectedUniversity!);
-        }
-        return const FeedScreen();
-      },
-    ), // 0 = Home (Dynamic Feed)
-    const ConversationListScreen(), // 1 = Messages
-    const MapScreen(), // 2 = Map
-
-    const NotificationsScreen(), // 3 = Notifications
-    const ProfileScreen(), // 4 = Profile
-  ];
-
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -50,6 +34,22 @@ class _MainScreenState extends State<MainScreen> {
     );
     final feedState = Provider.of<FeedStateProvider>(context);
 
+    final screens = <Widget>[
+      Consumer<FeedStateProvider>(
+        builder: (context, feedState, child) {
+          if (feedState.selectedUniversity != null) {
+            return UniversityFeedScreen(university: feedState.selectedUniversity!);
+          }
+          return const FeedScreen();
+        },
+      ), // 0 = Home (Dynamic Feed)
+      const ConversationListScreen(), // 1 = Messages
+      MapScreen(isVisible: _selectedIndex == 2), // 2 = Map
+
+      const NotificationsScreen(), // 3 = Notifications
+      const ProfileScreen(), // 4 = Profile
+    ];
+
     return PopScope(
       canPop: _selectedIndex != 0 || feedState.selectedUniversity == null,
       onPopInvokedWithResult: (didPop, result) {
@@ -59,7 +59,7 @@ class _MainScreenState extends State<MainScreen> {
         }
       },
       child: Scaffold(
-        body: IndexedStack(index: _selectedIndex, children: _screens),
+        body: IndexedStack(index: _selectedIndex, children: screens),
         bottomNavigationBar: Container(
         decoration: BoxDecoration(
           boxShadow: [

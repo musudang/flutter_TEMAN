@@ -392,7 +392,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                     return DropdownMenuItem(
                       value: uni.id,
                       child: Text(
-                        '${uni.shortName} – ${uni.nameKo}',
+                        '${uni.shortName} – ${uni.nameEn}',
                         style: const TextStyle(fontSize: 14),
                       ),
                     );

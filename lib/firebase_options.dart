@@ -25,10 +25,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       case TargetPlatform.macOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for macos - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return macos;
       case TargetPlatform.windows:
         return windows;
       case TargetPlatform.linux:
@@ -49,6 +46,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '1065473302917',
     projectId: 'teman-flutter-2',
     authDomain: 'teman-flutter-2.firebaseapp.com',
+    databaseURL: 'https://teman-flutter-2-default-rtdb.firebaseio.com',
     storageBucket: 'teman-flutter-2.firebasestorage.app',
     measurementId: 'G-Y11JQTN0XL',
   );
@@ -58,6 +56,7 @@ class DefaultFirebaseOptions {
     appId: '1:1065473302917:android:6fbef37c281ac8904f64ec',
     messagingSenderId: '1065473302917',
     projectId: 'teman-flutter-2',
+    databaseURL: 'https://teman-flutter-2-default-rtdb.firebaseio.com',
     storageBucket: 'teman-flutter-2.firebasestorage.app',
   );
 
@@ -66,17 +65,34 @@ class DefaultFirebaseOptions {
     appId: '1:1065473302917:ios:c78cfff7dff278894f64ec',
     messagingSenderId: '1065473302917',
     projectId: 'teman-flutter-2',
+    databaseURL: 'https://teman-flutter-2-default-rtdb.firebaseio.com',
     storageBucket: 'teman-flutter-2.firebasestorage.app',
+    androidClientId: '1065473302917-lr9ajn3m1506lc0a5md4ek5co0o5tmip.apps.googleusercontent.com',
+    iosClientId: '1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com',
     iosBundleId: 'com.example.temanFlutterAppCode',
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
     apiKey: 'AIzaSyCgLlUCel--oF5Rew87oo77Qdt06oOKck0',
-    appId: '1:1065473302917:web:0323dd56f822ecea4f64ec',
+    appId: '1:1065473302917:web:fc56541d014be9ad4f64ec',
     messagingSenderId: '1065473302917',
     projectId: 'teman-flutter-2',
     authDomain: 'teman-flutter-2.firebaseapp.com',
+    databaseURL: 'https://teman-flutter-2-default-rtdb.firebaseio.com',
     storageBucket: 'teman-flutter-2.firebasestorage.app',
-    measurementId: 'G-Y11JQTN0XL',
+    measurementId: 'G-CNRJL70XL4',
   );
+
+  static const FirebaseOptions macos = FirebaseOptions(
+    apiKey: 'AIzaSyD-3DydQb377tNkqX_oGjFDRvhbjLRlH08',
+    appId: '1:1065473302917:ios:c78cfff7dff278894f64ec',
+    messagingSenderId: '1065473302917',
+    projectId: 'teman-flutter-2',
+    databaseURL: 'https://teman-flutter-2-default-rtdb.firebaseio.com',
+    storageBucket: 'teman-flutter-2.firebasestorage.app',
+    androidClientId: '1065473302917-lr9ajn3m1506lc0a5md4ek5co0o5tmip.apps.googleusercontent.com',
+    iosClientId: '1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com',
+    iosBundleId: 'com.example.temanFlutterAppCode',
+  );
+
 }

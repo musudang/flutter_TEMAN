@@ -213,7 +213,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   items: UniversityConstants.universities
                       .map((uni) => DropdownMenuItem(
                             value: uni.id,
-                            child: Text('${uni.nameEn} (${uni.nameKo})'),
+                            child: Text(uni.nameEn),
                           ))
                       .toList(),
                   onChanged: (val) => _universityId = val,

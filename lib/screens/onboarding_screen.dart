@@ -1176,7 +1176,7 @@ class _UniversityStepState extends State<_UniversityStep> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      uni.nameKo,
+                                      uni.nameEn,
                                       style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: isSelected
@@ -1185,13 +1185,6 @@ class _UniversityStepState extends State<_UniversityStep> {
                                         color: isSelected
                                             ? color
                                             : const Color(0xFF1A1A2E),
-                                      ),
-                                    ),
-                                    Text(
-                                      uni.nameEn,
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey.shade500,
                                       ),
                                     ),
                                   ],

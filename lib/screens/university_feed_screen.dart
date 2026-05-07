@@ -97,14 +97,7 @@ class _UniversityFeedScreenState extends State<UniversityFeedScreen>
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    uni.nameKo,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[500],
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+
                 ],
               ),
             ),

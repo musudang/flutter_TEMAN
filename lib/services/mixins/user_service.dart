@@ -193,15 +193,54 @@ mixin UserService on ChangeNotifier implements UserDependencies {
         final friendLat = data['latitude']?.toDouble();
         final friendLng = data['longitude']?.toDouble();
         if (friendLat != null && friendLng != null) {
-          final distance = Geolocator.distanceBetween(lat, lng, friendLat, friendLng);
-          if (distance <= radiusInMeters) {
-             nearbyFriends.add(_userFromData(data, doc.id));
-          }
+          // Return all friends who have shared their location regardless of distance
+          nearbyFriends.add(_userFromData(data, doc.id));
         }
       }
     }
     
     return nearbyFriends;
+  }
+
+  /// Discover ALL TEMAN users within [radiusInMeters] (default 1km).
+  /// Excludes the current user and blocked users.
+  Future<List<app_models.User>> getNearbyUsers(double lat, double lng, {double radiusInMeters = 1000}) async {
+    final currentUser = await getCurrentUser();
+    if (currentUser == null) return [];
+    if (!currentUser.locationSharingEnabled) return [];
+
+    final excludeIds = <String>{
+      currentUser.id,
+      ...currentUser.blockedUsers,
+      ...currentUser.blockedBy,
+    };
+
+    List<app_models.User> nearbyUsers = [];
+
+    // Query users who have location sharing enabled
+    final snapshot = await _db
+        .collection('users')
+        .where('locationSharingEnabled', isEqualTo: true)
+        .get();
+
+    for (var doc in snapshot.docs) {
+      final data = doc.data();
+      final userId = data['id'] ?? doc.id;
+
+      // Skip self and blocked
+      if (excludeIds.contains(userId)) continue;
+
+      final userLat = data['latitude']?.toDouble();
+      final userLng = data['longitude']?.toDouble();
+      if (userLat == null || userLng == null) continue;
+
+      final distance = Geolocator.distanceBetween(lat, lng, userLat, userLng);
+      if (distance <= radiusInMeters) {
+        nearbyUsers.add(_userFromData(data, doc.id));
+      }
+    }
+
+    return nearbyUsers;
   }
 
   Future<void> updateUserProfile({
