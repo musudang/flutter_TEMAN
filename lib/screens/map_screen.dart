@@ -11,8 +11,6 @@ import 'user_profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/map_safety_dialog.dart';
 
-enum MapMode { friends, discover }
-
 class MapScreen extends StatefulWidget {
   final bool isVisible;
   const MapScreen({super.key, this.isVisible = false});
@@ -33,7 +31,6 @@ class _MapScreenState extends State<MapScreen> {
   Timer? _refreshTimer;
   final MapController _mapController = MapController();
   bool _safetyDialogShownThisSession = false;
-  MapMode _currentMode = MapMode.friends;
 
   @override
   void initState() {
@@ -229,9 +226,17 @@ class _MapScreenState extends State<MapScreen> {
     return colors[index];
   }
 
-  // ── Active user list based on current mode ──
-  List<app_models.User> get _activeUsers =>
-      _currentMode == MapMode.friends ? _nearbyFriends : _nearbyUsers;
+  // ── Combined list: friends + discover (deduplicated) ──
+  List<app_models.User> get _allMapUsers {
+    final friendIds = _nearbyFriends.map((u) => u.id).toSet();
+    final discoverOnly =
+        _nearbyUsers.where((u) => !friendIds.contains(u.id)).toList();
+    return [..._nearbyFriends, ...discoverOnly];
+  }
+
+  bool _isFriend(String userId) {
+    return _nearbyFriends.any((u) => u.id == userId);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -348,7 +353,6 @@ class _MapScreenState extends State<MapScreen> {
     );
 
     final panelHeight = MediaQuery.of(context).size.height * 0.45;
-    final isFriendsMode = _currentMode == MapMode.friends;
 
     return Scaffold(
       body: Stack(
@@ -363,22 +367,21 @@ class _MapScreenState extends State<MapScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.teman.app',
+                userAgentPackageName: 'com.teman.community',
               ),
-              // 1km radius circle — show in Discover mode only
-              if (!isFriendsMode)
-                CircleLayer(
-                  circles: [
-                    CircleMarker(
-                      point: myLatLng,
-                      radius: 1000,
-                      useRadiusInMeter: true,
-                      color: Colors.orange.withValues(alpha: 0.08),
-                      borderColor: Colors.orange.withValues(alpha: 0.6),
-                      borderStrokeWidth: 2,
-                    ),
-                  ],
-                ),
+              // 1km radius circle — always visible
+              CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: myLatLng,
+                    radius: 1000,
+                    useRadiusInMeter: true,
+                    color: Colors.orange.withValues(alpha: 0.08),
+                    borderColor: Colors.orange.withValues(alpha: 0.6),
+                    borderStrokeWidth: 2,
+                  ),
+                ],
+              ),
               MarkerLayer(
                 markers: [
                   // My position marker
@@ -400,17 +403,20 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                   ),
-                  // User markers
-                  ..._activeUsers
+                  // User markers (friends + nearby combined)
+                  ..._allMapUsers
                       .where((u) => u.latitude != null && u.longitude != null)
                       .map((u) {
-                        final userColor = _getColorForUser(u.id);
+                        final isFriend = _isFriend(u.id);
+                        final userColor = isFriend
+                            ? Colors.teal
+                            : Colors.orange;
                         return Marker(
                           point: LatLng(u.latitude!, u.longitude!),
                           width: 60,
                           height: 60,
                           child: GestureDetector(
-                            onTap: () => isFriendsMode
+                            onTap: () => isFriend
                                 ? _openChatWithUser(u)
                                 : _openUserProfile(u),
                             child: Column(
@@ -468,46 +474,14 @@ class _MapScreenState extends State<MapScreen> {
             ],
           ),
 
-          // ── Top bar: Mode tabs + Location toggle ──
+          // ── Top bar: Toggle buttons ──
           Positioned(
             top: MediaQuery.of(context).padding.top + 8,
             left: 12,
             right: 12,
             child: Row(
               children: [
-                // Mode toggle tabs
-                Expanded(
-                  child: Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.15),
-                          blurRadius: 8,
-                        ),
-                      ],
-                    ),
-                    child: Row(
-                      children: [
-                        _buildModeTab(
-                          icon: Icons.people,
-                          label: 'Friends',
-                          mode: MapMode.friends,
-                          color: Colors.teal,
-                        ),
-                        _buildModeTab(
-                          icon: Icons.explore,
-                          label: 'Discover',
-                          mode: MapMode.discover,
-                          color: Colors.orange,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
+                const Spacer(),
                 // Hide from friends toggle chip
                 Container(
                   padding:
@@ -633,18 +607,14 @@ class _MapScreenState extends State<MapScreen> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(
-                              isFriendsMode ? Icons.people : Icons.explore,
-                              color: isFriendsMode
-                                  ? Colors.teal
-                                  : Colors.orange,
+                            const Icon(
+                              Icons.map,
+                              color: Colors.teal,
                               size: 18,
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              isFriendsMode
-                                  ? 'Mutual Friends (${_nearbyFriends.length})'
-                                  : 'Nearby People (${_nearbyUsers.length})',
+                              'Friends (${_nearbyFriends.length}) · Nearby (${_nearbyUsers.length})',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -669,25 +639,21 @@ class _MapScreenState extends State<MapScreen> {
                 Expanded(
                   child: Container(
                     color: Colors.white,
-                    child: _activeUsers.isEmpty
+                    child: _allMapUsers.isEmpty
                         ? Center(
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(
-                                  isFriendsMode
-                                      ? Icons.people_outline
-                                      : Icons.explore_off,
+                                const Icon(
+                                  Icons.people_outline,
                                   size: 40,
                                   color: Colors.grey,
                                 ),
                                 const SizedBox(height: 8),
-                                Text(
-                                  isFriendsMode
-                                      ? 'No friends are sharing their location right now.'
-                                      : 'No one found within 1km.\nTry again later!',
+                                const Text(
+                                  'No friends or nearby people found.\nTry again later!',
                                   textAlign: TextAlign.center,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                       color: Colors.grey, fontSize: 13),
                                 ),
                               ],
@@ -695,31 +661,52 @@ class _MapScreenState extends State<MapScreen> {
                           )
                         : ListView.builder(
                             padding: EdgeInsets.zero,
-                            itemCount: _activeUsers.length,
+                            itemCount: _allMapUsers.length,
                             itemBuilder: (context, index) {
-                              final user = _activeUsers[index];
+                              final user = _allMapUsers[index];
+                              final isFriend = _isFriend(user.id);
                               return ListTile(
-                                leading: CircleAvatar(
-                                  backgroundImage:
-                                      user.avatarUrl.isNotEmpty
-                                          ? NetworkImage(user.avatarUrl)
+                                leading: Stack(
+                                  children: [
+                                    CircleAvatar(
+                                      backgroundImage:
+                                          user.avatarUrl.isNotEmpty
+                                              ? NetworkImage(user.avatarUrl)
+                                              : null,
+                                      child: user.avatarUrl.isEmpty
+                                          ? const Icon(Icons.person)
                                           : null,
-                                  child: user.avatarUrl.isEmpty
-                                      ? const Icon(Icons.person)
-                                      : null,
+                                    ),
+                                    Positioned(
+                                      bottom: 0,
+                                      right: 0,
+                                      child: Container(
+                                        width: 12,
+                                        height: 12,
+                                        decoration: BoxDecoration(
+                                          color: isFriend
+                                              ? Colors.teal
+                                              : Colors.orange,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                              color: Colors.white, width: 1.5),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 title: Text(user.name,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis),
                                 subtitle: Text(
-                                  user.universityId.isNotEmpty
-                                      ? user.universityId
-                                      : user.nationality,
+                                  isFriend
+                                      ? 'Friend${user.universityId.isNotEmpty ? ' · ${user.universityId}' : ''}'
+                                      : 'Nearby${user.universityId.isNotEmpty ? ' · ${user.universityId}' : user.nationality.isNotEmpty ? ' · ${user.nationality}' : ''}',
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(fontSize: 12),
                                 ),
-                                trailing: isFriendsMode
+                                trailing: isFriend
                                     ? const Icon(
                                         Icons.chat_bubble_outline,
                                         size: 18,
@@ -730,7 +717,7 @@ class _MapScreenState extends State<MapScreen> {
                                         size: 18,
                                         color: Colors.orange,
                                       ),
-                                onTap: () => isFriendsMode
+                                onTap: () => isFriend
                                     ? _openChatWithUser(user)
                                     : _openUserProfile(user),
                               );
@@ -763,48 +750,4 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Widget _buildModeTab({
-    required IconData icon,
-    required String label,
-    required MapMode mode,
-    required Color color,
-  }) {
-    final isSelected = _currentMode == mode;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() {
-            _currentMode = mode;
-            _panelOpen = false;
-          });
-        },
-        child: Container(
-          decoration: BoxDecoration(
-            color: isSelected ? color : Colors.transparent,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 16,
-                color: isSelected ? Colors.white : Colors.grey,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight:
-                      isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected ? Colors.white : Colors.grey.shade700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
