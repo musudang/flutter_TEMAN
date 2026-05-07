@@ -109,7 +109,10 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       universityId: data['universityId'] ?? '',
       latitude: data['latitude']?.toDouble(),
       longitude: data['longitude']?.toDouble(),
-      locationSharingEnabled: data['locationSharingEnabled'] ?? true,
+      locationSharingEnabled: data['locationSharingEnabled'] ?? false,
+      locationUpdatedAt: data['locationUpdatedAt'] != null
+          ? (data['locationUpdatedAt'] as Timestamp?)?.toDate()
+          : null,
     );
   }
 
@@ -159,10 +162,11 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       final updateData = <String, dynamic>{
         'locationSharingEnabled': enabled,
       };
-      // When disabling, clear location so others can't see it
+      // When disabling, clear location AND timestamp so others can't see it
       if (!enabled) {
         updateData['latitude'] = null;
         updateData['longitude'] = null;
+        updateData['locationUpdatedAt'] = null;
       }
       await _db.collection('users').doc(uid).update(updateData);
     } catch (e) {
@@ -177,6 +181,10 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     // If current user disabled sharing, return empty
     if (!currentUser.locationSharingEnabled) return [];
 
+    final now = DateTime.now();
+    // Only show friends whose location was updated within the last 2 minutes
+    const freshnessThreshold = Duration(minutes: 2);
+
     List<app_models.User> nearbyFriends = [];
     
     // Process in batches of 10 for whereIn query
@@ -188,8 +196,14 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       for (var doc in snapshot.docs) {
         final data = doc.data();
         // Skip friends who disabled location sharing
-        if (data['locationSharingEnabled'] == false) continue;
+        if (data['locationSharingEnabled'] != true) continue;
         
+        // Skip friends with stale/missing location timestamp
+        final locationUpdatedAt = (data['locationUpdatedAt'] as Timestamp?)?.toDate();
+        if (locationUpdatedAt == null || now.difference(locationUpdatedAt) > freshnessThreshold) {
+          continue;
+        }
+
         final friendLat = data['latitude']?.toDouble();
         final friendLng = data['longitude']?.toDouble();
         if (friendLat != null && friendLng != null) {
@@ -202,6 +216,63 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     }
     
     return nearbyFriends;
+  }
+
+  /// Stream-based nearby friends for real-time updates.
+  /// Listens to snapshots of following users and filters by location freshness.
+  Stream<List<app_models.User>> getNearbyFriendsStream(
+      double lat, double lng, {double radiusInMeters = 3000}) async* {
+    final currentUser = await getCurrentUser();
+    if (currentUser == null || currentUser.following.isEmpty) {
+      yield [];
+      return;
+    }
+    if (!currentUser.locationSharingEnabled) {
+      yield [];
+      return;
+    }
+
+    // For simplicity, listen to the first batch (max 10).
+    // If more than 10 following, we merge multiple streams.
+    final following = currentUser.following;
+    
+    if (following.length <= 10) {
+      yield* _db.collection('users')
+        .where('id', whereIn: following)
+        .snapshots()
+        .map((snapshot) => _filterNearbyFromDocs(snapshot.docs, lat, lng, radiusInMeters));
+    } else {
+      // For larger lists, fall back to periodic polling
+      yield* Stream.periodic(const Duration(seconds: 15), (_) => true)
+        .asyncMap((_) => getNearbyFriends(lat, lng, radiusInMeters: radiusInMeters));
+    }
+  }
+
+  List<app_models.User> _filterNearbyFromDocs(
+      List docs, double lat, double lng, double radiusInMeters) {
+    final now = DateTime.now();
+    const freshnessThreshold = Duration(minutes: 2);
+    List<app_models.User> result = [];
+
+    for (var doc in docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['locationSharingEnabled'] != true) continue;
+
+      final locationUpdatedAt = (data['locationUpdatedAt'] as Timestamp?)?.toDate();
+      if (locationUpdatedAt == null || now.difference(locationUpdatedAt) > freshnessThreshold) {
+        continue;
+      }
+
+      final friendLat = data['latitude']?.toDouble();
+      final friendLng = data['longitude']?.toDouble();
+      if (friendLat != null && friendLng != null) {
+        final distance = Geolocator.distanceBetween(lat, lng, friendLat, friendLng);
+        if (distance <= radiusInMeters) {
+          result.add(_userFromData(data, doc.id));
+        }
+      }
+    }
+    return result;
   }
 
   Future<void> updateUserProfile({
