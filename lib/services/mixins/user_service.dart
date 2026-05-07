@@ -110,6 +110,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       latitude: data['latitude']?.toDouble(),
       longitude: data['longitude']?.toDouble(),
       locationSharingEnabled: data['locationSharingEnabled'] ?? true,
+      hideLocationFromFriends: data['hideLocationFromFriends'] ?? false,
     );
   }
 
@@ -170,30 +171,51 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     }
   }
 
+  Future<void> toggleHideLocationFromFriends(bool hidden) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    try {
+      await _db.collection('users').doc(uid).update({
+        'hideLocationFromFriends': hidden,
+      });
+    } catch (e) {
+      debugPrint('Error toggling hide location from friends: $e');
+    }
+  }
+
   Future<List<app_models.User>> getNearbyFriends(double lat, double lng, {double radiusInMeters = 3000}) async {
     final currentUser = await getCurrentUser();
-    if (currentUser == null || currentUser.following.isEmpty) return [];
+    if (currentUser == null) return [];
 
     // If current user disabled sharing, return empty
     if (!currentUser.locationSharingEnabled) return [];
 
+    // Mutual follow: only users who are in BOTH following AND followers lists
+    final mutualFriends = currentUser.following
+        .where((id) => currentUser.followers.contains(id))
+        .toList();
+    if (mutualFriends.isEmpty) return [];
+
     List<app_models.User> nearbyFriends = [];
     
     // Process in batches of 10 for whereIn query
-    for (int i = 0; i < currentUser.following.length; i += 10) {
-      final end = (i + 10 < currentUser.following.length) ? i + 10 : currentUser.following.length;
-      final batch = currentUser.following.sublist(i, end);
+    for (int i = 0; i < mutualFriends.length; i += 10) {
+      final end = (i + 10 < mutualFriends.length) ? i + 10 : mutualFriends.length;
+      final batch = mutualFriends.sublist(i, end);
       
       final snapshot = await _db.collection('users').where('id', whereIn: batch).get();
       for (var doc in snapshot.docs) {
         final data = doc.data();
         // Skip friends who disabled location sharing
         if (data['locationSharingEnabled'] == false) continue;
+        // Skip friends who chose to hide their location from friends
+        if (data['hideLocationFromFriends'] == true) continue;
         
         final friendLat = data['latitude']?.toDouble();
         final friendLng = data['longitude']?.toDouble();
         if (friendLat != null && friendLng != null) {
-          // Return all friends who have shared their location regardless of distance
+          // Return all mutual friends who have shared their location
           nearbyFriends.add(_userFromData(data, doc.id));
         }
       }
@@ -229,6 +251,13 @@ mixin UserService on ChangeNotifier implements UserDependencies {
 
       // Skip self and blocked
       if (excludeIds.contains(userId)) continue;
+
+      // If this user is a mutual friend, and they've hidden their location from friends, skip them.
+      // We can approximate mutual friend by checking if userId is in our following and followers.
+      final isMutualFriend = currentUser.following.contains(userId) && currentUser.followers.contains(userId);
+      if (isMutualFriend && data['hideLocationFromFriends'] == true) {
+        continue;
+      }
 
       final userLat = data['latitude']?.toDouble();
       final userLng = data['longitude']?.toDouble();

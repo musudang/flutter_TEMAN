@@ -28,6 +28,7 @@ class _MapScreenState extends State<MapScreen> {
   List<app_models.User> _nearbyFriends = [];
   List<app_models.User> _nearbyUsers = [];
   bool _locationSharingEnabled = true;
+  bool _hideFromFriends = false;
   bool _panelOpen = false;
   Timer? _refreshTimer;
   final MapController _mapController = MapController();
@@ -73,6 +74,7 @@ class _MapScreenState extends State<MapScreen> {
       final currentUser = await firestoreService.getCurrentUser();
       if (currentUser != null) {
         _locationSharingEnabled = currentUser.locationSharingEnabled;
+        _hideFromFriends = currentUser.hideLocationFromFriends;
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -169,6 +171,17 @@ class _MapScreenState extends State<MapScreen> {
       );
     }
 
+    await _refreshData();
+  }
+
+  Future<void> _toggleHideFromFriends() async {
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+
+    final newValue = !_hideFromFriends;
+    setState(() => _hideFromFriends = newValue);
+
+    await firestoreService.toggleHideLocationFromFriends(newValue);
     await _refreshData();
   }
 
@@ -495,6 +508,46 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
+                // Hide from friends toggle chip
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 8,
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _hideFromFriends
+                            ? Icons.visibility_off
+                            : Icons.visibility,
+                        color: _hideFromFriends ? Colors.red : Colors.grey,
+                        size: 16,
+                      ),
+                      SizedBox(
+                        height: 28,
+                        child: Switch(
+                          value: _hideFromFriends,
+                          onChanged: (_) => _toggleHideFromFriends(),
+                          activeTrackColor:
+                              Colors.red.withValues(alpha: 0.5),
+                          activeThumbColor: Colors.red,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Location toggle chip
                 Container(
                   padding:
@@ -590,7 +643,7 @@ class _MapScreenState extends State<MapScreen> {
                             const SizedBox(width: 6),
                             Text(
                               isFriendsMode
-                                  ? 'Following Friends (${_nearbyFriends.length})'
+                                  ? 'Mutual Friends (${_nearbyFriends.length})'
                                   : 'Nearby People (${_nearbyUsers.length})',
                               style: const TextStyle(
                                 fontSize: 14,
@@ -686,6 +739,23 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
               ],
+            ),
+          ),
+
+          // ── My Location FAB ──
+          Positioned(
+            bottom: _panelOpen ? panelHeight + 64 : 64,
+            right: 16,
+            child: FloatingActionButton(
+              heroTag: 'myLocation',
+              mini: true,
+              backgroundColor: Colors.white,
+              foregroundColor: Colors.teal,
+              elevation: 4,
+              onPressed: () {
+                _mapController.move(myLatLng, 14.0);
+              },
+              child: const Icon(Icons.my_location),
             ),
           ),
         ],

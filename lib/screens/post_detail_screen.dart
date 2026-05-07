@@ -684,16 +684,41 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                CircleAvatar(
-                  radius: isReply ? 14 : 18,
-                  backgroundColor: Colors.teal[50],
-                  child: Text(
-                    c.authorName[0].toUpperCase(),
-                    style: TextStyle(
-                      color: Colors.teal[700],
-                      fontSize: isReply ? 12 : 14,
-                      fontWeight: FontWeight.bold,
-                    ),
+                GestureDetector(
+                  onTap: () {
+                    final uid = widget.fs.currentUserId ?? '';
+                    if (c.authorId == uid) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ProfileScreen(),
+                        ),
+                      );
+                    } else {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => UserProfileScreen(userId: c.authorId),
+                        ),
+                      );
+                    }
+                  },
+                  child: CircleAvatar(
+                    radius: isReply ? 14 : 18,
+                    backgroundColor: Colors.teal[50],
+                    backgroundImage: (user != null && user.avatarUrl.isNotEmpty)
+                        ? NetworkImage(user.avatarUrl)
+                        : null,
+                    child: (user == null || user.avatarUrl.isEmpty)
+                        ? Text(
+                            c.authorName[0].toUpperCase(),
+                            style: TextStyle(
+                              color: Colors.teal[700],
+                              fontSize: isReply ? 12 : 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          )
+                        : null,
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -704,13 +729,33 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                       Row(
                         children: [
                           Flexible(
-                            child: Text(
-                              c.authorName,
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: isReply ? 13 : 14,
+                            child: GestureDetector(
+                              onTap: () {
+                                final uid = widget.fs.currentUserId ?? '';
+                                if (c.authorId == uid) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const ProfileScreen(),
+                                    ),
+                                  );
+                                } else {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => UserProfileScreen(userId: c.authorId),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Text(
+                                user?.name ?? c.authorName,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: isReply ? 13 : 14,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
                           ),
                           if ((c.authorUniversityId != null && c.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[

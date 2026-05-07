@@ -69,10 +69,11 @@ mixin MeetupService on ChangeNotifier {
         await docRef.set(_toDocument(meetup));
       }
 
-      // Create Group Chat
-      await _db.collection('conversations').add({
+      // Create Group Chat — use the meetup doc ID as the conversation ID
+      // so that sendMeetupMessage / _addUserToMeetupChat can find it via doc(meetupId).
+      await _db.collection('conversations').doc(docRef.id).set({
         'participantIds': [meetup.host.id],
-        'lastMessage': 'Meetup created! ?��',
+        'lastMessage': 'Meetup created! 🎉',
         'lastMessageTime': FieldValue.serverTimestamp(),
         'unreadCounts': {meetup.host.id: 0},
         'isGroup': true,
