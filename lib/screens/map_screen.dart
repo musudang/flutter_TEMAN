@@ -22,8 +22,7 @@ class _MapScreenState extends State<MapScreen> {
   List<app_models.User> _nearbyFriends = [];
   bool _locationSharingEnabled = true;
   bool _panelOpen = false;
-  Timer? _locationPingTimer;
-  StreamSubscription<List<app_models.User>>? _friendsSubscription;
+  Timer? _refreshTimer;
   final MapController _mapController = MapController();
 
   @override
@@ -34,8 +33,7 @@ class _MapScreenState extends State<MapScreen> {
 
   @override
   void dispose() {
-    _locationPingTimer?.cancel();
-    _friendsSubscription?.cancel();
+    _refreshTimer?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -83,13 +81,12 @@ class _MapScreenState extends State<MapScreen> {
           );
         }
 
-        _startFriendsStream();
+        await _refreshFriends();
         setState(() => _isLoading = false);
 
-        // Continuously ping location every 15 seconds to keep "online" status fresh
-        _locationPingTimer = Timer.periodic(
-          const Duration(seconds: 15),
-          (_) => _pingLocation(),
+        _refreshTimer = Timer.periodic(
+          const Duration(seconds: 30),
+          (_) => _refreshFriends(),
         );
       }
     } catch (e) {
@@ -101,61 +98,21 @@ class _MapScreenState extends State<MapScreen> {
     }
   }
 
-  /// Periodically update own location to keep the timestamp fresh.
-  Future<void> _pingLocation() async {
-    if (!mounted || _currentPosition == null || !_locationSharingEnabled) return;
-
-    try {
-      // Get fresh position
-      final newPosition = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.high,
-        ),
-      );
-
-      if (!mounted) return;
-
-      _currentPosition = newPosition;
-
-      final firestoreService =
-          Provider.of<FirestoreService>(context, listen: false);
-      await firestoreService.updateUserLocation(
-        newPosition.latitude,
-        newPosition.longitude,
-      );
-    } catch (e) {
-      debugPrint('Location ping error: $e');
-    }
-  }
-
-  /// Subscribe to real-time nearby friends stream.
-  void _startFriendsStream() {
-    _friendsSubscription?.cancel();
-
-    if (!_locationSharingEnabled || _currentPosition == null) {
-      setState(() => _nearbyFriends = []);
-      return;
-    }
+  Future<void> _refreshFriends() async {
+    if (!mounted || _currentPosition == null) return;
 
     final firestoreService =
         Provider.of<FirestoreService>(context, listen: false);
 
-    _friendsSubscription = firestoreService
-        .getNearbyFriendsStream(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-          radiusInMeters: 1000,
-        )
-        .listen(
-          (friends) {
-            if (mounted) {
-              setState(() => _nearbyFriends = friends);
-            }
-          },
-          onError: (e) {
-            debugPrint('Friends stream error: $e');
-          },
-        );
+    final friends = await firestoreService.getNearbyFriends(
+      _currentPosition!.latitude,
+      _currentPosition!.longitude,
+      radiusInMeters: 1000,
+    );
+
+    if (mounted) {
+      setState(() => _nearbyFriends = friends);
+    }
   }
 
   Future<void> _toggleLocationSharing() async {
@@ -163,31 +120,18 @@ class _MapScreenState extends State<MapScreen> {
         Provider.of<FirestoreService>(context, listen: false);
 
     final newValue = !_locationSharingEnabled;
-
-    // Immediately update UI
-    setState(() {
-      _locationSharingEnabled = newValue;
-      // Instantly clear nearby friends when turning off
-      if (!newValue) {
-        _nearbyFriends = [];
-      }
-    });
-
-    // Cancel existing stream subscription
-    _friendsSubscription?.cancel();
-    _friendsSubscription = null;
+    setState(() => _locationSharingEnabled = newValue);
 
     await firestoreService.toggleLocationSharing(newValue);
 
     if (newValue && _currentPosition != null) {
-      // Re-upload location with fresh timestamp
       await firestoreService.updateUserLocation(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
       );
-      // Re-start listening for nearby friends
-      _startFriendsStream();
     }
+
+    await _refreshFriends();
   }
 
   Future<void> _openChatWithFriend(app_models.User friend) async {

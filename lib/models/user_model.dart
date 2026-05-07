@@ -26,7 +26,6 @@ class User {
   final double? latitude;
   final double? longitude;
   final bool locationSharingEnabled;
-  final DateTime? locationUpdatedAt;
 
   User({
     required this.id,
@@ -51,7 +50,6 @@ class User {
     this.latitude,
     this.longitude,
     this.locationSharingEnabled = true,
-    this.locationUpdatedAt,
   });
 
   bool get isAdmin => role == 'admin';
