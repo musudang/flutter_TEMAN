@@ -15,5 +15,20 @@
       ]
     }
   ],
-  "fieldOverrides": []
+  "fieldOverrides": [
+    {
+      "collectionGroup": "posts",
+      "fieldPath": "authorId",
+      "indexes": [
+        {
+          "queryScope": "COLLECTION_GROUP",
+          "order": "ASCENDING"
+        },
+        {
+          "queryScope": "COLLECTION",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ]
 }

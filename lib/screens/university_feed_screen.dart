@@ -801,9 +801,8 @@ class UniversityPostDetailSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final firestoreService =
-        Provider.of<FirestoreService>(context, listen: false);
-
+    // Actions row (like/scrap/share/edit/delete) reads its own service —
+    // we no longer need a service handle at this scope.
     return DraggableScrollableSheet(
       initialChildSize: 0.85,
       minChildSize: 0.5,
