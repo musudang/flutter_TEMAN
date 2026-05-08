@@ -795,6 +795,7 @@ mixin PostService on ChangeNotifier {
     String? replyToCommentId,
     String? replyToCommentText,
     String? replyToCommentAuthor,
+    bool isAnonymous = false,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Must be logged in to comment');
@@ -802,6 +803,41 @@ mixin PostService on ChangeNotifier {
     final userData = await getCurrentUser();
 
     try {
+      // For anonymous comments, compute a thread-scoped anonymous index
+      int? anonymousIndex;
+      if (isAnonymous) {
+        final commentsRef = _db
+            .collection(AppConstants.postsCollection)
+            .doc(postId)
+            .collection(AppConstants.commentsCollection);
+        
+        // Get all anonymous comments on this post to determine the index
+        final anonSnapshot = await commentsRef
+            .where('isAnonymous', isEqualTo: true)
+            .get();
+        
+        // Build a map of authorId -> anonymousIndex for existing anonymous comments
+        final Map<String, int> authorIndexMap = {};
+        int maxIndex = 0;
+        for (var doc in anonSnapshot.docs) {
+          final data = doc.data();
+          final aId = data['authorId'] as String? ?? '';
+          final aIdx = data['anonymousIndex'] as int?;
+          if (aId.isNotEmpty && aIdx != null) {
+            authorIndexMap[aId] = aIdx;
+            if (aIdx > maxIndex) maxIndex = aIdx;
+          }
+        }
+        
+        // If this user already commented anonymously on this post, reuse their index
+        if (authorIndexMap.containsKey(user.uid)) {
+          anonymousIndex = authorIndexMap[user.uid];
+        } else {
+          // Assign next available index
+          anonymousIndex = maxIndex + 1;
+        }
+      }
+
       await _db.runTransaction((transaction) async {
         final postRef = _db
             .collection(AppConstants.postsCollection)
@@ -818,7 +854,12 @@ mixin PostService on ChangeNotifier {
           'timestamp': FieldValue.serverTimestamp(),
           'reactions': {},
           'authorUniversityId': userData?.universityId,
+          'isAnonymous': isAnonymous,
         };
+
+        if (isAnonymous && anonymousIndex != null) {
+          docData['anonymousIndex'] = anonymousIndex;
+        }
 
         if (replyToCommentId != null) {
           docData['replyToCommentId'] = replyToCommentId;
@@ -844,7 +885,9 @@ mixin PostService on ChangeNotifier {
           await sendNotification(
             userId: authorId,
             title: 'New Comment 💬',
-            body: '${userData?.name ?? "Someone"} commented on your post.',
+            body: isAnonymous
+                ? 'Someone commented anonymously on your post.'
+                : '${userData?.name ?? "Someone"} commented on your post.',
             type: 'comment',
             relatedId: postId,
           );

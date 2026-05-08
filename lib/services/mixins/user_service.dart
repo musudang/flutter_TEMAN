@@ -184,12 +184,33 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     }
   }
 
+  /// Presence threshold: a user counts as "online / live" only if their
+  /// `locationUpdatedAt` heartbeat is within this many seconds.
+  /// Map heartbeat timer is 30s, so 3 min = 6 missed pings before they
+  /// disappear from the map.
+  static const int _presenceFreshnessSeconds = 180;
+
+  /// Returns true when the user document's `locationUpdatedAt` is recent
+  /// enough to be considered online. Missing/null timestamp ⇒ offline.
+  bool _isUserPresent(Map<String, dynamic> data) {
+    final ts = data['locationUpdatedAt'];
+    if (ts is! Timestamp) return false;
+    final updated = ts.toDate();
+    final ageSeconds = DateTime.now().difference(updated).inSeconds;
+    return ageSeconds <= _presenceFreshnessSeconds;
+  }
+
   Future<List<app_models.User>> getNearbyFriends(double lat, double lng, {double radiusInMeters = 3000}) async {
     final currentUser = await getCurrentUser();
     if (currentUser == null) return [];
 
     // If current user disabled sharing, return empty
     if (!currentUser.locationSharingEnabled) return [];
+
+    // MUTUAL INVISIBILITY: if current user has hidden from friends,
+    // they should not see any friends (and friends won't see them either
+    // because the reverse check also applies when those friends fetch).
+    if (currentUser.hideLocationFromFriends) return [];
 
     // Mutual follow: only users who are in BOTH following AND followers lists
     final mutualFriends = currentUser.following
@@ -198,20 +219,24 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     if (mutualFriends.isEmpty) return [];
 
     List<app_models.User> nearbyFriends = [];
-    
+
     // Process in batches of 10 for whereIn query
     for (int i = 0; i < mutualFriends.length; i += 10) {
       final end = (i + 10 < mutualFriends.length) ? i + 10 : mutualFriends.length;
       final batch = mutualFriends.sublist(i, end);
-      
+
       final snapshot = await _db.collection('users').where('id', whereIn: batch).get();
       for (var doc in snapshot.docs) {
         final data = doc.data();
         // Skip friends who disabled location sharing
         if (data['locationSharingEnabled'] == false) continue;
-        // Skip friends who chose to hide their location from friends
+        // MUTUAL INVISIBILITY: Skip friends who chose to hide their location from friends
+        // (if they hide from us, we also hide from them)
         if (data['hideLocationFromFriends'] == true) continue;
-        
+        // PRESENCE: Skip friends who haven't pinged the server recently
+        // (offline / app closed / no signal). They shouldn't appear stale.
+        if (!_isUserPresent(data)) continue;
+
         final friendLat = data['latitude']?.toDouble();
         final friendLng = data['longitude']?.toDouble();
         if (friendLat != null && friendLng != null) {
@@ -220,7 +245,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
         }
       }
     }
-    
+
     return nearbyFriends;
   }
 
@@ -258,6 +283,11 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       if (isMutualFriend && data['hideLocationFromFriends'] == true) {
         continue;
       }
+
+      // PRESENCE: Skip stale users (not pinging within freshness window).
+      // Without this, users who closed the app or lost connection would
+      // remain on the map indefinitely with their last known position.
+      if (!_isUserPresent(data)) continue;
 
       final userLat = data['latitude']?.toDouble();
       final userLng = data['longitude']?.toDouble();

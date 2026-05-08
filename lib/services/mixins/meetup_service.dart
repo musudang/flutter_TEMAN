@@ -693,7 +693,13 @@ mixin MeetupService on ChangeNotifier {
         });
   }
 
-  Future<void> addMeetupComment(String meetupId, String content) async {
+  Future<void> addMeetupComment(
+    String meetupId,
+    String content, {
+    String? replyToCommentId,
+    String? replyToCommentText,
+    String? replyToCommentAuthor,
+  }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Must be logged in to comment');
 
@@ -705,13 +711,24 @@ mixin MeetupService on ChangeNotifier {
         final meetupRef = _db.collection('meetups').doc(meetupId);
         final commentRef = meetupRef.collection('comments').doc();
 
-        transaction.set(commentRef, {
+        final docData = <String, dynamic>{
           'content': content,
           'authorId': user.uid,
           'authorName': userData?['name'] ?? 'Unknown',
           'authorAvatar': userData?['avatarUrl'] ?? '',
           'timestamp': FieldValue.serverTimestamp(),
-        });
+          'authorUniversityId': userData?['universityId'],
+        };
+        if (replyToCommentId != null) {
+          docData['replyToCommentId'] = replyToCommentId;
+        }
+        if (replyToCommentText != null) {
+          docData['replyToCommentText'] = replyToCommentText;
+        }
+        if (replyToCommentAuthor != null) {
+          docData['replyToCommentAuthor'] = replyToCommentAuthor;
+        }
+        transaction.set(commentRef, docData);
 
         transaction.update(meetupRef, {'comments': FieldValue.increment(1)});
       });

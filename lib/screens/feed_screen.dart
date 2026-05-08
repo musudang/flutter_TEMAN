@@ -241,9 +241,23 @@ class _FeedScreenState extends State<FeedScreen> {
             },
           ),
           IconButton(
-            icon: const Icon(
-              Icons.notifications_outlined,
-              color: Color(0xFF1A1F36),
+            icon: StreamBuilder<int>(
+              stream: firestoreService.getUnreadNotificationCount(),
+              builder: (context, snapshot) {
+                final count = snapshot.data ?? 0;
+                return Badge(
+                  isLabelVisible: count > 0,
+                  label: Text(
+                    count > 99 ? '99+' : '$count',
+                    style: const TextStyle(fontSize: 10),
+                  ),
+                  backgroundColor: Colors.red,
+                  child: const Icon(
+                    Icons.notifications_outlined,
+                    color: Color(0xFF1A1F36),
+                  ),
+                );
+              },
             ),
             onPressed: () {
               Navigator.push(

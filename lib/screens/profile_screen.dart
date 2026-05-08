@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
@@ -29,6 +30,60 @@ class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
+  // ── My Posts cache ──
+  // Each of the four sources (main posts, jobs, marketplace, university
+  // posts) was previously a nested StreamBuilder. Whenever the parent
+  // rebuilt, all four were re-subscribed and individually flickered
+  // through `connectionState == waiting` → `hasData==true`. The
+  // university-posts stream emits noticeably later than the others
+  // (collectionGroup query), which is why uni posts appeared and then
+  // vanished on every rebuild. Holding the latest emission of each
+  // stream in state eliminates the flicker.
+  String? _myPostsUid;
+  StreamSubscription<List<Post>>? _postsSub;
+  StreamSubscription<List<Job>>? _jobsSub;
+  StreamSubscription<List<MarketplaceItem>>? _marketSub;
+  StreamSubscription<List<Post>>? _uniPostsSub;
+  List<Post> _cachedPosts = [];
+  List<Job> _cachedJobs = [];
+  List<MarketplaceItem> _cachedMarket = [];
+  List<Post> _cachedUniPosts = [];
+  bool _myPostsInitialLoad = true;
+
+  void _ensureMyPostsSubscriptions(FirestoreService service, String uid) {
+    if (_myPostsUid == uid) return;
+    _myPostsUid = uid;
+    _postsSub?.cancel();
+    _jobsSub?.cancel();
+    _marketSub?.cancel();
+    _uniPostsSub?.cancel();
+    _cachedPosts = [];
+    _cachedJobs = [];
+    _cachedMarket = [];
+    _cachedUniPosts = [];
+    _myPostsInitialLoad = true;
+
+    _postsSub = service.getUserPosts(uid).listen((d) {
+      if (!mounted) return;
+      setState(() {
+        _cachedPosts = d;
+        _myPostsInitialLoad = false;
+      });
+    });
+    _jobsSub = service.getUserJobs(uid).listen((d) {
+      if (!mounted) return;
+      setState(() => _cachedJobs = d);
+    });
+    _marketSub = service.getUserMarketplaceItems(uid).listen((d) {
+      if (!mounted) return;
+      setState(() => _cachedMarket = d);
+    });
+    _uniPostsSub = service.getUserUniversityPosts(uid).listen((d) {
+      if (!mounted) return;
+      setState(() => _cachedUniPosts = d);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +93,10 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void dispose() {
     _tabController.dispose();
+    _postsSub?.cancel();
+    _jobsSub?.cancel();
+    _marketSub?.cancel();
+    _uniPostsSub?.cancel();
     super.dispose();
   }
 
@@ -416,43 +475,101 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   Widget _buildMyPostsList(FirestoreService service, String userId) {
-    // Combine Posts, Jobs, and Marketplace items into one unified list
-    return StreamBuilder<List<Post>>(
-      stream: service.getUserPosts(userId),
-      builder: (context, postsSnap) {
-        return StreamBuilder<List<Job>>(
-          stream: service.getUserJobs(userId),
-          builder: (context, jobsSnap) {
-            return StreamBuilder<List<MarketplaceItem>>(
-              stream: service.getUserMarketplaceItems(userId),
-              builder: (context, marketSnap) {
-                if (!postsSnap.hasData &&
-                    !jobsSnap.hasData &&
-                    !marketSnap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+    // Subscribe-once + cache pattern (see _ensureMyPostsSubscriptions doc).
+    _ensureMyPostsSubscriptions(service, userId);
 
-                // Build a flat list of all items
-                final List<dynamic> allItems = [
-                  ...?postsSnap.data,
-                  ...?jobsSnap.data,
-                  ...?marketSnap.data,
-                ];
+    if (_myPostsInitialLoad) {
+      return const Center(child: CircularProgressIndicator());
+    }
 
-                if (allItems.isEmpty) {
-                  return _buildEmptyState(
-                    Icons.article_outlined,
-                    'No posts yet',
-                  );
-                }
+    // Build the combined list directly from cached data (no nested
+    // StreamBuilders → no flicker).
+    final List<dynamic> allItems = [
+      ..._cachedPosts,
+      ..._cachedJobs,
+      ..._cachedMarket,
+    ];
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: allItems.length,
-                  itemBuilder: (context, index) {
-                    final item = allItems[index];
+    for (var uniPost in _cachedUniPosts) {
+      // Avoid duplicates if post already exists in main feed
+      if (!allItems.any((item) => item is Post && item.id == uniPost.id)) {
+        allItems.add(_UniPostWrapper(uniPost));
+      }
+    }
 
-                    if (item is Post) {
+    if (allItems.isEmpty) {
+      return _buildEmptyState(
+        Icons.article_outlined,
+        'No posts yet',
+      );
+    }
+
+    return _buildMyPostsListView(allItems, service);
+  }
+
+  Widget _buildMyPostsListView(List<dynamic> allItems, FirestoreService service) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: allItems.length,
+      itemBuilder: (context, index) {
+        final item = allItems[index];
+        if (item is _UniPostWrapper) {
+                          // University post card with distinctive styling
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => PostDetailScreen(postId: item.post.id),
+                                ),
+                              ),
+                              leading: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE3F2FD),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.school_outlined,
+                                  color: Color(0xFF1565C0),
+                                ),
+                              ),
+                              title: Text(
+                                item.post.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                item.post.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE3F2FD),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Text(
+                                  'Uni',
+                                  style: TextStyle(
+                                    color: Color(0xFF1565C0),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        } else if (item is Post) {
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 2,
@@ -605,12 +722,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                       );
                     }
                     return const SizedBox.shrink();
-                  },
-                );
-              },
-            );
-          },
-        );
       },
     );
   }
@@ -956,4 +1067,10 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
   bool shouldRebuild(_SliverAppBarDelegate oldDelegate) {
     return false;
   }
+}
+
+/// Simple wrapper to tag university posts in the "My Posts" list
+class _UniPostWrapper {
+  final Post post;
+  _UniPostWrapper(this.post);
 }

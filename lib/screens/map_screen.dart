@@ -131,6 +131,32 @@ class _MapScreenState extends State<MapScreen> {
     final firestoreService =
         Provider.of<FirestoreService>(context, listen: false);
 
+    // Heartbeat: re-publish my own location every refresh tick so other
+    // users see me as "online / present". If sharing is OFF we skip — we
+    // don't want to leak a fresh timestamp while hidden.
+    if (_locationSharingEnabled) {
+      // Best-effort: don't block the rest of the refresh on this write.
+      // Re-fetch a current GPS reading if possible so the heartbeat reflects
+      // the user's actual location (not just the initial fix).
+      try {
+        final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(
+            accuracy: LocationAccuracy.high,
+          ),
+        );
+        _currentPosition = pos;
+        await firestoreService.updateUserLocation(pos.latitude, pos.longitude);
+      } catch (_) {
+        // If GPS fails, still refresh the timestamp via the last known fix
+        // so we don't disappear from friends' maps purely due to a transient
+        // GPS error.
+        await firestoreService.updateUserLocation(
+          _currentPosition!.latitude,
+          _currentPosition!.longitude,
+        );
+      }
+    }
+
     // Refresh both lists in parallel
     final results = await Future.wait([
       firestoreService.getNearbyFriends(

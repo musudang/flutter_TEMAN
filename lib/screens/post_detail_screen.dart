@@ -564,6 +564,7 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
   String? _replyToCommentId;
   String? _replyToCommentText;
   String? _replyToCommentAuthor;
+  bool _isAnonymous = false;
 
   @override
   void dispose() {
@@ -629,7 +630,7 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                 title: const Text('Reply'),
                 onTap: () {
                   Navigator.pop(context);
-                  _handleReply(comment.id, comment.content, comment.authorName);
+                  _handleReply(comment.id, comment.content, comment.displayName);
                 },
               ),
               if (isMyComment)
@@ -666,11 +667,39 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
 
   Widget _buildCommentItem(Comment c, {bool isReply = false}) {
     bool hasReactions = c.reactions != null && c.reactions!.isNotEmpty;
+    final bool isAnon = c.isAnonymous;
+    final bool isMyComment = c.authorId == widget.fs.currentUserId;
 
     return StreamBuilder<app_models.User?>(
       stream: widget.fs.getUserStream(c.authorId),
       builder: (context, snapshot) {
         final user = snapshot.data;
+
+        // For anonymous comments, only allow profile navigation if it's your own comment
+        void navigateToProfile() {
+          if (isAnon && !isMyComment) return; // Block navigation for anonymous others
+          final uid = widget.fs.currentUserId ?? '';
+          if (c.authorId == uid) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const ProfileScreen(),
+              ),
+            );
+          } else {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => UserProfileScreen(userId: c.authorId),
+              ),
+            );
+          }
+        }
+
+        // Determine display name and avatar
+        final displayName = isAnon ? c.displayName : (user?.name ?? c.authorName);
+        final showAvatar = !isAnon && user != null && user.avatarUrl.isNotEmpty;
+
         return GestureDetector(
           onLongPress: () => _showReactionReplySheet(c),
           child: Container(
@@ -685,41 +714,34 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 GestureDetector(
-                  onTap: () {
-                    final uid = widget.fs.currentUserId ?? '';
-                    if (c.authorId == uid) {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ProfileScreen(),
+                  onTap: navigateToProfile,
+                  child: isAnon
+                      ? CircleAvatar(
+                          radius: isReply ? 14 : 18,
+                          backgroundColor: Colors.grey[300],
+                          child: Icon(
+                            Icons.person_off_outlined,
+                            color: Colors.grey[600],
+                            size: isReply ? 14 : 18,
+                          ),
+                        )
+                      : CircleAvatar(
+                          radius: isReply ? 14 : 18,
+                          backgroundColor: Colors.teal[50],
+                          backgroundImage: showAvatar
+                              ? NetworkImage(user!.avatarUrl)
+                              : null,
+                          child: !showAvatar
+                              ? Text(
+                                  c.authorName[0].toUpperCase(),
+                                  style: TextStyle(
+                                    color: Colors.teal[700],
+                                    fontSize: isReply ? 12 : 14,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : null,
                         ),
-                      );
-                    } else {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => UserProfileScreen(userId: c.authorId),
-                        ),
-                      );
-                    }
-                  },
-                  child: CircleAvatar(
-                    radius: isReply ? 14 : 18,
-                    backgroundColor: Colors.teal[50],
-                    backgroundImage: (user != null && user.avatarUrl.isNotEmpty)
-                        ? NetworkImage(user.avatarUrl)
-                        : null,
-                    child: (user == null || user.avatarUrl.isEmpty)
-                        ? Text(
-                            c.authorName[0].toUpperCase(),
-                            style: TextStyle(
-                              color: Colors.teal[700],
-                              fontSize: isReply ? 12 : 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          )
-                        : null,
-                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -730,35 +752,20 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                         children: [
                           Flexible(
                             child: GestureDetector(
-                              onTap: () {
-                                final uid = widget.fs.currentUserId ?? '';
-                                if (c.authorId == uid) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => const ProfileScreen(),
-                                    ),
-                                  );
-                                } else {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (_) => UserProfileScreen(userId: c.authorId),
-                                    ),
-                                  );
-                                }
-                              },
+                              onTap: navigateToProfile,
                               child: Text(
-                                user?.name ?? c.authorName,
+                                displayName,
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: isReply ? 13 : 14,
+                                  color: isAnon ? Colors.grey[600] : null,
+                                  fontStyle: isAnon ? FontStyle.italic : FontStyle.normal,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                             ),
                           ),
-                          if ((c.authorUniversityId != null && c.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[
+                          if (!isAnon && ((c.authorUniversityId != null && c.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty))) ...[
                             const SizedBox(width: 4),
                             UniversityBadge(universityId: c.authorUniversityId?.isNotEmpty == true ? c.authorUniversityId! : user!.universityId),
                           ],
@@ -995,18 +1002,47 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                     ),
                   Row(
                     children: [
+                      // Anonymous toggle
+                      GestureDetector(
+                        onTap: () {
+                          setState(() => _isAnonymous = !_isAnonymous);
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          margin: const EdgeInsets.only(right: 8),
+                          decoration: BoxDecoration(
+                            color: _isAnonymous
+                                ? Colors.grey[700]
+                                : Colors.grey[200],
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _isAnonymous
+                                ? Icons.person_off
+                                : Icons.person_off_outlined,
+                            color: _isAnonymous
+                                ? Colors.white
+                                : Colors.grey[500],
+                            size: 18,
+                          ),
+                        ),
+                      ),
                       Expanded(
                         child: TextField(
                           controller: _commentController,
                           focusNode: _focusNode,
                           decoration: InputDecoration(
-                            hintText: 'Add a comment...',
+                            hintText: _isAnonymous
+                                ? 'Comment anonymously...'
+                                : 'Add a comment...',
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 10,
                             ),
                             filled: true,
-                            fillColor: Colors.grey[100],
+                            fillColor: _isAnonymous
+                                ? Colors.grey[200]
+                                : Colors.grey[100],
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(24),
                               borderSide: BorderSide.none,
@@ -1016,7 +1052,9 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                       ),
                       const SizedBox(width: 8),
                       CircleAvatar(
-                        backgroundColor: Colors.teal,
+                        backgroundColor: _isAnonymous
+                            ? Colors.grey[700]
+                            : Colors.teal,
                         radius: 20,
                         child: IconButton(
                           icon: const Icon(
@@ -1032,9 +1070,11 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                                 replyToCommentId: _replyToCommentId,
                                 replyToCommentText: _replyToCommentText,
                                 replyToCommentAuthor: _replyToCommentAuthor,
+                                isAnonymous: _isAnonymous,
                               );
                               _commentController.clear();
                               _cancelReply();
+                              setState(() => _isAnonymous = false);
                             }
                           },
                         ),

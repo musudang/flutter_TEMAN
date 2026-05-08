@@ -17,10 +17,31 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
   final TextEditingController _controller = TextEditingController();
   bool _isPosting = false;
 
+  // Reply context (mirrors main-board comment reply pattern)
+  String? _replyToCommentId;
+  String? _replyToCommentText;
+  String? _replyToCommentAuthor;
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
+  }
+
+  void _setReplyTo(Comment c) {
+    setState(() {
+      _replyToCommentId = c.id;
+      _replyToCommentText = c.content;
+      _replyToCommentAuthor = c.authorName;
+    });
+  }
+
+  void _clearReply() {
+    setState(() {
+      _replyToCommentId = null;
+      _replyToCommentText = null;
+      _replyToCommentAuthor = null;
+    });
   }
 
   Future<void> _postComment() async {
@@ -33,8 +54,15 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
       await Provider.of<FirestoreService>(
         context,
         listen: false,
-      ).addMeetupComment(widget.meetupId, text);
+      ).addMeetupComment(
+        widget.meetupId,
+        text,
+        replyToCommentId: _replyToCommentId,
+        replyToCommentText: _replyToCommentText,
+        replyToCommentAuthor: _replyToCommentAuthor,
+      );
       _controller.clear();
+      _clearReply();
       if (mounted) {
         FocusScope.of(context).unfocus(); // Hide keyboard
       }
@@ -93,77 +121,78 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
                   );
                 }
 
-                final comments = snapshot.data!;
-                return ListView.builder(
-                  itemCount: comments.length,
+                final allComments = snapshot.data!;
+                // Group: top-level comments + replies
+                final topLevel = allComments
+                    .where((c) => c.replyToCommentId == null)
+                    .toList();
+                final repliesByParent = <String, List<Comment>>{};
+                for (final c in allComments) {
+                  if (c.replyToCommentId != null) {
+                    repliesByParent
+                        .putIfAbsent(c.replyToCommentId!, () => [])
+                        .add(c);
+                  }
+                }
+
+                return ListView(
                   padding: const EdgeInsets.all(16),
-                  itemBuilder: (context, index) {
-                    final comment = comments[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 16.0),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          CircleAvatar(
-                            radius: 18,
-                            backgroundImage: comment.authorAvatar.isNotEmpty
-                                ? NetworkImage(comment.authorAvatar)
-                                : null,
-                            backgroundColor: Colors.grey[200],
-                            child: comment.authorAvatar.isEmpty
-                                ? Text(
-                                    comment.authorName.isNotEmpty
-                                        ? comment.authorName[0].toUpperCase()
-                                        : '?',
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: Colors.black54,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    Text(
-                                      comment.authorName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Text(
-                                      DateFormat(
-                                        'MM/dd HH:mm',
-                                      ).format(comment.timestamp),
-                                      style: TextStyle(
-                                        fontSize: 11,
-                                        color: Colors.grey[500],
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  comment.content,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    );
-                  },
+                  children: [
+                    for (final comment in topLevel) ...[
+                      _buildCommentTile(comment, isReply: false),
+                      for (final reply in repliesByParent[comment.id] ??
+                          const <Comment>[])
+                        _buildCommentTile(reply, isReply: true),
+                    ],
+                  ],
                 );
               },
             ),
           ),
+          // Reply preview (shown above input when user is replying)
+          if (_replyToCommentId != null)
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              color: Colors.grey[100],
+              child: Row(
+                children: [
+                  Container(
+                    width: 3,
+                    height: 32,
+                    color: Colors.blue,
+                    margin: const EdgeInsets.only(right: 8),
+                  ),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Replying to ${_replyToCommentAuthor ?? ""}',
+                          style: const TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue,
+                          ),
+                        ),
+                        Text(
+                          _replyToCommentText ?? '',
+                          style: const TextStyle(fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 18),
+                    onPressed: _clearReply,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+            ),
           // Input
           SafeArea(
             child: Padding(
@@ -179,7 +208,9 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
                     child: TextField(
                       controller: _controller,
                       decoration: InputDecoration(
-                        hintText: 'Add a comment...',
+                        hintText: _replyToCommentId != null
+                            ? 'Write a reply...'
+                            : 'Add a comment...',
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -205,6 +236,109 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCommentTile(Comment comment, {required bool isReply}) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: isReply ? 36 : 0,
+        bottom: 14,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: isReply ? 14 : 18,
+            backgroundImage: comment.authorAvatar.isNotEmpty
+                ? NetworkImage(comment.authorAvatar)
+                : null,
+            backgroundColor: Colors.grey[200],
+            child: comment.authorAvatar.isEmpty
+                ? Text(
+                    comment.authorName.isNotEmpty
+                        ? comment.authorName[0].toUpperCase()
+                        : '?',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.black54,
+                    ),
+                  )
+                : null,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      comment.authorName,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: isReply ? 12 : 13,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      DateFormat('MM/dd HH:mm').format(comment.timestamp),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+                if (comment.replyToCommentId != null &&
+                    comment.replyToCommentText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 2),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(4),
+                        border: const Border(
+                          left: BorderSide(color: Colors.blue, width: 2),
+                        ),
+                      ),
+                      child: Text(
+                        '↳ ${comment.replyToCommentAuthor ?? ""}: ${comment.replyToCommentText!}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Text(
+                  comment.content,
+                  style: TextStyle(fontSize: isReply ? 13 : 14),
+                ),
+                GestureDetector(
+                  onTap: () => _setReplyTo(comment),
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 4),
+                    child: Text(
+                      'Reply',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
         ],

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../constants/university_constants.dart';
 import '../services/firestore_service.dart';
 import '../models/post_model.dart';
+import '../models/comment_model.dart';
 import '../models/question_model.dart';
 import '../models/user_model.dart' as app_models;
 import '../providers/feed_state_provider.dart';
@@ -12,6 +13,7 @@ import '../widgets/university_drawer.dart';
 import '../widgets/university_badge.dart';
 
 import 'user_profile_screen.dart';
+import 'search_screen.dart';
 
 /// The dedicated feed screen for a single university.
 /// Contains 3 tabs: General, News, Q&A.
@@ -103,6 +105,23 @@ class _UniversityFeedScreenState extends State<UniversityFeedScreen>
             ),
           ],
         ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Color(0xFF1A1F36)),
+            tooltip: 'Search',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SearchScreen(
+                    universityId: uni.id,
+                    universityName: uni.nameEn,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
         bottom: TabBar(
           controller: _tabController,
           labelColor: uniColor,
@@ -969,6 +988,15 @@ class _UniversityPostDetailSheet extends StatelessWidget {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 24),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    // Comments section (with reply + anonymous support)
+                    _UniversityCommentsSection(
+                      uniId: uniId,
+                      postId: post.id,
+                      uniColor: uniColor,
+                    ),
                   ],
                 ),
               ),
@@ -976,6 +1004,430 @@ class _UniversityPostDetailSheet extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// University Post Comments — supports nested replies and
+// anonymous comments (mirrors main-board behavior).
+// ─────────────────────────────────────────────────────
+
+class _UniversityCommentsSection extends StatefulWidget {
+  final String uniId;
+  final String postId;
+  final Color uniColor;
+
+  const _UniversityCommentsSection({
+    required this.uniId,
+    required this.postId,
+    required this.uniColor,
+  });
+
+  @override
+  State<_UniversityCommentsSection> createState() =>
+      _UniversityCommentsSectionState();
+}
+
+class _UniversityCommentsSectionState
+    extends State<_UniversityCommentsSection> {
+  final TextEditingController _commentController = TextEditingController();
+  bool _isAnonymous = false;
+  String? _replyToCommentId;
+  String? _replyToCommentText;
+  String? _replyToCommentAuthor;
+  bool _isSending = false;
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  void _setReplyTo(Comment c) {
+    setState(() {
+      _replyToCommentId = c.id;
+      _replyToCommentText = c.content;
+      _replyToCommentAuthor = c.displayName;
+    });
+  }
+
+  void _clearReply() {
+    setState(() {
+      _replyToCommentId = null;
+      _replyToCommentText = null;
+      _replyToCommentAuthor = null;
+    });
+  }
+
+  Future<void> _send() async {
+    final text = _commentController.text.trim();
+    if (text.isEmpty || _isSending) return;
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    setState(() => _isSending = true);
+    try {
+      await fs.addUniversityPostComment(
+        widget.uniId,
+        widget.postId,
+        text,
+        replyToCommentId: _replyToCommentId,
+        replyToCommentText: _replyToCommentText,
+        replyToCommentAuthor: _replyToCommentAuthor,
+        isAnonymous: _isAnonymous,
+      );
+      if (!mounted) return;
+      _commentController.clear();
+      _clearReply();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to post comment: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  String _timeAgo(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inDays > 0) return '${diff.inDays}d';
+    if (diff.inHours > 0) return '${diff.inHours}h';
+    if (diff.inMinutes > 0) return '${diff.inMinutes}m';
+    return 'now';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final uid = fs.currentUserId ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(bottom: 8),
+          child: Text(
+            'Comments',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1F36),
+            ),
+          ),
+        ),
+        StreamBuilder<List<Comment>>(
+          stream: fs.getUniversityPostComments(widget.uniId, widget.postId),
+          builder: (context, snap) {
+            if (!snap.hasData) {
+              return const Padding(
+                padding: EdgeInsets.symmetric(vertical: 12),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            final comments = snap.data!;
+            if (comments.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                child: Text(
+                  'No comments yet. Be the first to comment!',
+                  style: TextStyle(color: Colors.grey[500], fontSize: 13),
+                ),
+              );
+            }
+            // Group: top-level comments + their replies (sorted by time)
+            final topLevel =
+                comments.where((c) => c.replyToCommentId == null).toList();
+            final repliesByParent = <String, List<Comment>>{};
+            for (final c in comments) {
+              if (c.replyToCommentId != null) {
+                repliesByParent
+                    .putIfAbsent(c.replyToCommentId!, () => [])
+                    .add(c);
+              }
+            }
+            return Column(
+              children: [
+                for (final c in topLevel) ...[
+                  _buildCommentTile(c, isReply: false, uid: uid),
+                  for (final reply in repliesByParent[c.id] ?? const <Comment>[])
+                    _buildCommentTile(reply, isReply: true, uid: uid),
+                ],
+              ],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        // Reply preview
+        if (_replyToCommentId != null)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            margin: const EdgeInsets.only(bottom: 8),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(8),
+              border: Border(
+                left: BorderSide(color: widget.uniColor, width: 3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Replying to ${_replyToCommentAuthor ?? ""}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: widget.uniColor,
+                        ),
+                      ),
+                      Text(
+                        _replyToCommentText ?? '',
+                        style: const TextStyle(fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, size: 18),
+                  onPressed: _clearReply,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                ),
+              ],
+            ),
+          ),
+        // Input row
+        Row(
+          children: [
+            // Anonymous toggle
+            GestureDetector(
+              onTap: () => setState(() => _isAnonymous = !_isAnonymous),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: _isAnonymous
+                      ? widget.uniColor.withValues(alpha: 0.15)
+                      : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isAnonymous
+                          ? Icons.visibility_off
+                          : Icons.visibility,
+                      size: 14,
+                      color: _isAnonymous
+                          ? widget.uniColor
+                          : Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      _isAnonymous ? 'Anon' : 'Name',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: _isAnonymous
+                            ? widget.uniColor
+                            : Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _commentController,
+                decoration: InputDecoration(
+                  hintText: _isAnonymous
+                      ? 'Comment anonymously...'
+                      : 'Add a comment...',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 14, vertical: 8),
+                  isDense: true,
+                ),
+                textInputAction: TextInputAction.send,
+                onSubmitted: (_) => _send(),
+              ),
+            ),
+            IconButton(
+              icon: _isSending
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Icon(Icons.send, color: widget.uniColor),
+              onPressed: _isSending ? null : _send,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _buildCommentTile(
+    Comment c, {
+    required bool isReply,
+    required String uid,
+  }) {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final isMine = c.authorId == uid;
+    return Padding(
+      padding: EdgeInsets.only(
+        left: isReply ? 32 : 0,
+        bottom: 10,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          CircleAvatar(
+            radius: isReply ? 12 : 16,
+            backgroundColor: widget.uniColor.withValues(alpha: 0.15),
+            backgroundImage:
+                !c.isAnonymous && c.authorAvatar.isNotEmpty
+                    ? NetworkImage(c.authorAvatar)
+                    : null,
+            child: (c.isAnonymous || c.authorAvatar.isEmpty)
+                ? Icon(Icons.person,
+                    size: isReply ? 12 : 16, color: widget.uniColor)
+                : null,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        c.displayName,
+                        style: TextStyle(
+                          fontSize: isReply ? 12 : 13,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF1A1F36),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // University badge — keep visible even when anonymous
+                    if (c.authorUniversityId != null &&
+                        c.authorUniversityId!.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      UniversityBadge(
+                        universityId: c.authorUniversityId!,
+                        fontSize: 8,
+                      ),
+                    ],
+                    const SizedBox(width: 6),
+                    Text(
+                      _timeAgo(c.timestamp),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[500],
+                      ),
+                    ),
+                  ],
+                ),
+                if (c.replyToCommentId != null && c.replyToCommentText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2, bottom: 2),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border(
+                          left: BorderSide(
+                            color: widget.uniColor.withValues(alpha: 0.6),
+                            width: 2,
+                          ),
+                        ),
+                      ),
+                      child: Text(
+                        '↳ ${c.replyToCommentAuthor ?? ""}: ${c.replyToCommentText!}',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text(
+                    c.content,
+                    style: TextStyle(
+                      fontSize: isReply ? 12 : 13,
+                      color: Colors.grey[800],
+                      height: 1.4,
+                    ),
+                  ),
+                ),
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _setReplyTo(c),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4, right: 12),
+                        child: Text(
+                          'Reply',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    if (isMine)
+                      GestureDetector(
+                        onTap: () async {
+                          try {
+                            await fs.deleteUniversityPostComment(
+                              widget.uniId,
+                              widget.postId,
+                              c.id,
+                            );
+                          } catch (_) {}
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Delete',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.red[400],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -9,7 +9,17 @@ import 'marketplace_detail_screen.dart';
 import 'post_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
-  const SearchScreen({super.key});
+  /// When non-null, results are restricted to posts/comments authored by
+  /// users belonging to this university. Used by the per-university feed
+  /// search button so users can search within their university board.
+  final String? universityId;
+  final String? universityName;
+
+  const SearchScreen({
+    super.key,
+    this.universityId,
+    this.universityName,
+  });
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();
@@ -67,22 +77,41 @@ class _SearchScreenState extends State<SearchScreen>
 
     setState(() => _isSearching = true);
 
+    // When scoped to a single university, restrict to authors of that
+    // university. Algolia accepts `filters` as an SQL-like expression.
+    final uniId = widget.universityId;
+    final String? uniFilter = (uniId != null && uniId.isNotEmpty)
+        ? 'authorUniversityId:$uniId'
+        : null;
+
     try {
       final results = await Future.wait([
-        AlgoliaService.searchIndex('posts', query),
-        AlgoliaService.searchIndex('meetups', query),
-        AlgoliaService.searchIndex('questions', query), // Collection is questions
-        AlgoliaService.searchIndex('jobs', query),
-        AlgoliaService.searchIndex('marketplace', query),
+        AlgoliaService.searchIndex('posts', query, filters: uniFilter),
+        AlgoliaService.searchIndex('meetups', query, filters: uniFilter),
+        AlgoliaService.searchIndex('questions', query, filters: uniFilter),
+        AlgoliaService.searchIndex('jobs', query, filters: uniFilter),
+        AlgoliaService.searchIndex('marketplace', query, filters: uniFilter),
       ]);
+
+      // Client-side belt-and-suspenders filter in case Algolia doesn't
+      // honor the filter (e.g. older index without `authorUniversityId`
+      // attribute, or attribute not configured as filterable).
+      List<Map<String, dynamic>> applyUniFilter(
+        List<Map<String, dynamic>> hits,
+      ) {
+        if (uniId == null || uniId.isEmpty) return hits;
+        return hits
+            .where((h) => (h['authorUniversityId'] ?? '') == uniId)
+            .toList();
+      }
 
       if (mounted && _query == query) {
         setState(() {
-          _algoliaPostResults = results[0];
-          _algoliaMeetupResults = results[1];
-          _algoliaQnAResults = results[2];
-          _algoliaJobResults = results[3];
-          _algoliaMarketplaceResults = results[4];
+          _algoliaPostResults = applyUniFilter(results[0]);
+          _algoliaMeetupResults = applyUniFilter(results[1]);
+          _algoliaQnAResults = applyUniFilter(results[2]);
+          _algoliaJobResults = applyUniFilter(results[3]);
+          _algoliaMarketplaceResults = applyUniFilter(results[4]);
           _isSearching = false;
         });
       }
@@ -106,10 +135,12 @@ class _SearchScreenState extends State<SearchScreen>
         title: TextField(
           controller: _searchController,
           autofocus: true,
-          decoration: const InputDecoration(
-            hintText: 'Search...',
+          decoration: InputDecoration(
+            hintText: widget.universityName != null
+                ? 'Search in ${widget.universityName}...'
+                : 'Search...',
             border: InputBorder.none,
-            hintStyle: TextStyle(color: Colors.grey),
+            hintStyle: const TextStyle(color: Colors.grey),
           ),
           style: const TextStyle(color: Colors.black, fontSize: 18),
         ),

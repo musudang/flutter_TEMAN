@@ -17,6 +17,12 @@ subprojects {
                 }
             }
         }
+        // Force Kotlin JVM target to 17 for all subprojects with Kotlin
+        project.tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
+        }
     }
 }
 

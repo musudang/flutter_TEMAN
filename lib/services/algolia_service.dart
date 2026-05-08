@@ -29,6 +29,20 @@ class AlgoliaService {
     final body = <String, dynamic>{
       'query': query,
       'hitsPerPage': hitsPerPage,
+      // Aggressive prefix matching so "d" matches "dan", "dance",
+      // "dandelion", etc. (Algolia's default is `prefixLast`, which only
+      // treats the last word as a prefix; that returned no results for
+      // single-character queries.)
+      'queryType': 'prefixAll',
+      // Loosen single-token matching — if Algolia can't find an exact
+      // hit for the query, drop optional words rather than returning 0.
+      'removeWordsIfNoResults': 'allOptional',
+      'typoTolerance': true,
+      'minWordSizefor1Typo': 1,
+      'minWordSizefor2Typos': 4,
+      // Don't choke on punctuation / multi-language input.
+      'advancedSyntax': false,
+      'ignorePlurals': true,
     };
     if (filters != null && filters.isNotEmpty) {
       body['filters'] = filters;

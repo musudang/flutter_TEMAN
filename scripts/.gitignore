@@ -1,0 +1,13 @@
+node_modules/
+package-lock.json
+
+# ── Service account keys (NEVER commit these) ──
+# Match the canonical name plus common variants/typos so we don't
+# leak a key just because Windows added an extra .json or the file
+# was renamed slightly.
+service-account-key.json
+service-account-key*.json
+*service-account*.json
+*-firebase-adminsdk-*.json
+*serviceAccount*.json
+*.private.json

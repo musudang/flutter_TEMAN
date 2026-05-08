@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/post_model.dart';
+import '../../models/comment_model.dart';
 import '../../models/question_model.dart';
 import '../../models/user_model.dart' as app_models;
 
@@ -157,6 +158,152 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
   }
 
   // ──────────────────────────────────────────────
+  // University Post Comments (with reply + anonymous)
+  //
+  // Mirrors the main-board comment system:
+  //   universities/{uniId}/posts/{postId}/comments/{commentId}
+  // Supports `replyToCommentId` for nested replies and `isAnonymous` /
+  // `anonymousIndex` for thread-scoped anonymous numbering.
+  // ──────────────────────────────────────────────
+
+  Stream<List<Comment>> getUniversityPostComments(String uniId, String postId) {
+    return _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .orderBy('timestamp', descending: false)
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => Comment.fromFirestore(doc, defaultPostId: postId))
+          .toList();
+    });
+  }
+
+  Future<void> addUniversityPostComment(
+    String uniId,
+    String postId,
+    String content, {
+    String? replyToCommentId,
+    String? replyToCommentText,
+    String? replyToCommentAuthor,
+    bool isAnonymous = false,
+  }) async {
+    final user = _uniAuth.currentUser;
+    if (user == null) throw Exception('Must be logged in to comment');
+
+    final userData = await getCurrentUser();
+
+    final commentsRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId)
+        .collection('comments');
+
+    try {
+      // Compute thread-scoped anonymous index (reuse same number for the
+      // same author across the thread, like main posts).
+      int? anonymousIndex;
+      if (isAnonymous) {
+        final anonSnapshot =
+            await commentsRef.where('isAnonymous', isEqualTo: true).get();
+        final Map<String, int> authorIndexMap = {};
+        int maxIndex = 0;
+        for (var doc in anonSnapshot.docs) {
+          final data = doc.data();
+          final aId = data['authorId'] as String? ?? '';
+          final aIdx = data['anonymousIndex'] as int?;
+          if (aId.isNotEmpty && aIdx != null) {
+            authorIndexMap[aId] = aIdx;
+            if (aIdx > maxIndex) maxIndex = aIdx;
+          }
+        }
+        anonymousIndex =
+            authorIndexMap[user.uid] ?? (maxIndex + 1);
+      }
+
+      final postRef = _uniDb
+          .collection('universities')
+          .doc(uniId)
+          .collection('posts')
+          .doc(postId);
+
+      await _uniDb.runTransaction((transaction) async {
+        final commentRef = commentsRef.doc();
+        final docData = <String, dynamic>{
+          'content': content,
+          'authorId': user.uid,
+          'authorName': userData?.name ?? 'Unknown',
+          'authorAvatar': userData?.avatarUrl ?? '',
+          'timestamp': FieldValue.serverTimestamp(),
+          'reactions': {},
+          'authorUniversityId': userData?.universityId,
+          'isAnonymous': isAnonymous,
+        };
+        if (isAnonymous && anonymousIndex != null) {
+          docData['anonymousIndex'] = anonymousIndex;
+        }
+        if (replyToCommentId != null) {
+          docData['replyToCommentId'] = replyToCommentId;
+        }
+        if (replyToCommentText != null) {
+          docData['replyToCommentText'] = replyToCommentText;
+        }
+        if (replyToCommentAuthor != null) {
+          docData['replyToCommentAuthor'] = replyToCommentAuthor;
+        }
+
+        transaction.set(commentRef, docData);
+        transaction.update(postRef, {'comments': FieldValue.increment(1)});
+      });
+    } catch (e) {
+      debugPrint("Error adding university post comment: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> deleteUniversityPostComment(
+    String uniId,
+    String postId,
+    String commentId,
+  ) async {
+    final user = _uniAuth.currentUser;
+    if (user == null) return;
+
+    final commentRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId);
+    final postRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+
+    try {
+      final snap = await commentRef.get();
+      if (!snap.exists) return;
+      final data = snap.data();
+      if (data?['authorId'] != user.uid) {
+        throw Exception('Only the comment author can delete');
+      }
+      await _uniDb.runTransaction((transaction) async {
+        transaction.delete(commentRef);
+        transaction.update(postRef, {'comments': FieldValue.increment(-1)});
+      });
+    } catch (e) {
+      debugPrint("Error deleting university comment: $e");
+      rethrow;
+    }
+  }
+
+  // ──────────────────────────────────────────────
   // University Q&A
   // ──────────────────────────────────────────────
 
@@ -258,6 +405,30 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
         data['id'] = doc.id;
         return data;
       }).toList();
+    });
+  }
+
+  /// Stream of all university posts authored by a specific user.
+  /// Uses a collectionGroup query to search across all university post subcollections.
+  Stream<List<Post>> getUserUniversityPosts(String userId) {
+    return _uniDb
+        .collectionGroup('posts')
+        .where('authorId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final posts = <Post>[];
+      for (var doc in snapshot.docs) {
+        // Only include docs from university subcollections (path: universities/{uniId}/posts/{postId})
+        final pathSegments = doc.reference.path.split('/');
+        if (pathSegments.length >= 4 && pathSegments[0] == 'universities') {
+          try {
+            final post = Post.fromFirestore(doc);
+            posts.add(post);
+          } catch (_) {}
+        }
+      }
+      posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return posts;
     });
   }
 

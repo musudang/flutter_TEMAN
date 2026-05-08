@@ -18,6 +18,10 @@ class Comment {
   // [NEW] University badge
   final String? authorUniversityId;
 
+  // [NEW] Anonymous comment support
+  final bool isAnonymous;
+  final int? anonymousIndex; // Thread-scoped index: "Anonymous 1", "Anonymous 2", etc.
+
   Comment({
     required this.id,
     required this.postId,
@@ -31,7 +35,23 @@ class Comment {
     this.replyToCommentAuthor,
     this.reactions,
     this.authorUniversityId,
+    this.isAnonymous = false,
+    this.anonymousIndex,
   });
+
+  /// Display name for the comment author, respecting anonymous flag
+  String get displayName {
+    if (isAnonymous && anonymousIndex != null) {
+      return 'Anonymous $anonymousIndex';
+    }
+    if (isAnonymous) {
+      return 'Anonymous';
+    }
+    return authorName;
+  }
+
+  /// Display avatar: null if anonymous (show icon instead)
+  String get displayAvatar => isAnonymous ? '' : authorAvatar;
 
   factory Comment.fromFirestore(DocumentSnapshot doc, {String? defaultPostId}) {
     var data = doc.data() as Map<String, dynamic>;
@@ -50,6 +70,8 @@ class Comment {
         (k, v) => MapEntry(k.toString(), v.toString()),
       ),
       authorUniversityId: data['authorUniversityId'],
+      isAnonymous: data['isAnonymous'] ?? false,
+      anonymousIndex: data['anonymousIndex'],
     );
   }
 }

@@ -1,0 +1,12 @@
+{
+  "name": "teman-backfill-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "description": "One-time scripts to backfill existing Firestore data into Algolia.",
+  "scripts": {
+    "backfill": "node backfill_algolia.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.6.0"
+  }
+}
