@@ -10,6 +10,7 @@ import 'share_content_sheet.dart';
 import 'create_post_screen.dart';
 import '../widgets/report_dialog.dart';
 import '../widgets/university_badge.dart';
+import '../widgets/comment_helpers.dart';
 
 class PostDetailScreen extends StatelessWidget {
   final String postId;
@@ -642,6 +643,8 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                   ),
                   onTap: () async {
                     Navigator.pop(context);
+                    final confirmed = await showConfirmDeleteCommentDialog(context);
+                    if (confirmed != true) return;
                     try {
                       await widget.fs.deleteComment(widget.post.id, comment.id);
                       if (context.mounted) {
@@ -666,6 +669,15 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
   }
 
   Widget _buildCommentItem(Comment c, {bool isReply = false}) {
+    // Soft-deleted (parent comment that still has replies): render a
+    // simple placeholder so the reply thread structure stays intact.
+    if (c.isDeleted) {
+      return DeletedCommentPlaceholder(
+        isReply: isReply,
+        leftPadding: isReply ? 56 : 16,
+      );
+    }
+
     bool hasReactions = c.reactions != null && c.reactions!.isNotEmpty;
     final bool isAnon = c.isAnonymous;
     final bool isMyComment = c.authorId == widget.fs.currentUserId;
@@ -765,9 +777,17 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                               ),
                             ),
                           ),
-                          if (!isAnon && ((c.authorUniversityId != null && c.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty))) ...[
+                          // Show university badge even for anonymous comments,
+                          // but for anon never fall back to the live user doc
+                          // (could leak identity for users from small unis).
+                          if ((c.authorUniversityId != null && c.authorUniversityId!.isNotEmpty) ||
+                              (!isAnon && user != null && user.universityId.isNotEmpty)) ...[
                             const SizedBox(width: 4),
-                            UniversityBadge(universityId: c.authorUniversityId?.isNotEmpty == true ? c.authorUniversityId! : user!.universityId),
+                            UniversityBadge(
+                              universityId: c.authorUniversityId?.isNotEmpty == true
+                                  ? c.authorUniversityId!
+                                  : user!.universityId,
+                            ),
                           ],
                           const SizedBox(width: 8),
                           Text(

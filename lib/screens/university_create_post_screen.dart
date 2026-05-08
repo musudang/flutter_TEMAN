@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../constants/university_constants.dart';
+import '../models/post_model.dart';
 import '../services/firestore_service.dart';
 
 /// Screen for creating a post in a university board.
@@ -9,10 +10,16 @@ class UniversityCreatePostScreen extends StatefulWidget {
   final University university;
   final String initialCategory; // 'general', 'news', or 'qna'
 
+  /// When non-null, the screen runs in EDIT mode and pre-fills with the
+  /// given post. Title, content and the anonymous flag are editable;
+  /// category is locked because re-categorizing changes feed visibility.
+  final Post? editingPost;
+
   const UniversityCreatePostScreen({
     super.key,
     required this.university,
     this.initialCategory = 'general',
+    this.editingPost,
   });
 
   @override
@@ -28,12 +35,22 @@ class _UniversityCreatePostScreenState
   bool _isAnonymous = false;
   bool _isSubmitting = false;
 
+  bool get _isEditing => widget.editingPost != null;
+
   Color get uniColor => Color(widget.university.colorValue);
 
   @override
   void initState() {
     super.initState();
-    _selectedCategory = widget.initialCategory;
+    final editing = widget.editingPost;
+    if (editing != null) {
+      _titleController.text = editing.title;
+      _contentController.text = editing.content;
+      _selectedCategory = editing.category;
+      _isAnonymous = editing.isAnonymous;
+    } else {
+      _selectedCategory = widget.initialCategory;
+    }
   }
 
   @override
@@ -70,7 +87,17 @@ class _UniversityCreatePostScreenState
         return;
       }
 
-      if (_selectedCategory == 'qna') {
+      if (_isEditing) {
+        // Edit path — only General/News posts are editable here.
+        // (Q&A questions don't currently expose an edit flow.)
+        await firestoreService.updateUniversityPost(
+          widget.university.id,
+          widget.editingPost!.id,
+          title: title,
+          content: content,
+          isAnonymous: _isAnonymous,
+        );
+      } else if (_selectedCategory == 'qna') {
         // Create a Q&A question
         await firestoreService.addUniversityQuestion(
           widget.university.id,
@@ -99,9 +126,11 @@ class _UniversityCreatePostScreenState
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              _selectedCategory == 'qna'
-                  ? 'Question posted successfully!'
-                  : 'Post created successfully!',
+              _isEditing
+                  ? 'Post updated successfully!'
+                  : (_selectedCategory == 'qna'
+                      ? 'Question posted successfully!'
+                      : 'Post created successfully!'),
             ),
           ),
         );

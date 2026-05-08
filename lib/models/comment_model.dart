@@ -22,6 +22,13 @@ class Comment {
   final bool isAnonymous;
   final int? anonymousIndex; // Thread-scoped index: "Anonymous 1", "Anonymous 2", etc.
 
+  // [NEW] Soft-delete support
+  // When a comment that has replies is deleted, we keep the document but
+  // flip this flag and clear `content` so the thread structure stays
+  // intact and the UI can render a "This comment was deleted" placeholder.
+  // Comments with no replies are hard-deleted (no soft-delete needed).
+  final bool isDeleted;
+
   Comment({
     required this.id,
     required this.postId,
@@ -37,6 +44,7 @@ class Comment {
     this.authorUniversityId,
     this.isAnonymous = false,
     this.anonymousIndex,
+    this.isDeleted = false,
   });
 
   /// Display name for the comment author, respecting anonymous flag
@@ -72,6 +80,7 @@ class Comment {
       authorUniversityId: data['authorUniversityId'],
       isAnonymous: data['isAnonymous'] ?? false,
       anonymousIndex: data['anonymousIndex'],
+      isDeleted: data['isDeleted'] ?? false,
     );
   }
 }

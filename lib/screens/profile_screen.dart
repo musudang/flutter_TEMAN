@@ -78,10 +78,19 @@ class _ProfileScreenState extends State<ProfileScreen>
       if (!mounted) return;
       setState(() => _cachedMarket = d);
     });
-    _uniPostsSub = service.getUserUniversityPosts(uid).listen((d) {
-      if (!mounted) return;
-      setState(() => _cachedUniPosts = d);
-    });
+    _uniPostsSub = service.getUserUniversityPosts(uid).listen(
+      (d) {
+        if (!mounted) return;
+        setState(() => _cachedUniPosts = d);
+      },
+      onError: (e, st) {
+        // collectionGroup queries require a COLLECTION_GROUP-scoped
+        // single-field index on `authorId`. If the deploy is missing it,
+        // Firestore throws here with a clickable index-creation link in
+        // the error message. Surface that so we can act on it.
+        debugPrint('[ProfileScreen] getUserUniversityPosts error: $e');
+      },
+    );
   }
 
   @override

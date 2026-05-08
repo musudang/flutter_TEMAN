@@ -903,14 +903,23 @@ mixin PostService on ChangeNotifier {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Must be logged in to delete a comment');
 
-    try {
-      await _db.runTransaction((transaction) async {
-        final commentRef = _db
-            .collection(AppConstants.postsCollection)
-            .doc(postId)
-            .collection(AppConstants.commentsCollection)
-            .doc(commentId);
+    final commentsRef = _db
+        .collection(AppConstants.postsCollection)
+        .doc(postId)
+        .collection(AppConstants.commentsCollection);
 
+    try {
+      // Pre-check: does this comment have any replies? If so we soft-delete
+      // (preserve the doc with a placeholder) so the reply thread stays
+      // intact. Otherwise we hard-delete.
+      final replies = await commentsRef
+          .where('replyToCommentId', isEqualTo: commentId)
+          .limit(1)
+          .get();
+      final hasReplies = replies.docs.isNotEmpty;
+
+      await _db.runTransaction((transaction) async {
+        final commentRef = commentsRef.doc(commentId);
         final snapshot = await transaction.get(commentRef);
         if (!snapshot.exists) throw Exception('Comment not found');
 
@@ -919,12 +928,22 @@ mixin PostService on ChangeNotifier {
           throw Exception('Not authorized to delete this comment');
         }
 
-        final postRef = _db
-            .collection(AppConstants.postsCollection)
-            .doc(postId);
+        final postRef =
+            _db.collection(AppConstants.postsCollection).doc(postId);
 
-        transaction.delete(commentRef);
-        transaction.update(postRef, {'comments': FieldValue.increment(-1)});
+        if (hasReplies) {
+          // Soft-delete: keep doc, clear identity, mark deleted.
+          transaction.update(commentRef, {
+            'isDeleted': true,
+            'content': '',
+            'authorAvatar': '',
+          });
+          // Note: comments counter NOT decremented for soft-delete so the
+          // displayed count still reflects the visible thread length.
+        } else {
+          transaction.delete(commentRef);
+          transaction.update(postRef, {'comments': FieldValue.increment(-1)});
+        }
       });
     } catch (e) {
       debugPrint("Error deleting comment: $e");

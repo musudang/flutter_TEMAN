@@ -699,6 +699,7 @@ mixin MeetupService on ChangeNotifier {
     String? replyToCommentId,
     String? replyToCommentText,
     String? replyToCommentAuthor,
+    bool isAnonymous = false,
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Must be logged in to comment');
@@ -706,10 +707,33 @@ mixin MeetupService on ChangeNotifier {
     final userDoc = await _db.collection('users').doc(user.uid).get();
     final userData = userDoc.data();
 
+    final commentsRef =
+        _db.collection('meetups').doc(meetupId).collection('comments');
+
     try {
+      // Compute thread-scoped anonymous index (reuse same number for the
+      // same author across the thread, mirrors main-board behavior).
+      int? anonymousIndex;
+      if (isAnonymous) {
+        final anonSnapshot =
+            await commentsRef.where('isAnonymous', isEqualTo: true).get();
+        final Map<String, int> authorIndexMap = {};
+        int maxIndex = 0;
+        for (var doc in anonSnapshot.docs) {
+          final data = doc.data();
+          final aId = data['authorId'] as String? ?? '';
+          final aIdx = data['anonymousIndex'] as int?;
+          if (aId.isNotEmpty && aIdx != null) {
+            authorIndexMap[aId] = aIdx;
+            if (aIdx > maxIndex) maxIndex = aIdx;
+          }
+        }
+        anonymousIndex = authorIndexMap[user.uid] ?? (maxIndex + 1);
+      }
+
       await _db.runTransaction((transaction) async {
         final meetupRef = _db.collection('meetups').doc(meetupId);
-        final commentRef = meetupRef.collection('comments').doc();
+        final commentRef = commentsRef.doc();
 
         final docData = <String, dynamic>{
           'content': content,
@@ -718,7 +742,11 @@ mixin MeetupService on ChangeNotifier {
           'authorAvatar': userData?['avatarUrl'] ?? '',
           'timestamp': FieldValue.serverTimestamp(),
           'authorUniversityId': userData?['universityId'],
+          'isAnonymous': isAnonymous,
         };
+        if (isAnonymous && anonymousIndex != null) {
+          docData['anonymousIndex'] = anonymousIndex;
+        }
         if (replyToCommentId != null) {
           docData['replyToCommentId'] = replyToCommentId;
         }
@@ -756,6 +784,50 @@ mixin MeetupService on ChangeNotifier {
       }
     } catch (e) {
       debugPrint("Error adding meetup comment: $e");
+      rethrow;
+    }
+  }
+
+  /// Delete own meetup comment.
+  /// Soft-delete (mark `isDeleted: true`, clear content) when the comment
+  /// already has replies, hard-delete otherwise.
+  Future<void> deleteMeetupComment(String meetupId, String commentId) async {
+    final user = _auth.currentUser;
+    if (user == null) throw Exception('Must be logged in to delete a comment');
+
+    final commentsRef =
+        _db.collection('meetups').doc(meetupId).collection('comments');
+
+    try {
+      final replies = await commentsRef
+          .where('replyToCommentId', isEqualTo: commentId)
+          .limit(1)
+          .get();
+      final hasReplies = replies.docs.isNotEmpty;
+
+      await _db.runTransaction((transaction) async {
+        final commentRef = commentsRef.doc(commentId);
+        final snap = await transaction.get(commentRef);
+        if (!snap.exists) return;
+        final data = snap.data();
+        if (data?['authorId'] != user.uid) {
+          throw Exception('Not authorized to delete this comment');
+        }
+
+        final meetupRef = _db.collection('meetups').doc(meetupId);
+        if (hasReplies) {
+          transaction.update(commentRef, {
+            'isDeleted': true,
+            'content': '',
+            'authorAvatar': '',
+          });
+        } else {
+          transaction.delete(commentRef);
+          transaction.update(meetupRef, {'comments': FieldValue.increment(-1)});
+        }
+      });
+    } catch (e) {
+      debugPrint("Error deleting meetup comment: $e");
       rethrow;
     }
   }

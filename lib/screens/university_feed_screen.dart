@@ -11,9 +11,12 @@ import 'university_create_post_screen.dart';
 import 'university_qna_detail_screen.dart';
 import '../widgets/university_drawer.dart';
 import '../widgets/university_badge.dart';
+import '../widgets/comment_helpers.dart';
+import 'profile_screen.dart';
 
 import 'user_profile_screen.dart';
-import 'search_screen.dart';
+import 'university_search_screen.dart';
+import 'share_content_sheet.dart';
 
 /// The dedicated feed screen for a single university.
 /// Contains 3 tabs: General, News, Q&A.
@@ -113,10 +116,7 @@ class _UniversityFeedScreenState extends State<UniversityFeedScreen>
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (_) => SearchScreen(
-                    universityId: uni.id,
-                    universityName: uni.nameEn,
-                  ),
+                  builder: (_) => UniversitySearchScreen(university: uni),
                 ),
               );
             },
@@ -267,7 +267,7 @@ class _PostListTab extends StatelessWidget {
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => _UniversityPostDetailSheet(
+      builder: (_) => UniversityPostDetailSheet(
         post: post,
         uniId: uniId,
         uniColor: uniColor,
@@ -780,12 +780,12 @@ class _UniversityQuestionCard extends StatelessWidget {
 // Post Detail Bottom Sheet (for university posts)
 // ─────────────────────────────────────────────────────
 
-class _UniversityPostDetailSheet extends StatelessWidget {
+class UniversityPostDetailSheet extends StatelessWidget {
   final Post post;
   final String uniId;
   final Color uniColor;
 
-  const _UniversityPostDetailSheet({
+  const UniversityPostDetailSheet({
     required this.post,
     required this.uniId,
     required this.uniColor,
@@ -953,40 +953,11 @@ class _UniversityPostDetailSheet extends StatelessWidget {
 
                     const SizedBox(height: 20),
 
-                    // Like button
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            firestoreService.toggleLikeUniversityPost(
-                                uniId, post.id);
-                          },
-                          child: Row(
-                            children: [
-                              Icon(
-                                post.likedBy.contains(
-                                        firestoreService.currentUserId)
-                                    ? Icons.favorite
-                                    : Icons.favorite_border,
-                                color: post.likedBy.contains(
-                                        firestoreService.currentUserId)
-                                    ? Colors.red
-                                    : Colors.grey[400],
-                                size: 22,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${post.likes} likes',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    // Actions row: like + scrap + share + 3-dot menu
+                    _UniversityPostActionsRow(
+                      post: post,
+                      uniId: uniId,
+                      uniColor: uniColor,
                     ),
                     const SizedBox(height: 24),
                     const Divider(height: 1),
@@ -1285,8 +1256,38 @@ class _UniversityCommentsSectionState
     required bool isReply,
     required String uid,
   }) {
+    // Soft-deleted: render placeholder so the reply thread structure
+    // is preserved.
+    if (c.isDeleted) {
+      return DeletedCommentPlaceholder(
+        isReply: isReply,
+        leftPadding: isReply ? 32 : 0,
+      );
+    }
+
     final fs = Provider.of<FirestoreService>(context, listen: false);
     final isMine = c.authorId == uid;
+    final isAnon = c.isAnonymous;
+
+    void onAuthorTap() {
+      // Block profile navigation for anonymous comments authored by
+      // others — they shouldn't be deanonymizable via UI.
+      if (isAnon && !isMine) return;
+      if (isMine) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+        );
+      } else {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => UserProfileScreen(userId: c.authorId),
+          ),
+        );
+      }
+    }
+
     return Padding(
       padding: EdgeInsets.only(
         left: isReply ? 32 : 0,
@@ -1295,17 +1296,20 @@ class _UniversityCommentsSectionState
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: isReply ? 12 : 16,
-            backgroundColor: widget.uniColor.withValues(alpha: 0.15),
-            backgroundImage:
-                !c.isAnonymous && c.authorAvatar.isNotEmpty
-                    ? NetworkImage(c.authorAvatar)
-                    : null,
-            child: (c.isAnonymous || c.authorAvatar.isEmpty)
-                ? Icon(Icons.person,
-                    size: isReply ? 12 : 16, color: widget.uniColor)
-                : null,
+          GestureDetector(
+            onTap: onAuthorTap,
+            child: CircleAvatar(
+              radius: isReply ? 12 : 16,
+              backgroundColor: widget.uniColor.withValues(alpha: 0.15),
+              backgroundImage:
+                  !c.isAnonymous && c.authorAvatar.isNotEmpty
+                      ? NetworkImage(c.authorAvatar)
+                      : null,
+              child: (c.isAnonymous || c.authorAvatar.isEmpty)
+                  ? Icon(Icons.person,
+                      size: isReply ? 12 : 16, color: widget.uniColor)
+                  : null,
+            ),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -1315,14 +1319,21 @@ class _UniversityCommentsSectionState
                 Row(
                   children: [
                     Flexible(
-                      child: Text(
-                        c.displayName,
-                        style: TextStyle(
-                          fontSize: isReply ? 12 : 13,
-                          fontWeight: FontWeight.w700,
-                          color: const Color(0xFF1A1F36),
+                      child: GestureDetector(
+                        onTap: onAuthorTap,
+                        child: Text(
+                          c.displayName,
+                          style: TextStyle(
+                            fontSize: isReply ? 12 : 13,
+                            fontWeight: FontWeight.w700,
+                            color: isAnon
+                                ? Colors.grey[700]
+                                : const Color(0xFF1A1F36),
+                            fontStyle:
+                                isAnon ? FontStyle.italic : FontStyle.normal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                     // University badge — keep visible even when anonymous
@@ -1401,13 +1412,23 @@ class _UniversityCommentsSectionState
                     if (isMine)
                       GestureDetector(
                         onTap: () async {
+                          final confirmed =
+                              await showConfirmDeleteCommentDialog(context);
+                          if (confirmed != true) return;
                           try {
                             await fs.deleteUniversityPostComment(
                               widget.uniId,
                               widget.postId,
                               c.id,
                             );
-                          } catch (_) {}
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('Failed to delete: $e')),
+                              );
+                            }
+                          }
                         },
                         child: Padding(
                           padding: const EdgeInsets.only(top: 4),
@@ -1428,6 +1449,200 @@ class _UniversityCommentsSectionState
           ),
         ],
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// University post actions row (mirrors main feed):
+//   like · scrap · share + owner-only edit/delete menu
+// ─────────────────────────────────────────────────────
+
+class _UniversityPostActionsRow extends StatelessWidget {
+  final Post post;
+  final String uniId;
+  final Color uniColor;
+
+  const _UniversityPostActionsRow({
+    required this.post,
+    required this.uniId,
+    required this.uniColor,
+  });
+
+  Future<void> _openShareSheet(BuildContext context) async {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    fs.incrementShareUniversityPost(uniId, post.id); // best-effort
+    // We use the existing share sheet — keyed by item type so receivers
+    // know how to open it. University posts re-use the 'post' type for
+    // now since the receive side opens via PostDetailScreen.
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => ShareContentSheet(
+        itemId: post.id,
+        itemType: 'post',
+        itemTitle: post.title.isNotEmpty
+            ? post.title
+            : 'Post on ${UniversityConstants.getById(uniId)?.nameEn ?? "University"} board',
+        itemDescription: post.content,
+      ),
+    );
+  }
+
+  Future<void> _confirmAndDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Post?'),
+          ],
+        ),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    try {
+      await fs.deleteUniversityPost(uniId, post.id);
+      if (context.mounted) {
+        Navigator.pop(context); // close detail sheet
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Post deleted')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
+  }
+
+  void _openEdit(BuildContext context) {
+    Navigator.pop(context); // close detail sheet first
+    final uni = UniversityConstants.getById(uniId);
+    if (uni == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => UniversityCreatePostScreen(
+          university: uni,
+          editingPost: post,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final uid = fs.currentUserId ?? '';
+    final isLiked = post.likedBy.contains(uid);
+    final isScrapped = post.scrappedBy.contains(uid);
+    final isOwner = post.authorId == uid;
+
+    return Row(
+      children: [
+        // Like
+        GestureDetector(
+          onTap: () => fs.toggleLikeUniversityPost(uniId, post.id),
+          child: Row(
+            children: [
+              Icon(
+                isLiked ? Icons.favorite : Icons.favorite_border,
+                color: isLiked ? Colors.red : Colors.grey[400],
+                size: 22,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                '${post.likes}',
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.grey[600],
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Scrap
+        GestureDetector(
+          onTap: () => fs.toggleScrapUniversityPost(uniId, post.id),
+          child: Icon(
+            isScrapped ? Icons.bookmark : Icons.bookmark_border,
+            color: isScrapped ? uniColor : Colors.grey[400],
+            size: 22,
+          ),
+        ),
+        const SizedBox(width: 16),
+        // Share
+        GestureDetector(
+          onTap: () => _openShareSheet(context),
+          child: Icon(
+            Icons.ios_share,
+            color: Colors.grey[400],
+            size: 22,
+          ),
+        ),
+        const Spacer(),
+        // 3-dot menu — owner sees Edit/Delete
+        if (isOwner)
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.grey[500], size: 20),
+            onSelected: (value) async {
+              if (value == 'edit') {
+                _openEdit(context);
+              } else if (value == 'delete') {
+                await _confirmAndDelete(context);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_outlined, size: 18),
+                    SizedBox(width: 8),
+                    Text('Edit'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline,
+                        size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Delete', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+      ],
     );
   }
 }

@@ -3,7 +3,9 @@ import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../models/question_model.dart';
 import '../widgets/university_badge.dart';
+import '../widgets/comment_helpers.dart';
 import 'user_profile_screen.dart';
+import 'profile_screen.dart';
 
 /// Detail screen for a university Q&A question.
 /// Shows the question, answers, and an input to add new answers.
@@ -27,6 +29,7 @@ class UniversityQnaDetailScreen extends StatefulWidget {
 class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
   final _answerController = TextEditingController();
   bool _isSubmitting = false;
+  bool _isAnonymous = false;
 
   @override
   void dispose() {
@@ -47,6 +50,7 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
         widget.uniId,
         widget.question.id,
         content,
+        isAnonymous: _isAnonymous,
       );
       _answerController.clear();
     } catch (e) {
@@ -283,10 +287,44 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                       );
                     }
 
+                    final myUid = firestoreService.currentUserId ?? '';
                     return Column(
                       children: answers.map((answer) {
                         final timestamp =
                             answer['timestamp']?.toDate() ?? DateTime.now();
+                        final isAnon =
+                            answer['isAnonymous'] == true;
+                        final aIdx = answer['anonymousIndex'] as int?;
+                        final displayName = isAnon
+                            ? (aIdx != null
+                                ? 'Anonymous $aIdx'
+                                : 'Anonymous')
+                            : (answer['authorName'] ?? 'Unknown');
+                        final isMine = answer['authorId'] == myUid;
+                        final answerId = answer['id'] as String? ?? '';
+
+                        void onAuthorTap() {
+                          if (isAnon && !isMine) return;
+                          if (isMine) {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ProfileScreen(),
+                              ),
+                            );
+                          } else {
+                            final aId = answer['authorId'] as String? ?? '';
+                            if (aId.isEmpty) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) =>
+                                    UserProfileScreen(userId: aId),
+                              ),
+                            );
+                          }
+                        }
+
                         return Container(
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(16),
@@ -306,37 +344,65 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                             children: [
                               Row(
                                 children: [
-                                  CircleAvatar(
-                                    radius: 14,
-                                    backgroundColor: widget.uniColor
-                                        .withValues(alpha: 0.15),
-                                    backgroundImage:
-                                        (answer['authorAvatar'] ?? '')
-                                                .isNotEmpty
-                                            ? NetworkImage(
-                                                answer['authorAvatar'])
-                                            : null,
-                                    child:
-                                        (answer['authorAvatar'] ?? '').isEmpty
-                                            ? Icon(Icons.person,
-                                                size: 14,
-                                                color: widget.uniColor)
-                                            : null,
+                                  GestureDetector(
+                                    onTap: onAuthorTap,
+                                    child: isAnon
+                                        ? CircleAvatar(
+                                            radius: 14,
+                                            backgroundColor: Colors.grey[300],
+                                            child: Icon(
+                                              Icons.person_off_outlined,
+                                              size: 14,
+                                              color: Colors.grey[600],
+                                            ),
+                                          )
+                                        : CircleAvatar(
+                                            radius: 14,
+                                            backgroundColor: widget.uniColor
+                                                .withValues(alpha: 0.15),
+                                            backgroundImage:
+                                                (answer['authorAvatar'] ?? '')
+                                                        .isNotEmpty
+                                                    ? NetworkImage(
+                                                        answer['authorAvatar'])
+                                                    : null,
+                                            child: (answer['authorAvatar'] ??
+                                                        '')
+                                                    .isEmpty
+                                                ? Icon(Icons.person,
+                                                    size: 14,
+                                                    color: widget.uniColor)
+                                                : null,
+                                          ),
                                   ),
                                   const SizedBox(width: 8),
                                   Flexible(
-                                    child: Text(
-                                      answer['authorName'] ?? 'Unknown',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                        fontSize: 13,
+                                    child: GestureDetector(
+                                      onTap: onAuthorTap,
+                                      child: Text(
+                                        displayName,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                          color: isAnon
+                                              ? Colors.grey[700]
+                                              : null,
+                                          fontStyle: isAnon
+                                              ? FontStyle.italic
+                                              : FontStyle.normal,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  if ((answer['authorUniversityId'] ?? '').isNotEmpty) ...[
+                                  if ((answer['authorUniversityId'] ?? '')
+                                      .isNotEmpty) ...[
                                     const SizedBox(width: 6),
-                                    UniversityBadge(universityId: answer['authorUniversityId'], fontSize: 9),
+                                    UniversityBadge(
+                                      universityId:
+                                          answer['authorUniversityId'],
+                                      fontSize: 9,
+                                    ),
                                   ],
                                   const Spacer(),
                                   Text(
@@ -357,6 +423,41 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                                   height: 1.5,
                                 ),
                               ),
+                              if (isMine && answerId.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: GestureDetector(
+                                    onTap: () async {
+                                      final confirmed =
+                                          await showConfirmDeleteCommentDialog(
+                                              context);
+                                      if (confirmed != true) return;
+                                      try {
+                                        await firestoreService
+                                            .deleteUniversityAnswer(
+                                          widget.uniId,
+                                          widget.question.id,
+                                          answerId,
+                                        );
+                                      } catch (e) {
+                                        if (mounted) {
+                                          ScaffoldMessenger.of(context)
+                                              .showSnackBar(SnackBar(
+                                                  content: Text(
+                                                      'Failed to delete: $e')));
+                                        }
+                                      }
+                                    },
+                                    child: Text(
+                                      'Delete',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: Colors.red[400],
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         );
@@ -384,11 +485,53 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
             child: SafeArea(
               child: Row(
                 children: [
+                  // Anonymous toggle
+                  GestureDetector(
+                    onTap: () =>
+                        setState(() => _isAnonymous = !_isAnonymous),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _isAnonymous
+                            ? widget.uniColor.withValues(alpha: 0.15)
+                            : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isAnonymous
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            size: 14,
+                            color: _isAnonymous
+                                ? widget.uniColor
+                                : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isAnonymous ? 'Anon' : 'Name',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _isAnonymous
+                                  ? widget.uniColor
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: TextField(
                       controller: _answerController,
                       decoration: InputDecoration(
-                        hintText: 'Write an answer...',
+                        hintText: _isAnonymous
+                            ? 'Answer anonymously...'
+                            : 'Write an answer...',
                         hintStyle:
                             TextStyle(color: Colors.grey[400], fontSize: 14),
                         border: OutlineInputBorder(

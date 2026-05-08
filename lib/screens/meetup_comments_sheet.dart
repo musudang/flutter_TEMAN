@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
 import '../models/comment_model.dart';
+import '../widgets/comment_helpers.dart';
+import '../widgets/university_badge.dart';
+import 'user_profile_screen.dart';
+import 'profile_screen.dart';
 
 class MeetupCommentsSheet extends StatefulWidget {
   final String meetupId;
@@ -16,6 +20,7 @@ class MeetupCommentsSheet extends StatefulWidget {
 class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
   final TextEditingController _controller = TextEditingController();
   bool _isPosting = false;
+  bool _isAnonymous = false;
 
   // Reply context (mirrors main-board comment reply pattern)
   String? _replyToCommentId;
@@ -32,8 +37,45 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
     setState(() {
       _replyToCommentId = c.id;
       _replyToCommentText = c.content;
-      _replyToCommentAuthor = c.authorName;
+      _replyToCommentAuthor = c.displayName;
     });
+  }
+
+  Future<void> _confirmAndDelete(Comment c) async {
+    final confirmed = await showConfirmDeleteCommentDialog(context);
+    if (confirmed != true) return;
+    try {
+      await Provider.of<FirestoreService>(
+        context,
+        listen: false,
+      ).deleteMeetupComment(widget.meetupId, c.id);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Failed to delete: $e')));
+      }
+    }
+  }
+
+  void _navigateToCommentAuthorProfile(Comment c) {
+    // Block navigation for anonymous comments authored by others.
+    final myUid = Provider.of<FirestoreService>(context, listen: false)
+            .currentUserId ??
+        '';
+    if (c.isAnonymous && c.authorId != myUid) return;
+    if (c.authorId == myUid) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const ProfileScreen()),
+      );
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => UserProfileScreen(userId: c.authorId),
+        ),
+      );
+    }
   }
 
   void _clearReply() {
@@ -60,6 +102,7 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
         replyToCommentId: _replyToCommentId,
         replyToCommentText: _replyToCommentText,
         replyToCommentAuthor: _replyToCommentAuthor,
+        isAnonymous: _isAnonymous,
       );
       _controller.clear();
       _clearReply();
@@ -204,13 +247,56 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
               ),
               child: Row(
                 children: [
+                  // Anonymous toggle
+                  GestureDetector(
+                    onTap: () =>
+                        setState(() => _isAnonymous = !_isAnonymous),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: _isAnonymous
+                            ? Colors.blue.withValues(alpha: 0.15)
+                            : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _isAnonymous
+                                ? Icons.visibility_off
+                                : Icons.visibility,
+                            size: 14,
+                            color:
+                                _isAnonymous ? Colors.blue : Colors.grey[600],
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isAnonymous ? 'Anon' : 'Name',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: _isAnonymous
+                                  ? Colors.blue
+                                  : Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
                   Expanded(
                     child: TextField(
                       controller: _controller,
                       decoration: InputDecoration(
                         hintText: _replyToCommentId != null
-                            ? 'Write a reply...'
-                            : 'Add a comment...',
+                            ? (_isAnonymous
+                                ? 'Reply anonymously...'
+                                : 'Write a reply...')
+                            : (_isAnonymous
+                                ? 'Comment anonymously...'
+                                : 'Add a comment...'),
                         filled: true,
                         fillColor: Colors.grey[100],
                         border: OutlineInputBorder(
@@ -244,6 +330,22 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
   }
 
   Widget _buildCommentTile(Comment comment, {required bool isReply}) {
+    // Soft-deleted: render placeholder to preserve thread structure.
+    if (comment.isDeleted) {
+      return DeletedCommentPlaceholder(
+        isReply: isReply,
+        leftPadding: isReply ? 36 : 0,
+      );
+    }
+
+    final myUid = Provider.of<FirestoreService>(context, listen: false)
+            .currentUserId ??
+        '';
+    final isMine = comment.authorId == myUid;
+    final isAnon = comment.isAnonymous;
+    final showAvatarImage =
+        !isAnon && comment.authorAvatar.isNotEmpty;
+
     return Padding(
       padding: EdgeInsets.only(
         left: isReply ? 36 : 0,
@@ -252,23 +354,36 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: isReply ? 14 : 18,
-            backgroundImage: comment.authorAvatar.isNotEmpty
-                ? NetworkImage(comment.authorAvatar)
-                : null,
-            backgroundColor: Colors.grey[200],
-            child: comment.authorAvatar.isEmpty
-                ? Text(
-                    comment.authorName.isNotEmpty
-                        ? comment.authorName[0].toUpperCase()
-                        : '?',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.black54,
+          GestureDetector(
+            onTap: () => _navigateToCommentAuthorProfile(comment),
+            child: isAnon
+                ? CircleAvatar(
+                    radius: isReply ? 14 : 18,
+                    backgroundColor: Colors.grey[300],
+                    child: Icon(
+                      Icons.person_off_outlined,
+                      color: Colors.grey[600],
+                      size: isReply ? 14 : 18,
                     ),
                   )
-                : null,
+                : CircleAvatar(
+                    radius: isReply ? 14 : 18,
+                    backgroundImage: showAvatarImage
+                        ? NetworkImage(comment.authorAvatar)
+                        : null,
+                    backgroundColor: Colors.grey[200],
+                    child: !showAvatarImage
+                        ? Text(
+                            comment.authorName.isNotEmpty
+                                ? comment.authorName[0].toUpperCase()
+                                : '?',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black54,
+                            ),
+                          )
+                        : null,
+                  ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -277,13 +392,31 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
               children: [
                 Row(
                   children: [
-                    Text(
-                      comment.authorName,
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: isReply ? 12 : 13,
+                    Flexible(
+                      child: GestureDetector(
+                        onTap: () => _navigateToCommentAuthorProfile(comment),
+                        child: Text(
+                          comment.displayName,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: isReply ? 12 : 13,
+                            color: isAnon ? Colors.grey[700] : null,
+                            fontStyle:
+                                isAnon ? FontStyle.italic : FontStyle.normal,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ),
+                    // University badge — visible even when anonymous.
+                    if (comment.authorUniversityId != null &&
+                        comment.authorUniversityId!.isNotEmpty) ...[
+                      const SizedBox(width: 4),
+                      UniversityBadge(
+                        universityId: comment.authorUniversityId!,
+                        fontSize: 9,
+                      ),
+                    ],
                     const SizedBox(width: 8),
                     Text(
                       DateFormat('MM/dd HH:mm').format(comment.timestamp),
@@ -324,19 +457,38 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
                   comment.content,
                   style: TextStyle(fontSize: isReply ? 13 : 14),
                 ),
-                GestureDetector(
-                  onTap: () => _setReplyTo(comment),
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: Text(
-                      'Reply',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w600,
+                Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => _setReplyTo(comment),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4, right: 12),
+                        child: Text(
+                          'Reply',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
+                    if (isMine)
+                      GestureDetector(
+                        onTap: () => _confirmAndDelete(comment),
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Text(
+                            'Delete',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.red[400],
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),

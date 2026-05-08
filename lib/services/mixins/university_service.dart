@@ -273,13 +273,12 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     final user = _uniAuth.currentUser;
     if (user == null) return;
 
-    final commentRef = _uniDb
+    final commentsRef = _uniDb
         .collection('universities')
         .doc(uniId)
         .collection('posts')
         .doc(postId)
-        .collection('comments')
-        .doc(commentId);
+        .collection('comments');
     final postRef = _uniDb
         .collection('universities')
         .doc(uniId)
@@ -287,20 +286,121 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
         .doc(postId);
 
     try {
-      final snap = await commentRef.get();
-      if (!snap.exists) return;
-      final data = snap.data();
-      if (data?['authorId'] != user.uid) {
-        throw Exception('Only the comment author can delete');
-      }
+      // Soft-delete if any replies exist; otherwise hard-delete.
+      final replies = await commentsRef
+          .where('replyToCommentId', isEqualTo: commentId)
+          .limit(1)
+          .get();
+      final hasReplies = replies.docs.isNotEmpty;
+
       await _uniDb.runTransaction((transaction) async {
-        transaction.delete(commentRef);
-        transaction.update(postRef, {'comments': FieldValue.increment(-1)});
+        final commentRef = commentsRef.doc(commentId);
+        final snap = await transaction.get(commentRef);
+        if (!snap.exists) return;
+        final data = snap.data();
+        if (data?['authorId'] != user.uid) {
+          throw Exception('Only the comment author can delete');
+        }
+
+        if (hasReplies) {
+          transaction.update(commentRef, {
+            'isDeleted': true,
+            'content': '',
+            'authorAvatar': '',
+          });
+        } else {
+          transaction.delete(commentRef);
+          transaction.update(postRef, {'comments': FieldValue.increment(-1)});
+        }
       });
     } catch (e) {
       debugPrint("Error deleting university comment: $e");
       rethrow;
     }
+  }
+
+  /// Toggle scrap (bookmark) on a university post.
+  Future<void> toggleScrapUniversityPost(String uniId, String postId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+
+    try {
+      await _uniDb.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+        final data = snapshot.data() as Map<String, dynamic>;
+        final scrappedBy = List<String>.from(data['scrappedBy'] ?? []);
+        if (scrappedBy.contains(uid)) {
+          scrappedBy.remove(uid);
+        } else {
+          scrappedBy.add(uid);
+        }
+        transaction.update(docRef, {
+          'scrappedBy': scrappedBy,
+          'scrapCount': scrappedBy.length,
+        });
+      });
+    } catch (e) {
+      debugPrint("Error toggling university post scrap: $e");
+    }
+  }
+
+  /// Increment share counter on a university post.
+  Future<void> incrementShareUniversityPost(
+    String uniId,
+    String postId,
+  ) async {
+    final docRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+    try {
+      await docRef.update({
+        'shareCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      debugPrint("Error incrementing university share: $e");
+    }
+  }
+
+  /// Edit own university post — owner-only.
+  Future<void> updateUniversityPost(
+    String uniId,
+    String postId, {
+    String? title,
+    String? content,
+    List<String>? imageUrls,
+    bool? isAnonymous,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Must be logged in');
+
+    final docRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+
+    final snap = await docRef.get();
+    if (!snap.exists) throw Exception('Post not found');
+    if (snap.data()?['authorId'] != uid) {
+      throw Exception('Not authorized to edit this post');
+    }
+
+    final updates = <String, dynamic>{};
+    if (title != null) updates['title'] = title;
+    if (content != null) updates['content'] = content;
+    if (imageUrls != null) updates['imageUrls'] = imageUrls;
+    if (isAnonymous != null) updates['isAnonymous'] = isAnonymous;
+    if (updates.isEmpty) return;
+    await docRef.update(updates);
   }
 
   // ──────────────────────────────────────────────
@@ -436,12 +536,38 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
   Future<void> addUniversityAnswer(
     String uniId,
     String questionId,
-    String content,
-  ) async {
+    String content, {
+    bool isAnonymous = false,
+  }) async {
     final user = _uniAuth.currentUser;
     if (user == null) throw Exception('Must be logged in to answer');
 
     final userData = await getCurrentUser();
+    final answersRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('questions')
+        .doc(questionId)
+        .collection('answers');
+
+    // Compute thread-scoped anonymous index (same logic as comments).
+    int? anonymousIndex;
+    if (isAnonymous) {
+      final anonSnap =
+          await answersRef.where('isAnonymous', isEqualTo: true).get();
+      final Map<String, int> idxMap = {};
+      int maxIdx = 0;
+      for (var doc in anonSnap.docs) {
+        final data = doc.data();
+        final aId = data['authorId'] as String? ?? '';
+        final aIdx = data['anonymousIndex'] as int?;
+        if (aId.isNotEmpty && aIdx != null) {
+          idxMap[aId] = aIdx;
+          if (aIdx > maxIdx) maxIdx = aIdx;
+        }
+      }
+      anonymousIndex = idxMap[user.uid] ?? (maxIdx + 1);
+    }
 
     await _uniDb.runTransaction((transaction) async {
       final questionRef = _uniDb
@@ -449,20 +575,66 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
           .doc(uniId)
           .collection('questions')
           .doc(questionId);
-      final answerRef = questionRef.collection('answers').doc();
+      final answerRef = answersRef.doc();
 
-      transaction.set(answerRef, {
+      final docData = <String, dynamic>{
         'content': content,
         'authorId': user.uid,
         'authorName': userData?.name ?? 'Unknown',
         'authorAvatar': userData?.avatarUrl ?? '',
         'timestamp': FieldValue.serverTimestamp(),
         'authorUniversityId': userData?.universityId,
-      });
+        'isAnonymous': isAnonymous,
+      };
+      if (isAnonymous && anonymousIndex != null) {
+        docData['anonymousIndex'] = anonymousIndex;
+      }
+      transaction.set(answerRef, docData);
 
       transaction.update(questionRef, {
         'answersCount': FieldValue.increment(1),
       });
     });
+  }
+
+  /// Delete own university answer (hard delete — answers don't have
+  /// nested replies so soft-delete isn't needed).
+  Future<void> deleteUniversityAnswer(
+    String uniId,
+    String questionId,
+    String answerId,
+  ) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final answerRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('questions')
+        .doc(questionId)
+        .collection('answers')
+        .doc(answerId);
+    final questionRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('questions')
+        .doc(questionId);
+
+    try {
+      await _uniDb.runTransaction((transaction) async {
+        final snap = await transaction.get(answerRef);
+        if (!snap.exists) return;
+        if (snap.data()?['authorId'] != uid) {
+          throw Exception('Only the answer author can delete');
+        }
+        transaction.delete(answerRef);
+        transaction.update(questionRef, {
+          'answersCount': FieldValue.increment(-1),
+        });
+      });
+    } catch (e) {
+      debugPrint("Error deleting university answer: $e");
+      rethrow;
+    }
   }
 }
