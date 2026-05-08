@@ -214,7 +214,7 @@ class PostDetailScreen extends StatelessWidget {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if ((post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[
+                              if ((post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) || (!post.isAnonymous && user != null && user.universityId.isNotEmpty)) ...[
                                 const SizedBox(width: 6),
                                 UniversityBadge(universityId: post.authorUniversityId?.isNotEmpty == true ? post.authorUniversityId! : user!.universityId),
                               ],

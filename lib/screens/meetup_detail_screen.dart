@@ -166,7 +166,7 @@ class MeetupDetailScreen extends StatelessWidget {
                 },
               ),
               IconButton(
-                icon: const Icon(Icons.share, color: Colors.black),
+                icon: const Icon(Icons.ios_share, color: Colors.black),
                 onPressed: () {
                   showModalBottomSheet(
                     context: context,

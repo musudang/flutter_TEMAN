@@ -498,10 +498,10 @@ class _UniversityPostCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 14,
                   backgroundColor: uniColor.withValues(alpha: 0.15),
-                  backgroundImage: post.authorAvatar.isNotEmpty
+                  backgroundImage: !post.isAnonymous && post.authorAvatar.isNotEmpty
                       ? NetworkImage(post.authorAvatar)
                       : null,
-                  child: post.authorAvatar.isEmpty
+                  child: post.isAnonymous || post.authorAvatar.isEmpty
                       ? Icon(Icons.person, size: 14, color: uniColor)
                       : null,
                 ),
@@ -517,7 +517,7 @@ class _UniversityPostCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (!post.isAnonymous && post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
                   const SizedBox(width: 6),
                   UniversityBadge(universityId: post.authorUniversityId!, fontSize: 9),
                 ],
@@ -684,17 +684,17 @@ class _UniversityQuestionCard extends StatelessWidget {
                 CircleAvatar(
                   radius: 14,
                   backgroundColor: uniColor.withValues(alpha: 0.15),
-                  backgroundImage: question.authorAvatar.isNotEmpty
+                  backgroundImage: !question.isAnonymous && question.authorAvatar.isNotEmpty
                       ? NetworkImage(question.authorAvatar)
                       : null,
-                  child: question.authorAvatar.isEmpty
+                  child: question.isAnonymous || question.authorAvatar.isEmpty
                       ? Icon(Icons.person, size: 14, color: uniColor)
                       : null,
                 ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    question.authorName,
+                    question.isAnonymous ? 'Anonymous' : question.authorName,
                     style: const TextStyle(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
@@ -832,10 +832,10 @@ class _UniversityPostDetailSheet extends StatelessWidget {
                             radius: 20,
                             backgroundColor:
                                 uniColor.withValues(alpha: 0.15),
-                            backgroundImage: post.authorAvatar.isNotEmpty
+                            backgroundImage: !post.isAnonymous && post.authorAvatar.isNotEmpty
                                 ? NetworkImage(post.authorAvatar)
                                 : null,
-                            child: post.authorAvatar.isEmpty
+                            child: post.isAnonymous || post.authorAvatar.isEmpty
                                 ? Icon(Icons.person,
                                     size: 20, color: uniColor)
                                 : null,
@@ -860,7 +860,7 @@ class _UniversityPostDetailSheet extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  if (!post.isAnonymous && post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                                  if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
                                     const SizedBox(width: 6),
                                     UniversityBadge(universityId: post.authorUniversityId!),
                                   ],

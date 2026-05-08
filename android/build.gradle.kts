@@ -5,6 +5,21 @@ allprojects {
     }
 }
 
+// Ensure all subprojects use Java 17 for both Java and Kotlin tasks
+subprojects {
+    afterEvaluate {
+        if (project.hasProperty("android")) {
+            val android = project.extensions.findByName("android") as? com.android.build.gradle.BaseExtension
+            android?.apply {
+                compileOptions {
+                    sourceCompatibility = JavaVersion.VERSION_17
+                    targetCompatibility = JavaVersion.VERSION_17
+                }
+            }
+        }
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")

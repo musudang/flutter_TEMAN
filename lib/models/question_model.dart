@@ -9,6 +9,7 @@ class Question {
   final String authorAvatar;
   final DateTime timestamp;
   final int answersCount;
+  final bool isAnonymous;
   
   // [NEW] University badge
   final String? authorUniversityId;
@@ -22,6 +23,7 @@ class Question {
     required this.authorAvatar,
     required this.timestamp,
     this.answersCount = 0,
+    this.isAnonymous = false,
     this.authorUniversityId,
   });
 
@@ -36,6 +38,7 @@ class Question {
       authorAvatar: data['authorAvatar'] ?? '',
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
       answersCount: data['answersCount'] ?? 0,
+      isAnonymous: data['isAnonymous'] ?? false,
       authorUniversityId: data['authorUniversityId'],
     );
   }

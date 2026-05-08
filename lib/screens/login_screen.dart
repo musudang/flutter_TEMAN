@@ -147,65 +147,10 @@ class _LoginScreenState extends State<LoginScreen>
                       curve: const Interval(0.4, 1.0, curve: Curves.easeOut),
                     ),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 0),
+                      padding: const EdgeInsets.fromLTRB(28, 0, 28, 0),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          // Terms text
-                          RichText(
-                            textAlign: TextAlign.center,
-                            text: TextSpan(
-                              style: TextStyle(
-                                color: Colors.grey.shade500,
-                                fontSize: 12.5,
-                                height: 1.6,
-                              ),
-                              children: [
-                                const TextSpan(
-                                  text:
-                                      'By tapping "Continue", you agree to our ',
-                                ),
-                                TextSpan(
-                                  text: 'Terms of Service',
-                                  style: const TextStyle(
-                                    decoration: TextDecoration.underline,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E56C8),
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () async {
-                                      final url = Uri.parse(
-                                        'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link',
-                                      );
-                                      if (await canLaunchUrl(url)) {
-                                        await launchUrl(url);
-                                      }
-                                    },
-                                ),
-                                const TextSpan(text: ' and '),
-                                TextSpan(
-                                  text: 'Privacy Policy',
-                                  style: const TextStyle(
-                                    decoration: TextDecoration.underline,
-                                    fontWeight: FontWeight.w600,
-                                    color: Color(0xFF1E56C8),
-                                  ),
-                                  recognizer: TapGestureRecognizer()
-                                    ..onTap = () async {
-                                      final url = Uri.parse(
-                                        'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link',
-                                      );
-                                      if (await canLaunchUrl(url)) {
-                                        await launchUrl(url);
-                                      }
-                                    },
-                                ),
-                                const TextSpan(text: '.'),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(height: 20),
-
                           // ── Google button ──
                           _AuthButton(
                             onPressed: _isLoading ? null : _loginWithGoogle,
@@ -232,26 +177,87 @@ class _LoginScreenState extends State<LoginScreen>
                             borderColor: Colors.transparent,
                           ),
 
-                          const SizedBox(height: 20),
+                          const SizedBox(height: 24),
+
+                          // Terms text
+                          RichText(
+                            textAlign: TextAlign.center,
+                            text: TextSpan(
+                              style: TextStyle(
+                                color: Colors.grey.shade400,
+                                fontSize: 11.5,
+                                height: 1.5,
+                              ),
+                              children: [
+                                const TextSpan(
+                                  text: 'By continuing, you agree to our ',
+                                ),
+                                TextSpan(
+                                  text: 'Terms',
+                                  style: TextStyle(
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: Colors.grey.shade400,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () async {
+                                      final url = Uri.parse(
+                                        'https://teman-web-2026.web.app/terms.html',
+                                      );
+                                      if (await canLaunchUrl(url)) {
+                                        await launchUrl(url);
+                                      }
+                                    },
+                                ),
+                                const TextSpan(text: ' and '),
+                                TextSpan(
+                                  text: 'Privacy Policy',
+                                  style: TextStyle(
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: Colors.grey.shade400,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  recognizer: TapGestureRecognizer()
+                                    ..onTap = () async {
+                                      final url = Uri.parse(
+                                        'https://teman-web-2026.web.app/privacy.html',
+                                      );
+                                      if (await canLaunchUrl(url)) {
+                                        await launchUrl(url);
+                                      }
+                                    },
+                                ),
+                              ],
+                            ),
+                          ),
+
+                          const SizedBox(height: 16),
 
                           // ── Having trouble? ──
                           Center(
-                            child: TextButton(
-                              onPressed: () {
+                            child: GestureDetector(
+                              onTap: () {
                                 showDialog(
                                   context: context,
                                   builder: (_) => AlertDialog(
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(16),
                                     ),
-                                    title: const Text(
-                                      'Having trouble logging in?',
+                                    title: const Row(
+                                      children: [
+                                        Icon(Icons.help_outline,
+                                            color: Color(0xFF1E56C8), size: 24),
+                                        SizedBox(width: 8),
+                                        Text('Need Help?'),
+                                      ],
                                     ),
                                     content: const Text(
                                       'If you\'re experiencing issues, please try:\n\n'
                                       '• Check your internet connection\n'
-                                      '• Make sure you\'re using the correct account\n'
-                                      '• Contact support at support@teman.app',
+                                      '• Make sure you\'re using the correct account\n\n'
+                                      'Contact us at\ntemancommunity@gmail.com',
                                     ),
                                     actions: [
                                       TextButton(
@@ -263,16 +269,15 @@ class _LoginScreenState extends State<LoginScreen>
                                 );
                               },
                               child: Text(
-                                'Having trouble logging in?',
+                                'Need help?',
                                 style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
+                                  color: Colors.grey.shade400,
+                                  fontSize: 12,
                                 ),
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),

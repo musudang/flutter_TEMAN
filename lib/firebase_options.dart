@@ -53,7 +53,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDjTCNI8oL2zBw1b4Dc1A5WlWOGDZX5yvU',
-    appId: '1:1065473302917:android:6fbef37c281ac8904f64ec',
+    appId: '1:1065473302917:android:f9a195995a0e265b4f64ec',
     messagingSenderId: '1065473302917',
     projectId: 'teman-flutter-2',
     databaseURL: 'https://teman-flutter-2-default-rtdb.firebaseio.com',

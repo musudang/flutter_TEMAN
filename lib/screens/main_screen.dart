@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../services/firestore_service.dart';
 import '../providers/feed_state_provider.dart';
 import 'feed_screen.dart';
-import 'conversation_list_screen.dart';
 
-import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'university_feed_screen.dart';
 import 'map_screen.dart';
@@ -28,10 +25,6 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final firestoreService = Provider.of<FirestoreService>(
-      context,
-      listen: false,
-    );
     final feedState = Provider.of<FeedStateProvider>(context);
 
     final screens = <Widget>[
@@ -43,11 +36,8 @@ class _MainScreenState extends State<MainScreen> {
           return const FeedScreen();
         },
       ), // 0 = Home (Dynamic Feed)
-      const ConversationListScreen(), // 1 = Messages
-      MapScreen(isVisible: _selectedIndex == 2), // 2 = Map
-
-      const NotificationsScreen(), // 3 = Notifications
-      const ProfileScreen(), // 4 = Profile
+      MapScreen(isVisible: _selectedIndex == 1), // 1 = Map
+      const ProfileScreen(), // 2 = Profile
     ];
 
     return PopScope(
@@ -61,115 +51,123 @@ class _MainScreenState extends State<MainScreen> {
       child: Scaffold(
         body: IndexedStack(index: _selectedIndex, children: screens),
         bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, -5),
+              ),
+            ],
+          ),
+          child: SafeArea(
+            top: false,
+            child: SizedBox(
+              height: 76,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _buildNavItem(
+                    icon: Icons.home_outlined,
+                    activeIcon: Icons.home,
+                    label: 'Home',
+                    index: 0,
+                  ),
+                  _buildElevatedMapItem(index: 1),
+                  _buildNavItem(
+                    icon: Icons.person_outline,
+                    activeIcon: Icons.person,
+                    label: 'Profile',
+                    index: 2,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required IconData icon,
+    required IconData activeIcon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = _selectedIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => _onItemTapped(index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isSelected ? activeIcon : icon,
+              color: isSelected ? Colors.teal : Colors.grey,
+              size: 26,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected ? Colors.teal : Colors.grey,
+              ),
             ),
           ],
         ),
-        child: BottomNavigationBar(
-          items: [
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.home_outlined),
-              activeIcon: Icon(Icons.home),
-              label: 'Home',
-            ),
-            BottomNavigationBarItem(
-              icon: StreamBuilder<int>(
-                stream: firestoreService.getTotalUnreadMessageCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return Badge(
-                    isLabelVisible: count > 0,
-                    label: Text(
-                      count > 99 ? '99+' : '$count',
-                      style: const TextStyle(fontSize: 10),
+      ),
+    );
+  }
+
+  Widget _buildElevatedMapItem({required int index}) {
+    final isSelected = _selectedIndex == index;
+    return Expanded(
+      child: InkWell(
+        onTap: () => _onItemTapped(index),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Transform.translate(
+              offset: const Offset(0, -8),
+              child: Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.teal,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.white, width: 4),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.teal.withValues(alpha: 0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
                     ),
-                    backgroundColor: Colors.red,
-                    child: const Icon(Icons.chat_bubble_outline),
-                  );
-                },
+                  ],
+                ),
+                child: const Icon(
+                  Icons.map,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
-              activeIcon: StreamBuilder<int>(
-                stream: firestoreService.getTotalUnreadMessageCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return Badge(
-                    isLabelVisible: count > 0,
-                    label: Text(
-                      count > 99 ? '99+' : '$count',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    backgroundColor: Colors.red,
-                    child: const Icon(Icons.chat_bubble),
-                  );
-                },
-              ),
-              label: 'Messages',
             ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.map_outlined),
-              activeIcon: Icon(Icons.map),
-              label: 'Map',
-            ),
-            // Notification tab with real-time badge
-            BottomNavigationBarItem(
-              icon: StreamBuilder<int>(
-                stream: firestoreService.getUnreadNotificationCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return Badge(
-                    isLabelVisible: count > 0,
-                    label: Text(
-                      count > 99 ? '99+' : '$count',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    child: const Icon(Icons.notifications_outlined),
-                  );
-                },
+            Transform.translate(
+              offset: const Offset(0, -8),
+              child: Text(
+                'Map',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  color: isSelected ? Colors.teal : Colors.grey,
+                ),
               ),
-              activeIcon: StreamBuilder<int>(
-                stream: firestoreService.getUnreadNotificationCount(),
-                builder: (context, snapshot) {
-                  final count = snapshot.data ?? 0;
-                  return Badge(
-                    isLabelVisible: count > 0,
-                    label: Text(
-                      count > 99 ? '99+' : '$count',
-                      style: const TextStyle(fontSize: 10),
-                    ),
-                    child: const Icon(Icons.notifications),
-                  );
-                },
-              ),
-              label: 'Alerts',
-            ),
-            const BottomNavigationBarItem(
-              icon: Icon(Icons.person_outline),
-              activeIcon: Icon(Icons.person),
-              label: 'Profile',
             ),
           ],
-          currentIndex: _selectedIndex,
-          selectedItemColor: Colors.teal,
-          unselectedItemColor: Colors.grey,
-          showUnselectedLabels: true,
-          type: BottomNavigationBarType.fixed,
-          backgroundColor: Colors.white,
-          elevation: 0,
-          onTap: _onItemTapped,
-          selectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 12,
-          ),
-          unselectedLabelStyle: const TextStyle(
-            fontWeight: FontWeight.normal,
-            fontSize: 12,
-          ),
-          ),
         ),
       ),
     );

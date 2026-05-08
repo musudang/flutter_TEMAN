@@ -433,19 +433,19 @@ class _FeedScreenState extends State<FeedScreen> {
       return const MeetupListScreen(embedded: true);
     }
 
-    // Use StreamBuilder for real-time updates on 'All' filter
-    if (_selectedFilter == 'All' && _lastTimestamp == null) {
-      return StreamBuilder<List<dynamic>>(
-        stream: firestoreService.getFeedStream(hiddenUsers: hiddenUsers, limit: 20),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting && _feedItems.isEmpty) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final items = snapshot.data ?? _feedItems;
-          return _buildListView(items, firestoreService, isRealTime: true);
-        },
-      );
-    }
+    // NOTE: Previously this branch used a StreamBuilder around
+    // `getFeedStream` only when (`All` && `_lastTimestamp == null`). That
+    // caused two problems:
+    //   (a) the StreamBuilder was rebuilt each setState, re-subscribing the
+    //       stream and resetting connectionState back to `waiting` →
+    //       infinite loader on 'All' / 'General' until the user touched
+    //       'Events' (which mutated state in a way that broke the loop).
+    //   (b) data flowed only into the StreamBuilder's local `items`, not
+    //       into `_feedItems`, so 'General' (which client-side filters
+    //       `_feedItems`) appeared empty.
+    // Real-time engagement (likes, scraps, share) is now handled per-post
+    // via `getPostStream` inside the post card, so we no longer need a
+    // global feed stream here. Use a single client-side filter path.
 
     // Filter items based on hidden users AND selected filter!
     final filteredItems = _feedItems.where((item) {
@@ -904,7 +904,7 @@ class _FeedScreenState extends State<FeedScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                if ((post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) || (user != null && user.universityId.isNotEmpty)) ...[
+                                if ((post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) || (!post.isAnonymous && user != null && user.universityId.isNotEmpty)) ...[
                                   const SizedBox(width: 6),
                                   UniversityBadge(universityId: post.authorUniversityId?.isNotEmpty == true ? post.authorUniversityId! : user!.universityId),
                                 ],
@@ -979,6 +979,8 @@ class _FeedScreenState extends State<FeedScreen> {
                         size: 20,
                       ),
                       onPressed: () {
+                        // Increment share counter on the post document
+                        firestoreService.incrementSharePost(post.id);
                         showModalBottomSheet(
                           context: context,
                           isScrollControlled: true,
@@ -998,13 +1000,14 @@ class _FeedScreenState extends State<FeedScreen> {
                         );
                       },
                     ),
-                    // Scrap Button
-                    StreamBuilder<app_models.User?>(
-                      stream: firestoreService.getUserStream(
-                        firestoreService.currentUserId ?? '',
-                      ),
-                      builder: (context, userSnap) {
-                        final isScrapped = post.scrappedBy.contains(
+                    // Scrap Button — listen to the post itself so toggling
+                    // updates instantly (was previously listening to user doc,
+                    // which caused ~1 min delay before the icon flipped).
+                    StreamBuilder<Post?>(
+                      stream: firestoreService.getPostStream(post.id),
+                      builder: (context, postSnap) {
+                        final livePost = postSnap.data ?? post;
+                        final isScrapped = livePost.scrappedBy.contains(
                           firestoreService.currentUserId,
                         );
                         return IconButton(
@@ -1199,61 +1202,71 @@ class _FeedScreenState extends State<FeedScreen> {
             const SizedBox(height: 16),
             const Divider(height: 1, color: Color(0xFFF3F4F6)),
             const SizedBox(height: 12),
-            Row(
-              children: [
-                InkWell(
-                  onTap: () => firestoreService.toggleLikePost(post.id),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      children: [
-                        Icon(
-                          isLiked ? Icons.favorite : Icons.favorite_border,
-                          size: 20,
-                          color: isLiked ? Colors.red : const Color(0xFF9CA3AF),
+            // Wrap likes/comments row in a post stream so likes/comments
+            // counters and the heart fill state update instantly without
+            // having to open the post detail screen.
+            StreamBuilder<Post?>(
+              stream: firestoreService.getPostStream(post.id),
+              builder: (context, postSnap) {
+                final livePost = postSnap.data ?? post;
+                final liveIsLiked = livePost.likedBy.contains(uid);
+                return Row(
+                  children: [
+                    InkWell(
+                      onTap: () => firestoreService.toggleLikePost(post.id),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Row(
+                          children: [
+                            Icon(
+                              liveIsLiked ? Icons.favorite : Icons.favorite_border,
+                              size: 20,
+                              color: liveIsLiked ? Colors.red : const Color(0xFF9CA3AF),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${livePost.likes}',
+                              style: const TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${post.likes}',
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                InkWell(
-                  onTap: () =>
-                      _showCommentSheet(context, post, firestoreService),
-                  borderRadius: BorderRadius.circular(12),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    child: Row(
-                      children: [
-                        const Icon(
-                          Icons.chat_bubble_outline,
-                          size: 20,
-                          color: Color(0xFF9CA3AF),
+                    const SizedBox(width: 8),
+                    InkWell(
+                      onTap: () =>
+                          _showCommentSheet(context, post, firestoreService),
+                      borderRadius: BorderRadius.circular(12),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.chat_bubble_outline,
+                              size: 20,
+                              color: Color(0xFF9CA3AF),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '${livePost.comments}',
+                              style: const TextStyle(
+                                color: Color(0xFF6B7280),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '${post.comments}',
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              ],
+                  ],
+                );
+              },
             ),
           ],
         ),

@@ -226,30 +226,59 @@ mixin MeetupService on ChangeNotifier {
 
       final convRef = _db.collection('conversations').doc(meetupId);
 
-      try {
-        await convRef.update({
-          'participantIds': FieldValue.arrayUnion([userId]),
-          'unreadCounts.$userId': 0,
-          'lastMessage': '$userName has joined the group.',
-          'lastMessageTime': FieldValue.serverTimestamp(),
-        });
-      } catch (e) {
-        // If the document doesn't exist, we create it
-        final meetupDoc = await _db.collection('meetups').doc(meetupId).get();
-        final hostId = meetupDoc.data()?['hostId'];
+      // Retry update with exponential backoff for eventual consistency.
+      // The meetup.participantIds was just updated; firestore.rules evaluates
+      // get(.../meetups/...) on the server which may briefly see a stale
+      // value, causing permission-denied. Retrying gives propagation time.
+      bool updated = false;
+      Object? lastError;
+      for (int attempt = 0; attempt < 4; attempt++) {
+        try {
+          await convRef.update({
+            'participantIds': FieldValue.arrayUnion([userId]),
+            'unreadCounts.$userId': 0,
+            'lastMessage': '$userName has joined the group.',
+            'lastMessageTime': FieldValue.serverTimestamp(),
+          });
+          updated = true;
+          break;
+        } catch (e) {
+          lastError = e;
+          // not-found: doc missing → create branch below
+          if (e is FirebaseException && e.code == 'not-found') break;
+          // Other errors (incl. permission-denied): wait and retry
+          await Future.delayed(
+            Duration(milliseconds: 250 * (attempt + 1)),
+          );
+        }
+      }
 
-        final newParticipants = <String>{userId};
-        if (hostId != null) newParticipants.add(hostId);
+      if (!updated) {
+        // Document missing (legacy meetups created before conversation auto-create).
+        try {
+          final meetupDoc = await _db.collection('meetups').doc(meetupId).get();
+          final hostId = meetupDoc.data()?['hostId'];
 
-        await convRef.set({
-          'participantIds': newParticipants.toList(),
-          'lastMessage': '$userName has joined the group.',
-          'lastMessageTime': FieldValue.serverTimestamp(),
-          'meetupId': meetupId,
-          'isGroup': true,
-          'groupName': meetupTitle,
-          'unreadCounts': {userId: 0},
-        });
+          final newParticipants = <String>{userId};
+          if (hostId != null) newParticipants.add(hostId);
+
+          await convRef.set({
+            'participantIds': newParticipants.toList(),
+            'lastMessage': '$userName has joined the group.',
+            'lastMessageTime': FieldValue.serverTimestamp(),
+            'meetupId': meetupId,
+            'isGroup': true,
+            'groupName': meetupTitle,
+            'unreadCounts': {
+              for (final id in newParticipants) id: 0,
+            },
+          });
+        } catch (e) {
+          debugPrint(
+            "Failed to create meetup conversation. lastUpdateError=$lastError, createError=$e",
+          );
+          return;
+        }
       }
 
       // Add System Join Message

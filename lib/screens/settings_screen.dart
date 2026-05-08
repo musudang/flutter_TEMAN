@@ -214,7 +214,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Community Guidelines',
               onTap: () async {
                 final url = Uri.parse(
-                  'https://iris-tank-0cf.notion.site/333d16a0171980e2a20fc9975656021e?source=copy_link',
+                  'https://teman-web-2026.web.app/community-rules.html',
                 );
                 if (await canLaunchUrl(url)) {
                   await launchUrl(url);
@@ -255,7 +255,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Terms of Service',
               onTap: () async {
                 final url = Uri.parse(
-                  'https://iris-tank-0cf.notion.site/321d16a0171980d397d0dd8ef1132ffb?source=copy_link',
+                  'https://teman-web-2026.web.app/terms.html',
                 );
                 if (await canLaunchUrl(url)) {
                   await launchUrl(url);
@@ -267,7 +267,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Privacy Policy',
               onTap: () async {
                 final url = Uri.parse(
-                  'https://iris-tank-0cf.notion.site/323d16a01719803d9b36e3c058c95057?source=copy_link',
+                  'https://teman-web-2026.web.app/privacy.html',
                 );
                 if (await canLaunchUrl(url)) {
                   await launchUrl(url);

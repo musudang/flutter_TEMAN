@@ -22,12 +22,16 @@ class Post {
   final String? sharedItemType;
   final String? sharedItemTitle;
   final String? sharedItemImage;
-  
+
   // [NEW] Anonymous posting field
   final bool isAnonymous;
 
   // [NEW] University badge
   final String? authorUniversityId;
+
+  // [NEW] Engagement counters (mirrored on the post document for UI display)
+  final int scrapCount;
+  final int shareCount;
 
   Post({
     required this.id,
@@ -51,10 +55,13 @@ class Post {
     this.sharedItemImage,
     this.isAnonymous = false,
     this.authorUniversityId,
+    this.scrapCount = 0,
+    this.shareCount = 0,
   });
 
   factory Post.fromFirestore(DocumentSnapshot doc) {
     var data = doc.data() as Map<String, dynamic>;
+    final scrappedByList = List<String>.from(data['scrappedBy'] ?? []);
     return Post(
       id: doc.id,
       authorId: data['authorId'] ?? '',
@@ -65,11 +72,11 @@ class Post {
       likes: data['likes'] ?? 0,
       comments: data['comments'] ?? 0,
       likedBy: List<String>.from(data['likedBy'] ?? []),
-      imageUrls: data['imageUrls'] != null 
-          ? List<String>.from(data['imageUrls']) 
+      imageUrls: data['imageUrls'] != null
+          ? List<String>.from(data['imageUrls'])
           : (data['imageUrl'] != null && data['imageUrl'].toString().isNotEmpty ? [data['imageUrl']] : []),
       category: data['category'] ?? 'general',
-      scrappedBy: List<String>.from(data['scrappedBy'] ?? []),
+      scrappedBy: scrappedByList,
       authorAvatar: data['authorAvatar'] ?? '',
       subCategory: data['subCategory'],
       eventDate: (data['eventDate'] as Timestamp?)?.toDate(),
@@ -79,6 +86,10 @@ class Post {
       sharedItemImage: data['sharedItemImage'],
       isAnonymous: data['isAnonymous'] ?? false,
       authorUniversityId: data['authorUniversityId'],
+      // Fall back to derived count if a stored count is not yet present
+      // (older posts may not have the mirrored field).
+      scrapCount: data['scrapCount'] ?? scrappedByList.length,
+      shareCount: data['shareCount'] ?? 0,
     );
   }
 }

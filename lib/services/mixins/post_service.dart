@@ -738,10 +738,26 @@ mixin PostService on ChangeNotifier {
           scrappedBy.add(uid);
         }
 
-        transaction.update(docRef, {'scrappedBy': scrappedBy});
+        transaction.update(docRef, {
+          'scrappedBy': scrappedBy,
+          'scrapCount': scrappedBy.length,
+        });
       });
     } catch (e) {
       debugPrint("Error toggling scrap: $e");
+    }
+  }
+
+  /// Increment the share counter on a post. Called whenever a user shares
+  /// the post (via the share sheet). Safe to call multiple times.
+  Future<void> incrementSharePost(String postId) async {
+    final docRef = _db.collection(AppConstants.postsCollection).doc(postId);
+    try {
+      await docRef.update({
+        'shareCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      debugPrint("Error incrementing share count: $e");
     }
   }
 
