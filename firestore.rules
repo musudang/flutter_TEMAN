@@ -298,7 +298,8 @@ service cloud.firestore {
 
     match /admin_reports/{reportId} {
       allow create: if isAuthenticated() && reportId == request.resource.data.postId + '_' + request.auth.uid;
-      allow read, update, delete: if isAdmin();
+      allow read: if isAdmin() || (isAuthenticated() && reportId.matches('.*_' + request.auth.uid));
+      allow update, delete: if isAdmin();
     }
 
     match /admin_contact_inquiries/{inquiryId} {

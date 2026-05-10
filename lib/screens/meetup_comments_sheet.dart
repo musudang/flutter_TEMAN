@@ -42,13 +42,14 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
   }
 
   Future<void> _confirmAndDelete(Comment c) async {
+    final firestoreService = Provider.of<FirestoreService>(
+      context,
+      listen: false,
+    );
     final confirmed = await showConfirmDeleteCommentDialog(context);
     if (confirmed != true) return;
     try {
-      await Provider.of<FirestoreService>(
-        context,
-        listen: false,
-      ).deleteMeetupComment(widget.meetupId, c.id);
+      await firestoreService.deleteMeetupComment(widget.meetupId, c.id);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context)

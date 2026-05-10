@@ -5,6 +5,7 @@ import '../../models/post_model.dart';
 import '../../models/comment_model.dart';
 import '../../models/question_model.dart';
 import '../../models/user_model.dart' as app_models;
+import '../../constants/app_constants.dart';
 
 /// Service mixin for university-specific boards.
 ///
@@ -53,6 +54,21 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
           snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
       if (hiddenUsers.isEmpty) return posts;
       return posts.where((p) => !hiddenUsers.contains(p.authorId)).toList();
+    });
+  }
+
+  /// Get specific user's university posts from a known university
+  Stream<List<Post>> getUniversityPostsByUser(String uniId, String userId) {
+    return _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .where('authorId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+      posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return posts;
     });
   }
 
@@ -154,6 +170,89 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       });
     } catch (e) {
       debugPrint("Error toggling university post like: $e");
+    }
+  }
+
+  /// Toggle scrap (bookmark) on a university post.
+  Future<void> toggleScrapUniversityPost(String uniId, String postId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final docRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+
+    try {
+      await _uniDb.runTransaction((transaction) async {
+        final snapshot = await transaction.get(docRef);
+        if (!snapshot.exists) return;
+
+        final data = snapshot.data() as Map<String, dynamic>;
+        final scrappedBy = List<String>.from(data['scrappedBy'] ?? []);
+        
+        if (scrappedBy.contains(uid)) {
+          scrappedBy.remove(uid);
+        } else {
+          scrappedBy.add(uid);
+        }
+        
+        transaction.update(docRef, {
+          'scrappedBy': scrappedBy,
+          'scrapCount': scrappedBy.length,
+        });
+      });
+    } catch (e) {
+      debugPrint("Error toggling university post scrap: $e");
+    }
+  }
+
+  /// Get user's scrapped university posts
+  Stream<List<Post>> getScrappedUniversityPosts(String uniId, String userId) {
+    if (uniId.isEmpty || userId.isEmpty) return Stream.value([]);
+    return _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .where('scrappedBy', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      final posts = snapshot.docs.map((doc) => Post.fromFirestore(doc)).toList();
+      posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return posts;
+    });
+  }
+
+  /// Get user's scrapped university questions
+  Stream<List<Question>> getScrappedUniversityQuestions(String uniId, String userId) {
+    if (uniId.isEmpty || userId.isEmpty) return Stream.value([]);
+    return _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('questions')
+        .where('scrappedBy', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      final questions = snapshot.docs.map((doc) => Question.fromFirestore(doc)).toList();
+      questions.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return questions;
+    });
+  }
+
+  /// Increment share count for a university post.
+  Future<void> incrementShareUniversityPost(String uniId, String postId) async {
+    final docRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+    try {
+      await docRef.update({
+        'shareCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      debugPrint("Error incrementing university post share count: $e");
     }
   }
 
@@ -413,56 +512,7 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     }
   }
 
-  /// Toggle scrap (bookmark) on a university post.
-  Future<void> toggleScrapUniversityPost(String uniId, String postId) async {
-    final uid = currentUserId;
-    if (uid == null) return;
 
-    final docRef = _uniDb
-        .collection('universities')
-        .doc(uniId)
-        .collection('posts')
-        .doc(postId);
-
-    try {
-      await _uniDb.runTransaction((transaction) async {
-        final snapshot = await transaction.get(docRef);
-        if (!snapshot.exists) return;
-        final data = snapshot.data() as Map<String, dynamic>;
-        final scrappedBy = List<String>.from(data['scrappedBy'] ?? []);
-        if (scrappedBy.contains(uid)) {
-          scrappedBy.remove(uid);
-        } else {
-          scrappedBy.add(uid);
-        }
-        transaction.update(docRef, {
-          'scrappedBy': scrappedBy,
-          'scrapCount': scrappedBy.length,
-        });
-      });
-    } catch (e) {
-      debugPrint("Error toggling university post scrap: $e");
-    }
-  }
-
-  /// Increment share counter on a university post.
-  Future<void> incrementShareUniversityPost(
-    String uniId,
-    String postId,
-  ) async {
-    final docRef = _uniDb
-        .collection('universities')
-        .doc(uniId)
-        .collection('posts')
-        .doc(postId);
-    try {
-      await docRef.update({
-        'shareCount': FieldValue.increment(1),
-      });
-    } catch (e) {
-      debugPrint("Error incrementing university share: $e");
-    }
-  }
 
   /// Edit own university post — owner-only.
   Future<void> updateUniversityPost(
@@ -498,6 +548,158 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
   }
 
   // ──────────────────────────────────────────────
+  // University Reports
+  // ──────────────────────────────────────────────
+
+  /// Report a university post. If reports >= 5, remove it automatically.
+  Future<void> reportUniversityPost(String uniId, String postId, {required String reason, required String details}) async {
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Must be logged in to report');
+
+    final reportRef = _uniDb
+        .collection(AppConstants.reportsCollection)
+        .doc('${postId}_$uid');
+
+    final postRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId);
+
+    await _uniDb.runTransaction((transaction) async {
+      final reportSnapshot = await transaction.get(reportRef);
+      if (reportSnapshot.exists) {
+        throw Exception("You have already reported this post.");
+      }
+
+      final postSnapshot = await transaction.get(postRef);
+      if (!postSnapshot.exists) {
+        throw Exception("Post does not exist!");
+      }
+
+      final postData = postSnapshot.data()!;
+      final int currentReports = (postData['reportCount'] as num?)?.toInt() ?? 0;
+      final bool isRestricted = (postData['isRestricted'] as bool?) ?? false;
+
+      transaction.set(reportRef, {
+        'postId': postId,
+        'reportedBy': uid,
+        'reason': reason,
+        'details': details,
+        'type': 'university_post',
+        'uniId': uniId,
+        'reportedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+      final newReportCount = currentReports + 1;
+
+      if (!isRestricted && newReportCount >= 5) {
+        final restrictedPostRef = _uniDb
+            .collection('admin_restricted_posts')
+            .doc('unipost_$postId');
+        transaction.set(restrictedPostRef, {
+          ...postData,
+          'originalPostId': postId,
+          'uniId': uniId,
+          'restrictedAt': FieldValue.serverTimestamp(),
+          'reportCount': newReportCount,
+          'status': 'Under Review',
+        });
+
+        final restrictionLogRef = _uniDb.collection('user_restrictions').doc();
+        transaction.set(restrictionLogRef, {
+          'userId': postData['authorId'],
+          'postId': postId,
+          'postTitle': postData['title'] ?? 'Unknown Title',
+          'uniId': uniId,
+          'status': 'Reviewing',
+          'createdAt': FieldValue.serverTimestamp(),
+          'reason': 'Automatically restricted due to multiple reports.',
+        });
+
+        transaction.delete(postRef);
+      } else {
+        transaction.update(postRef, {'reportCount': newReportCount});
+      }
+    });
+  }
+
+  /// Report a university question. If reports >= 5, remove it automatically.
+  Future<void> reportUniversityQuestion(String uniId, String questionId, {required String reason, required String details}) async {
+    final uid = currentUserId;
+    if (uid == null) throw Exception('Must be logged in to report');
+
+    final reportRef = _uniDb
+        .collection(AppConstants.reportsCollection)
+        .doc('${questionId}_$uid');
+
+    final qRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('questions')
+        .doc(questionId);
+
+    await _uniDb.runTransaction((transaction) async {
+      final reportSnapshot = await transaction.get(reportRef);
+      if (reportSnapshot.exists) {
+        throw Exception("You have already reported this question.");
+      }
+
+      final qSnapshot = await transaction.get(qRef);
+      if (!qSnapshot.exists) {
+        throw Exception("Question does not exist!");
+      }
+
+      final qData = qSnapshot.data()!;
+      final int currentReports = (qData['reportCount'] as num?)?.toInt() ?? 0;
+      final bool isRestricted = (qData['isRestricted'] as bool?) ?? false;
+
+      transaction.set(reportRef, {
+        'postId': questionId,
+        'reportedBy': uid,
+        'reason': reason,
+        'details': details,
+        'type': 'university_question',
+        'uniId': uniId,
+        'reportedAt': FieldValue.serverTimestamp(),
+        'status': 'pending',
+      });
+
+      final newReportCount = currentReports + 1;
+
+      if (!isRestricted && newReportCount >= 5) {
+        final restrictedRef = _uniDb
+            .collection('admin_restricted_posts')
+            .doc('uniqna_$questionId');
+        transaction.set(restrictedRef, {
+          ...qData,
+          'originalPostId': questionId,
+          'uniId': uniId,
+          'restrictedAt': FieldValue.serverTimestamp(),
+          'reportCount': newReportCount,
+          'status': 'Under Review',
+        });
+
+        final restrictionLogRef = _uniDb.collection('user_restrictions').doc();
+        transaction.set(restrictionLogRef, {
+          'userId': qData['authorId'],
+          'postId': questionId,
+          'postTitle': qData['title'] ?? 'Unknown Title',
+          'uniId': uniId,
+          'status': 'Reviewing',
+          'createdAt': FieldValue.serverTimestamp(),
+          'reason': 'Automatically restricted due to multiple reports.',
+        });
+
+        transaction.delete(qRef);
+      } else {
+        transaction.update(qRef, {'reportCount': newReportCount});
+      }
+    });
+  }
+
+  // ──────────────────────────────────────────────
   // University Q&A
   // ──────────────────────────────────────────────
 
@@ -507,18 +709,32 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     int limit = 30,
     List<String> hiddenUsers = const [],
   }) {
-    return _uniDb
+    final query = _uniDb
         .collection('universities')
         .doc(uniId)
         .collection('questions')
         .orderBy('timestamp', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((snapshot) {
+        .limit(limit);
+    return query.snapshots().map((snapshot) {
       final questions =
           snapshot.docs.map((doc) => Question.fromFirestore(doc)).toList();
       if (hiddenUsers.isEmpty) return questions;
       return questions.where((q) => !hiddenUsers.contains(q.authorId)).toList();
+    });
+  }
+
+  /// Get specific user's university questions from a known university
+  Stream<List<Question>> getUniversityQuestionsByUser(String uniId, String userId) {
+    return _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('questions')
+        .where('authorId', isEqualTo: userId)
+        .snapshots()
+        .map((snapshot) {
+      final questions = snapshot.docs.map((doc) => Question.fromFirestore(doc)).toList();
+      questions.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return questions;
     });
   }
 

@@ -42,7 +42,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   bool _isSubmitting = false;
   final List<Uint8List> _imageBytesList = [];
   List<String> _existingImageUrls = [];
-  bool _isUploadingImage = false;
   bool _isAnonymous = false;
 
   Future<void> _pickImages() async {
@@ -70,7 +69,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         }
       }
 
-      setState(() => _isUploadingImage = true);
       
       final toAdd = pickedFiles.take(5 - (_existingImageUrls.length + _imageBytesList.length));
       for (var file in toAdd) {
@@ -79,9 +77,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         _imageBytesList.add(compressedBytes ?? rawBytes);
       }
 
-      setState(() {
-        _isUploadingImage = false;
-      });
     }
   }
 
@@ -193,7 +188,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       // Upload newly selected images
       List<String> uploadedUrls = [];
       if (_imageBytesList.isNotEmpty) {
-        setState(() => _isUploadingImage = true);
         
         String folder = 'posts';
         if (_selectedCategory == 'Meetup') {
@@ -214,7 +208,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
           final url = await ref.getDownloadURL();
           uploadedUrls.add(url);
         }
-        setState(() => _isUploadingImage = false);
       }
 
       final finalImageUrls = [..._existingImageUrls, ...uploadedUrls];
@@ -847,45 +840,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     );
   }
 
-  // ── Reusable dropdown builder ──
-  Widget _buildDropdown({
-    required String label,
-    required String value,
-    required List<String> items,
-    required ValueChanged<String?> onChanged,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF4B5563),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey[200]!),
-          ),
-          child: DropdownButton<String>(
-            value: value,
-            isExpanded: true,
-            underline: const SizedBox(),
-            items: items
-                .map((c) => DropdownMenuItem(value: c, child: Text(c)))
-                .toList(),
-            onChanged: onChanged,
-          ),
-        ),
-      ],
-    );
-  }
 
   Widget _buildField({
     required TextEditingController controller,

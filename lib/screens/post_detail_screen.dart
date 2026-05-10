@@ -741,7 +741,7 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                           radius: isReply ? 14 : 18,
                           backgroundColor: Colors.teal[50],
                           backgroundImage: showAvatar
-                              ? NetworkImage(user!.avatarUrl)
+                              ? NetworkImage(user.avatarUrl)
                               : null,
                           child: !showAvatar
                               ? Text(

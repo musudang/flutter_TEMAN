@@ -6,6 +6,7 @@ import '../widgets/university_badge.dart';
 import '../widgets/comment_helpers.dart';
 import 'user_profile_screen.dart';
 import 'profile_screen.dart';
+import '../widgets/report_dialog.dart';
 
 /// Detail screen for a university Q&A question.
 /// Shows the question, answers, and an input to add new answers.
@@ -72,6 +73,54 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
     return 'Just now';
   }
 
+  Future<void> _confirmAndDelete(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 24),
+            SizedBox(width: 8),
+            Text('Delete Question?'),
+          ],
+        ),
+        content: const Text('This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.red, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    try {
+      await fs.deleteUniversityQuestion(widget.uniId, widget.question.id);
+      if (context.mounted) {
+        Navigator.pop(context); // go back
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Question deleted')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final firestoreService =
@@ -96,6 +145,50 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
             color: Color(0xFF1A1F36),
           ),
         ),
+        actions: [
+          if (firestoreService.currentUserId == q.authorId)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.black87),
+              onSelected: (value) async {
+                if (value == 'delete') {
+                  await _confirmAndDelete(context);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Row(
+                    children: [
+                      Icon(Icons.delete_outline, size: 18, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Delete', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            )
+          else
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert, color: Colors.black87),
+              onSelected: (value) {
+                if (value == 'report') {
+                  showReportUniversityQuestionDialog(context, widget.uniId, q.id);
+                }
+              },
+              itemBuilder: (_) => [
+                const PopupMenuItem(
+                  value: 'report',
+                  child: Row(
+                    children: [
+                      Icon(Icons.flag_outlined, size: 18, color: Colors.red),
+                      SizedBox(width: 8),
+                      Text('Report', style: TextStyle(color: Colors.red)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: Column(
         children: [
@@ -440,12 +533,11 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                                           answerId,
                                         );
                                       } catch (e) {
-                                        if (mounted) {
-                                          ScaffoldMessenger.of(context)
-                                              .showSnackBar(SnackBar(
-                                                  content: Text(
-                                                      'Failed to delete: $e')));
-                                        }
+                                        if (!context.mounted) return;
+                                        ScaffoldMessenger.of(context)
+                                            .showSnackBar(SnackBar(
+                                                content: Text(
+                                                    'Failed to delete: $e')));
                                       }
                                     },
                                     child: Text(

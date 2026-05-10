@@ -240,17 +240,7 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
-  Color _getColorForUser(String userId) {
-    final colors = [
-      Colors.red, Colors.pink, Colors.purple, Colors.deepPurple,
-      Colors.indigo, Colors.blue, Colors.lightBlue, Colors.cyan,
-      Colors.teal, Colors.green, Colors.lightGreen, Colors.lime,
-      Colors.orange, Colors.deepOrange, Colors.brown, Colors.blueGrey,
-    ];
-    final hash = userId.hashCode;
-    final index = hash.abs() % colors.length;
-    return colors[index];
-  }
+
 
   // ── Combined list: friends + discover (deduplicated) ──
   List<app_models.User> get _allMapUsers {

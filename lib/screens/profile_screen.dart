@@ -18,6 +18,9 @@ import '../models/marketplace_model.dart';
 import 'post_detail_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/university_badge.dart';
+import '../models/question_model.dart';
+import 'university_qna_detail_screen.dart';
+import 'university_feed_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -44,53 +47,106 @@ class _ProfileScreenState extends State<ProfileScreen>
   StreamSubscription<List<Job>>? _jobsSub;
   StreamSubscription<List<MarketplaceItem>>? _marketSub;
   StreamSubscription<List<Post>>? _uniPostsSub;
+  StreamSubscription<List<Question>>? _uniQuestionsSub;
   List<Post> _cachedPosts = [];
   List<Job> _cachedJobs = [];
   List<MarketplaceItem> _cachedMarket = [];
   List<Post> _cachedUniPosts = [];
+  List<Question> _cachedUniQuestions = [];
   bool _myPostsInitialLoad = true;
 
-  void _ensureMyPostsSubscriptions(FirestoreService service, String uid) {
-    if (_myPostsUid == uid) return;
-    _myPostsUid = uid;
+  // ── Scrapped Feed cache ──
+  String? _scrappedUid;
+  StreamSubscription<List<dynamic>>? _scrappedFeedSub;
+  StreamSubscription<List<Post>>? _scrappedUniPostsSub;
+  StreamSubscription<List<Question>>? _scrappedUniQuestionsSub;
+  List<dynamic> _cachedScrappedFeed = [];
+  List<Post> _cachedScrappedUniPosts = [];
+  List<Question> _cachedScrappedUniQuestions = [];
+  bool _scrappedInitialLoad = true;
+
+  void _ensureMyPostsSubscriptions(FirestoreService service, app_models.User user) {
+    if (_myPostsUid == user.id) return;
+    _myPostsUid = user.id;
     _postsSub?.cancel();
     _jobsSub?.cancel();
     _marketSub?.cancel();
     _uniPostsSub?.cancel();
+    _uniQuestionsSub?.cancel();
     _cachedPosts = [];
     _cachedJobs = [];
     _cachedMarket = [];
     _cachedUniPosts = [];
+    _cachedUniQuestions = [];
     _myPostsInitialLoad = true;
 
-    _postsSub = service.getUserPosts(uid).listen((d) {
+    _postsSub = service.getUserPosts(user.id).listen((d) {
       if (!mounted) return;
       setState(() {
         _cachedPosts = d;
         _myPostsInitialLoad = false;
       });
     });
-    _jobsSub = service.getUserJobs(uid).listen((d) {
+    _jobsSub = service.getUserJobs(user.id).listen((d) {
       if (!mounted) return;
       setState(() => _cachedJobs = d);
     });
-    _marketSub = service.getUserMarketplaceItems(uid).listen((d) {
+    _marketSub = service.getUserMarketplaceItems(user.id).listen((d) {
       if (!mounted) return;
       setState(() => _cachedMarket = d);
     });
-    _uniPostsSub = service.getUserUniversityPosts(uid).listen(
-      (d) {
+    
+    if (user.universityId.isNotEmpty) {
+      _uniPostsSub = service.getUniversityPostsByUser(user.universityId, user.id).listen(
+        (d) {
+          if (!mounted) return;
+          setState(() => _cachedUniPosts = d);
+        },
+        onError: (e, st) {
+          debugPrint('[ProfileScreen] getUserUniversityPosts error: $e');
+        },
+      );
+      _uniQuestionsSub = service.getUniversityQuestionsByUser(user.universityId, user.id).listen(
+        (d) {
+          if (!mounted) return;
+          setState(() => _cachedUniQuestions = d);
+        },
+        onError: (e, st) {
+          debugPrint('[ProfileScreen] getUserUniversityQuestions error: $e');
+        },
+      );
+    }
+  }
+
+  void _ensureScrappedSubscriptions(FirestoreService service, app_models.User user) {
+    if (_scrappedUid == user.id) return;
+    _scrappedUid = user.id;
+    _scrappedFeedSub?.cancel();
+    _scrappedUniPostsSub?.cancel();
+    _scrappedUniQuestionsSub?.cancel();
+    _cachedScrappedFeed = [];
+    _cachedScrappedUniPosts = [];
+    _cachedScrappedUniQuestions = [];
+    _scrappedInitialLoad = true;
+
+    _scrappedFeedSub = service.getScrappedFeed(user.id).listen((d) {
+      if (!mounted) return;
+      setState(() {
+        _cachedScrappedFeed = d;
+        _scrappedInitialLoad = false;
+      });
+    });
+
+    if (user.universityId.isNotEmpty) {
+      _scrappedUniPostsSub = service.getScrappedUniversityPosts(user.universityId, user.id).listen((d) {
         if (!mounted) return;
-        setState(() => _cachedUniPosts = d);
-      },
-      onError: (e, st) {
-        // collectionGroup queries require a COLLECTION_GROUP-scoped
-        // single-field index on `authorId`. If the deploy is missing it,
-        // Firestore throws here with a clickable index-creation link in
-        // the error message. Surface that so we can act on it.
-        debugPrint('[ProfileScreen] getUserUniversityPosts error: $e');
-      },
-    );
+        setState(() => _cachedScrappedUniPosts = d);
+      });
+      _scrappedUniQuestionsSub = service.getScrappedUniversityQuestions(user.universityId, user.id).listen((d) {
+        if (!mounted) return;
+        setState(() => _cachedScrappedUniQuestions = d);
+      });
+    }
   }
 
   @override
@@ -106,6 +162,10 @@ class _ProfileScreenState extends State<ProfileScreen>
     _jobsSub?.cancel();
     _marketSub?.cancel();
     _uniPostsSub?.cancel();
+    _uniQuestionsSub?.cancel();
+    _scrappedFeedSub?.cancel();
+    _scrappedUniPostsSub?.cancel();
+    _scrappedUniQuestionsSub?.cancel();
     super.dispose();
   }
 
@@ -435,9 +495,9 @@ class _ProfileScreenState extends State<ProfileScreen>
             body: TabBarView(
               controller: _tabController,
               children: [
-                _buildMyPostsList(firestoreService, user.id),
+                _buildMyPostsList(firestoreService, user),
                 _buildJoinedMeetupsList(firestoreService, user.id),
-                _buildScrappedPostsList(firestoreService, user.id),
+                _buildScrappedPostsList(firestoreService, user),
               ],
             ),
           );
@@ -483,9 +543,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildMyPostsList(FirestoreService service, String userId) {
+  Widget _buildMyPostsList(FirestoreService service, app_models.User user) {
     // Subscribe-once + cache pattern (see _ensureMyPostsSubscriptions doc).
-    _ensureMyPostsSubscriptions(service, userId);
+    _ensureMyPostsSubscriptions(service, user);
 
     if (_myPostsInitialLoad) {
       return const Center(child: CircularProgressIndicator());
@@ -505,6 +565,10 @@ class _ProfileScreenState extends State<ProfileScreen>
         allItems.add(_UniPostWrapper(uniPost));
       }
     }
+    
+    for (var uniQ in _cachedUniQuestions) {
+      allItems.add(_UniQuestionWrapper(uniQ));
+    }
 
     if (allItems.isEmpty) {
       return _buildEmptyState(
@@ -513,10 +577,10 @@ class _ProfileScreenState extends State<ProfileScreen>
       );
     }
 
-    return _buildMyPostsListView(allItems, service);
+    return _buildMyPostsListView(allItems, service, user);
   }
 
-  Widget _buildMyPostsListView(List<dynamic> allItems, FirestoreService service) {
+  Widget _buildMyPostsListView(List<dynamic> allItems, FirestoreService service, app_models.User user) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: allItems.length,
@@ -531,12 +595,18 @@ class _ProfileScreenState extends State<ProfileScreen>
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: ListTile(
-                              onTap: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => PostDetailScreen(postId: item.post.id),
-                                ),
-                              ),
+                              onTap: () {
+                                showModalBottomSheet(
+                                  context: context,
+                                  isScrollControlled: true,
+                                  backgroundColor: Colors.transparent,
+                                  builder: (_) => UniversityPostDetailSheet(
+                                    post: item.post,
+                                    uniId: user.universityId,
+                                    uniColor: const Color(0xFF1565C0),
+                                  ),
+                                );
+                              },
                               leading: Container(
                                 width: 40,
                                 height: 40,
@@ -567,8 +637,69 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   color: const Color(0xFFE3F2FD),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
+                                child: Text(
+                                  item.post.category.toUpperCase(),
+                                  style: const TextStyle(
+                                    color: Color(0xFF1565C0),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        } else if (item is _UniQuestionWrapper) {
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 12),
+                            elevation: 2,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: ListTile(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => UniversityQnaDetailScreen(
+                                      question: item.question,
+                                      uniId: user.universityId,
+                                      uniColor: const Color(0xFF1565C0),
+                                    ),
+                                  ),
+                                );
+                              },
+                              leading: Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE3F2FD),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Icon(
+                                  Icons.help_outline_rounded,
+                                  color: Color(0xFF1565C0),
+                                ),
+                              ),
+                              title: Text(
+                                item.question.title,
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                              ),
+                              subtitle: Text(
+                                item.question.content,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFE3F2FD),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
                                 child: const Text(
-                                  'Uni',
+                                  'Q&A',
                                   style: TextStyle(
                                     color: Color(0xFF1565C0),
                                     fontSize: 11,
@@ -829,15 +960,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                     ),
                     children: pastMeetups.map((meetup) {
                       return ListTile(
-                        onTap: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  MeetupDetailScreen(meetupId: meetup.id),
-                            ),
-                          );
-                        },
                         leading: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -959,83 +1081,171 @@ class _ProfileScreenState extends State<ProfileScreen>
     );
   }
 
-  Widget _buildScrappedPostsList(FirestoreService service, String userId) {
-    return StreamBuilder<List<dynamic>>(
-      stream: service.getScrappedFeed(userId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final items = snapshot.data!;
-        if (items.isEmpty) {
-          return _buildEmptyState(Icons.bookmark_border, "No scrapped items");
-        }
+  Widget _buildScrappedPostsList(FirestoreService service, app_models.User user) {
+    _ensureScrappedSubscriptions(service, user);
 
-        return ListView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: items.length,
-          itemBuilder: (context, index) {
-            final item = items[index];
-            if (item is Post) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  title: Text(
-                    item.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    item.content,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: const Icon(Icons.bookmark, color: Colors.teal),
+    if (_scrappedInitialLoad) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final List<dynamic> allItems = [..._cachedScrappedFeed];
+
+    for (var uniPost in _cachedScrappedUniPosts) {
+      if (!allItems.any((item) => item is Post && item.id == uniPost.id)) {
+        allItems.add(_UniPostWrapper(uniPost));
+      }
+    }
+
+    for (var uniQ in _cachedScrappedUniQuestions) {
+      allItems.add(_UniQuestionWrapper(uniQ));
+    }
+
+    if (allItems.isEmpty) {
+      return _buildEmptyState(Icons.bookmark_border, "No scrapped items");
+    }
+
+    // Sort by timestamp if possible
+    allItems.sort((a, b) {
+      DateTime getTimestamp(dynamic item) {
+        if (item is Post) return item.timestamp;
+        if (item is Meetup) return item.dateTime;
+        if (item is _UniPostWrapper) return item.post.timestamp;
+        if (item is _UniQuestionWrapper) return item.question.timestamp;
+        return DateTime(2000);
+      }
+      return getTimestamp(b).compareTo(getTimestamp(a));
+    });
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: allItems.length,
+      itemBuilder: (context, index) {
+        final item = allItems[index];
+        
+        if (item is Post) {
+          return _buildScrappedCard(
+            title: item.title,
+            content: item.content,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => PostDetailScreen(postId: item.id)),
+            ),
+          );
+        } else if (item is Meetup) {
+          return _buildScrappedCard(
+            title: item.title,
+            content: '${DateFormat('MMM d').format(item.dateTime)} • ${item.location}',
+            icon: Icons.event,
+            iconColor: Colors.teal[700],
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => MeetupDetailScreen(meetupId: item.id)),
+            ),
+          );
+        } else if (item is _UniPostWrapper) {
+          return _buildScrappedCard(
+            title: item.post.title,
+            content: item.post.content,
+            icon: Icons.school_outlined,
+            iconColor: const Color(0xFF1565C0),
+            tag: 'University',
+            tagColor: const Color(0xFFE3F2FD),
+            textColor: const Color(0xFF1565C0),
+            onTap: () {
+              showModalBottomSheet(
+                context: context,
+                isScrollControlled: true,
+                backgroundColor: Colors.transparent,
+                builder: (_) => UniversityPostDetailSheet(
+                  post: item.post,
+                  uniId: user.universityId,
+                  uniColor: const Color(0xFF1565C0),
                 ),
               );
-            } else if (item is Meetup) {
-              return Card(
-                margin: const EdgeInsets.only(bottom: 16),
-                elevation: 2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: ListTile(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            MeetupDetailScreen(meetupId: item.id),
-                      ),
-                    );
-                  },
-                  leading: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.teal[50],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(Icons.event, color: Colors.teal[700]),
+            },
+          );
+        } else if (item is _UniQuestionWrapper) {
+          return _buildScrappedCard(
+            title: item.question.title,
+            content: item.question.content,
+            icon: Icons.help_outline,
+            iconColor: Colors.orange[700],
+            tag: 'Q&A',
+            tagColor: Colors.orange[50],
+            textColor: Colors.orange[700],
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => UniversityQnaDetailScreen(
+                    question: item.question,
+                    uniId: user.universityId,
+                    uniColor: Colors.orange[700]!,
                   ),
-                  title: Text(
-                    item.title,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                  subtitle: Text(
-                    '${DateFormat('MMM d').format(item.dateTime)} • ${item.participantIds.length} joined',
-                  ),
-                  trailing: const Icon(Icons.bookmark, color: Colors.teal),
                 ),
               );
-            }
-            return const SizedBox.shrink();
-          },
-        );
+            },
+          );
+        }
+        return const SizedBox.shrink();
       },
+    );
+  }
+
+  Widget _buildScrappedCard({
+    required String title,
+    required String content,
+    IconData icon = Icons.article_outlined,
+    Color? iconColor,
+    String? tag,
+    Color? tagColor,
+    Color? textColor,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: ListTile(
+        onTap: onTap,
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: (iconColor ?? Colors.teal).withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor ?? Colors.teal),
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          content,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: tag != null
+            ? Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: tagColor,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  tag,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            : const Icon(Icons.bookmark, color: Colors.teal, size: 20),
+      ),
     );
   }
 
@@ -1082,4 +1292,10 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
 class _UniPostWrapper {
   final Post post;
   _UniPostWrapper(this.post);
+}
+
+/// Simple wrapper to tag university questions in the "My Posts" list
+class _UniQuestionWrapper {
+  final Question question;
+  _UniQuestionWrapper(this.question);
 }

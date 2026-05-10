@@ -3,12 +3,14 @@ import '../services/firestore_service.dart';
 
 class ReportDialog extends StatefulWidget {
   final String contentId;
-  final String contentType; // 'post', 'meetup', 'job', 'marketplace'
+  final String contentType; // 'post', 'meetup', 'job', 'marketplace', 'university_post', 'university_question'
+  final String? uniId;
 
   const ReportDialog({
     super.key,
     required this.contentId,
     this.contentType = 'post',
+    this.uniId,
   });
 
   @override
@@ -78,12 +80,28 @@ class _ReportDialogState extends State<ReportDialog> {
     });
 
     try {
-      await FirestoreService().reportPost(
-        widget.contentId,
-        reason: _selectedReason!,
-        details: _detailsController.text.trim(),
-        type: widget.contentType,
-      );
+      if (widget.contentType == 'university_post') {
+        await FirestoreService().reportUniversityPost(
+          widget.uniId!,
+          widget.contentId,
+          reason: _selectedReason!,
+          details: _detailsController.text.trim(),
+        );
+      } else if (widget.contentType == 'university_question') {
+        await FirestoreService().reportUniversityQuestion(
+          widget.uniId!,
+          widget.contentId,
+          reason: _selectedReason!,
+          details: _detailsController.text.trim(),
+        );
+      } else {
+        await FirestoreService().reportPost(
+          widget.contentId,
+          reason: _selectedReason!,
+          details: _detailsController.text.trim(),
+          type: widget.contentType,
+        );
+      }
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -244,5 +262,27 @@ void showReportDialog(BuildContext context, String contentId, String contentType
   showDialog(
     context: context,
     builder: (context) => ReportDialog(contentId: contentId, contentType: contentType),
+  );
+}
+
+void showReportUniversityPostDialog(BuildContext context, String uniId, String postId) {
+  showDialog(
+    context: context,
+    builder: (context) => ReportDialog(
+      contentId: postId,
+      contentType: 'university_post',
+      uniId: uniId,
+    ),
+  );
+}
+
+void showReportUniversityQuestionDialog(BuildContext context, String uniId, String questionId) {
+  showDialog(
+    context: context,
+    builder: (context) => ReportDialog(
+      contentId: questionId,
+      contentType: 'university_question',
+      uniId: uniId,
+    ),
   );
 }

@@ -17,6 +17,7 @@ import 'profile_screen.dart';
 import 'user_profile_screen.dart';
 import 'university_search_screen.dart';
 import 'share_content_sheet.dart';
+import '../widgets/report_dialog.dart';
 
 /// The dedicated feed screen for a single university.
 /// Contains 3 tabs: General, News, Q&A.
@@ -786,6 +787,7 @@ class UniversityPostDetailSheet extends StatelessWidget {
   final Color uniColor;
 
   const UniversityPostDetailSheet({
+    super.key,
     required this.post,
     required this.uniId,
     required this.uniColor,
@@ -1526,7 +1528,7 @@ class _UniversityCommentsSectionState
 //   like · scrap · share + owner-only edit/delete menu
 // ─────────────────────────────────────────────────────
 
-class _UniversityPostActionsRow extends StatelessWidget {
+class _UniversityPostActionsRow extends StatefulWidget {
   final Post post;
   final String uniId;
   final Color uniColor;
@@ -1537,12 +1539,47 @@ class _UniversityPostActionsRow extends StatelessWidget {
     required this.uniColor,
   });
 
+  @override
+  State<_UniversityPostActionsRow> createState() => _UniversityPostActionsRowState();
+}
+
+class _UniversityPostActionsRowState extends State<_UniversityPostActionsRow> {
+  late bool isLiked;
+  late bool isScrapped;
+  late int likes;
+  late int scrapCount;
+
+  @override
+  void initState() {
+    super.initState();
+    final uid = Provider.of<FirestoreService>(context, listen: false).currentUserId ?? '';
+    isLiked = widget.post.likedBy.contains(uid);
+    isScrapped = widget.post.scrappedBy.contains(uid);
+    likes = widget.post.likes;
+    scrapCount = widget.post.scrapCount;
+  }
+
+  void _toggleLike() {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    setState(() {
+      isLiked = !isLiked;
+      likes += isLiked ? 1 : -1;
+    });
+    fs.toggleLikeUniversityPost(widget.uniId, widget.post.id);
+  }
+
+  void _toggleScrap() {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    setState(() {
+      isScrapped = !isScrapped;
+      scrapCount += isScrapped ? 1 : -1;
+    });
+    fs.toggleScrapUniversityPost(widget.uniId, widget.post.id);
+  }
+
   Future<void> _openShareSheet(BuildContext context) async {
     final fs = Provider.of<FirestoreService>(context, listen: false);
-    fs.incrementShareUniversityPost(uniId, post.id); // best-effort
-    // We use the existing share sheet — keyed by item type so receivers
-    // know how to open it. University posts re-use the 'post' type for
-    // now since the receive side opens via PostDetailScreen.
+    fs.incrementShareUniversityPost(widget.uniId, widget.post.id); // best-effort
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1550,12 +1587,12 @@ class _UniversityPostActionsRow extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => ShareContentSheet(
-        itemId: post.id,
+        itemId: widget.post.id,
         itemType: 'post',
-        itemTitle: post.title.isNotEmpty
-            ? post.title
-            : 'Post on ${UniversityConstants.getById(uniId)?.nameEn ?? "University"} board',
-        itemDescription: post.content,
+        itemTitle: widget.post.title.isNotEmpty
+            ? widget.post.title
+            : 'Post on ${UniversityConstants.getById(widget.uniId)?.nameEn ?? "University"} board',
+        itemDescription: widget.post.content,
       ),
     );
   }
@@ -1589,9 +1626,10 @@ class _UniversityPostActionsRow extends StatelessWidget {
       ),
     );
     if (confirmed != true) return;
+    if (!context.mounted) return;
     final fs = Provider.of<FirestoreService>(context, listen: false);
     try {
-      await fs.deleteUniversityPost(uniId, post.id);
+      await fs.deleteUniversityPost(widget.uniId, widget.post.id);
       if (context.mounted) {
         Navigator.pop(context); // close detail sheet
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1609,14 +1647,14 @@ class _UniversityPostActionsRow extends StatelessWidget {
 
   void _openEdit(BuildContext context) {
     Navigator.pop(context); // close detail sheet first
-    final uni = UniversityConstants.getById(uniId);
+    final uni = UniversityConstants.getById(widget.uniId);
     if (uni == null) return;
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (_) => UniversityCreatePostScreen(
           university: uni,
-          editingPost: post,
+          editingPost: widget.post,
         ),
       ),
     );
@@ -1626,15 +1664,13 @@ class _UniversityPostActionsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final fs = Provider.of<FirestoreService>(context, listen: false);
     final uid = fs.currentUserId ?? '';
-    final isLiked = post.likedBy.contains(uid);
-    final isScrapped = post.scrappedBy.contains(uid);
-    final isOwner = post.authorId == uid;
+    final isOwner = widget.post.authorId == uid;
 
     return Row(
       children: [
         // Like
         GestureDetector(
-          onTap: () => fs.toggleLikeUniversityPost(uniId, post.id),
+          onTap: _toggleLike,
           child: Row(
             children: [
               Icon(
@@ -1644,7 +1680,7 @@ class _UniversityPostActionsRow extends StatelessWidget {
               ),
               const SizedBox(width: 6),
               Text(
-                '${post.likes}',
+                '$likes',
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.grey[600],
@@ -1657,10 +1693,10 @@ class _UniversityPostActionsRow extends StatelessWidget {
         const SizedBox(width: 16),
         // Scrap
         GestureDetector(
-          onTap: () => fs.toggleScrapUniversityPost(uniId, post.id),
+          onTap: _toggleScrap,
           child: Icon(
             isScrapped ? Icons.bookmark : Icons.bookmark_border,
-            color: isScrapped ? uniColor : Colors.grey[400],
+            color: isScrapped ? widget.uniColor : Colors.grey[400],
             size: 22,
           ),
         ),
@@ -1705,6 +1741,27 @@ class _UniversityPostActionsRow extends StatelessWidget {
                         size: 18, color: Colors.red),
                     SizedBox(width: 8),
                     Text('Delete', style: TextStyle(color: Colors.red)),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: Colors.grey[500], size: 20),
+            onSelected: (value) {
+              if (value == 'report') {
+                showReportUniversityPostDialog(context, widget.uniId, widget.post.id);
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'report',
+                child: Row(
+                  children: [
+                    Icon(Icons.flag_outlined, size: 18, color: Colors.red),
+                    SizedBox(width: 8),
+                    Text('Report', style: TextStyle(color: Colors.red)),
                   ],
                 ),
               ),
