@@ -58,8 +58,11 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
+    // imageQuality < 100 forces iOS to transcode HEIC → JPEG so the
+    // photo can render on any device.
     final picked = await picker.pickImage(
       source: ImageSource.gallery,
+      imageQuality: 90,
     );
     if (picked != null) {
       final rawBytes = await picked.readAsBytes();

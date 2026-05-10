@@ -4,17 +4,24 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 class ImageCompressUtil {
   static const int maxFileSize = 1024 * 1024; // 1MB (increased from 500KB for better quality)
 
-  /// Compresses the given image bytes until the size is under [maxFileSize].
-  /// Returns the compressed bytes.
+  /// Compresses the given image bytes and forces a JPEG transcode.
+  ///
+  /// Forcing JPEG matters for iPhone uploads: iOS captures default to
+  /// HEIC, which Flutter's `Image.network` cannot decode — the picture
+  /// then renders as "Failed to load" on every other device. Always
+  /// running the bytes through `FlutterImageCompress.compressWithList`
+  /// with `format: CompressFormat.jpeg` guarantees the output is a
+  /// universally-decodable JPEG, regardless of input format or size.
+  ///
+  /// [minWidth]/[minHeight] cap the output dimensions; quality is
+  /// reduced iteratively until the file fits under [maxFileSize].
   static Future<Uint8List?> compressImage(Uint8List imageBytes, {int minWidth = 1080, int minHeight = 1080}) async {
-    if (imageBytes.lengthInBytes <= maxFileSize) {
-      return imageBytes;
-    }
-
     int quality = 90;
     Uint8List compressed = imageBytes;
-    
-    // First compression with basic resize and high quality
+
+    // First compression with basic resize and high quality.
+    // We DO NOT short-circuit on small inputs — even a 200KB HEIC must
+    // be transcoded to JPEG.
     try {
       compressed = await FlutterImageCompress.compressWithList(
         imageBytes,

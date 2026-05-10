@@ -8,8 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'dart:typed_data';
 import '../services/firestore_service.dart';
 import '../models/meetup_model.dart';
-import '../models/marketplace_model.dart';
-import '../models/job_model.dart';
+
 import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
 import '../utils/image_compress_util.dart';
@@ -57,7 +56,10 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
 
     final picker = ImagePicker();
-    final pickedFiles = await picker.pickMultiImage();
+    // imageQuality < 100 → iOS auto-transcodes HEIC to JPEG before
+    // returning bytes (otherwise iPhone HEIC photos won't render on
+    // other devices).
+    final pickedFiles = await picker.pickMultiImage(imageQuality: 90);
     
     if (pickedFiles.isNotEmpty) {
       if (_existingImageUrls.length + _imageBytesList.length + pickedFiles.length > 5) {
@@ -88,31 +90,21 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   final List<Map<String, dynamic>> _categories = [
     {'label': 'General', 'icon': Icons.article_outlined, 'color': Colors.teal},
     {'label': 'Q&A', 'icon': Icons.help_outline, 'color': Colors.blue},
-    {'label': 'Meetup', 'icon': Icons.people_outline, 'color': Colors.orange},
-    {
-      'label': 'Market',
-      'icon': Icons.storefront_outlined,
-      'color': Colors.green,
-    },
-    {'label': 'Job', 'icon': Icons.work_outline, 'color': Colors.indigo},
-    {'label': 'Event', 'icon': Icons.event_outlined, 'color': Colors.purple},
+    {'label': 'Events', 'icon': Icons.event, 'color': Colors.orange},
+    {'label': 'Market', 'icon': Icons.storefront, 'color': Colors.green},
+    {'label': 'Jobs', 'icon': Icons.work_outline, 'color': Colors.indigo},
+    {'label': 'Meetup', 'icon': Icons.people_outline, 'color': Colors.deepOrange},
   ];
 
   // Map UI labels → Firestore category strings
   String get _firestoreCategory {
     switch (_selectedCategory) {
-      case 'Q&A':
-        return 'qna';
-      case 'Meetup':
-        return 'meetups';
-      case 'Market':
-        return 'market';
-      case 'Job':
-        return 'jobs';
-      case 'Event':
-        return 'events';
-      default:
-        return 'general';
+      case 'Meetup': return 'meetups';
+      case 'Q&A': return 'qna';
+      case 'Events': return 'events';
+      case 'Market': return 'market';
+      case 'Jobs': return 'jobs';
+      default: return 'general';
     }
   }
 
@@ -128,57 +120,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
   MeetupCategory _meetupCategory = MeetupCategory.other;
   bool _requiresApproval = false;
 
-  // Market-specific fields
-  final _priceController = TextEditingController();
-  String _productCategory = 'Electronics';
-  final List<String> _productCategories = [
-    'Electronics',
-    'Fashion',
-    'Books',
-    'Home',
-    'Sports',
-    'Food',
-    'Other',
-  ];
 
-  // Job-specific fields
-  final _salaryController = TextEditingController();
-  String _jobType = 'Full-time';
-  final List<String> _jobTypes = [
-    'Full-time',
-    'Part-time',
-    'Contract',
-    'Freelance',
-  ];
-
-  // Event-specific fields
-  String _eventSubCategory = 'ALL';
-  final List<String> _eventSubCategories = [
-    'ALL',
-    'CONCERT',
-    'LOCAL FESTIVAL',
-    'ACADEMIC',
-    'CAREER',
-    'EXPO',
-    'EXHIBITION',
-    'POP-UP',
-    'NETWORKING',
-    'OTHERS',
-  ];
-  DateTime? _eventDate;
-
-  // Q&A-specific fields
-  String _qnaSubCategory = 'ALL';
-  final List<String> _qnaSubCategories = [
-    'ALL',
-    'IMMIGRATION',
-    'ACADEMICS',
-    'HOUSING',
-    'JOBS',
-    'DAILY LIFE',
-    'LANGUAGE',
-    'OTHERS',
-  ];
 
   @override
   void initState() {
@@ -193,42 +135,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         _contentController.text = item.content;
         _existingImageUrls = List<String>.from(item.imageUrls);
         switch (item.category) {
-          case 'qna':
-            _selectedCategory = 'Q&A';
-            _qnaSubCategory = item.subCategory ?? 'ALL';
-            break;
           case 'meetups':
             _selectedCategory = 'Meetup';
-            break;
-          case 'market':
-            _selectedCategory = 'Market';
-            break;
-          case 'jobs':
-            _selectedCategory = 'Job';
-            break;
-          case 'events':
-            _selectedCategory = 'Event';
-            _eventSubCategory = item.subCategory ?? 'ALL';
-            _eventDate = item.eventDate;
             break;
           default:
             _selectedCategory = 'General';
         }
-      } else if (item is Job) {
-        _selectedCategory = 'Job';
-        _titleController.text = item.title;
-        _contentController.text = item.description;
-        _locationController.text = item.location;
-        _salaryController.text = item.salary;
-        _jobType = item.jobType;
-        _existingImageUrls = List<String>.from(item.imageUrls);
-      } else if (item is MarketplaceItem) {
-        _selectedCategory = 'Market';
-        _titleController.text = item.title;
-        _contentController.text = item.description;
-        _priceController.text = item.price.toString();
-        _productCategory = item.category;
-        _existingImageUrls = List<String>.from(item.imageUrls);
       } else if (item is Meetup) {
         _selectedCategory = 'Meetup';
         _titleController.text = item.title;
@@ -250,8 +162,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     _contentController.dispose();
     _locationController.dispose();
     _maxParticipantsController.dispose();
-    _priceController.dispose();
-    _salaryController.dispose();
+
     super.dispose();
   }
 
@@ -285,14 +196,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         setState(() => _isUploadingImage = true);
         
         String folder = 'posts';
-        if (_selectedCategory == 'Market') {
-          folder = 'marketplace';
-        } else if (_selectedCategory == 'Meetup') {
+        if (_selectedCategory == 'Meetup') {
           folder = 'meetups';
-        } else if (_selectedCategory == 'Q&A') {
-          folder = 'questions';
-        } else if (_selectedCategory == 'Job') {
-          folder = 'jobs';
         }
 
         for (var bytes in _imageBytesList) {
@@ -328,24 +233,16 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
       } else {
         if (_selectedCategory == 'Meetup') {
           await _submitMeetup(firestoreService, user, finalImageUrls);
-        } else if (_selectedCategory == 'Market') {
-          await _submitMarketItem(firestoreService, user, finalImageUrls);
-        } else if (_selectedCategory == 'Job') {
-          await _submitJob(firestoreService, user, finalImageUrls);
         } else {
-          // General, Q&A, Event → standard post with correct category
+          // General post
           if (widget.editingItem != null && widget.editingItem is Post) {
             await firestoreService.updatePost((widget.editingItem as Post).id, {
               'title': _titleController.text.trim(),
               'content': _contentController.text.trim(),
               'imageUrls': finalImageUrls,
               'category': _firestoreCategory,
-              'subCategory': _selectedCategory == 'Event'
-                  ? _eventSubCategory
-                  : (_selectedCategory == 'Q&A' ? _qnaSubCategory : null),
-              'eventDate': _selectedCategory == 'Event' && _eventDate != null
-                  ? Timestamp.fromDate(_eventDate!)
-                  : null,
+              'subCategory': null,
+              'eventDate': null,
             });
           } else {
             await firestoreService.addPost(
@@ -356,10 +253,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
               imageUrls: finalImageUrls,
               category: _firestoreCategory,
               authorAvatar: user.avatarUrl,
-              subCategory: _selectedCategory == 'Event'
-                  ? _eventSubCategory
-                  : (_selectedCategory == 'Q&A' ? _qnaSubCategory : null),
-              eventDate: _selectedCategory == 'Event' ? _eventDate : null,
+              subCategory: null,
+              eventDate: null,
               sharedItemId: widget.sharedItemId,
               sharedItemType: widget.sharedItemType,
               sharedItemTitle: widget.sharedItemTitle,
@@ -437,72 +332,6 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
     }
   }
 
-  Future<void> _submitMarketItem(
-    FirestoreService service,
-    app_models.User user,
-    List<String> imageUrls,
-  ) async {
-    final price = double.tryParse(_priceController.text.trim()) ?? 0;
-    final item = MarketplaceItem(
-      id: '',
-      title: _titleController.text.trim(),
-      price: price,
-      description: _contentController.text.trim(),
-      condition: 'New',
-      category: _productCategory,
-      imageUrls: imageUrls,
-      sellerId: user.id,
-      sellerName: user.name,
-      sellerAvatar: user.avatarUrl,
-      postedDate: DateTime.now(),
-    );
-    if (widget.editingItem != null && widget.editingItem is MarketplaceItem) {
-      await service.updateMarketplaceItem((widget.editingItem as MarketplaceItem).id, {
-        'title': item.title,
-        'price': item.price,
-        'description': item.description,
-        'condition': item.condition,
-        'category': item.category,
-        'imageUrls': item.imageUrls,
-      });
-    } else {
-      await service.addMarketplaceItem(item);
-    }
-  }
-
-  Future<void> _submitJob(
-    FirestoreService service,
-    app_models.User user,
-    List<String> imageUrls,
-  ) async {
-    final job = Job(
-      id: '',
-      title: _titleController.text.trim(),
-      location: _locationController.text.trim(),
-      salary: _salaryController.text.trim(),
-      jobType: _jobType,
-      description: _contentController.text.trim(),
-      imageUrls: imageUrls,
-      requirements: [],
-      contactInfo: '',
-      authorId: user.id,
-      authorName: user.name,
-      authorAvatar: user.avatarUrl,
-      postedDate: DateTime.now(),
-    );
-    if (widget.editingItem != null && widget.editingItem is Job) {
-      await service.updateJob((widget.editingItem as Job).id, {
-        'title': job.title,
-        'location': job.location,
-        'salary': job.salary,
-        'jobType': job.jobType,
-        'description': job.description,
-        'imageUrls': job.imageUrls,
-      });
-    } else {
-      await service.addJob(job);
-    }
-  }
 
   Future<void> _pickDate() async {
     final picked = await showDatePicker(
@@ -585,9 +414,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         onTap: () => setState(() {
                           _selectedCategory = cat['label'];
                           // Reset anonymous toggle for non-eligible categories
-                          if (_selectedCategory != 'General' &&
-                              _selectedCategory != 'Q&A' &&
-                              _selectedCategory != 'Event') {
+                          if (_selectedCategory == 'Meetup') {
                             _isAnonymous = false;
                           }
                         }),
@@ -644,39 +471,33 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
 
               const SizedBox(height: 24),
 
-              // Title field (common)
-              _buildField(
+              // Title
+              TextField(
                 controller: _titleController,
-                label: _selectedCategory == 'Market'
-                    ? 'Item Name'
-                    : _selectedCategory == 'Job'
-                    ? 'Job Title'
-                    : 'Title',
-                hint: _selectedCategory == 'Meetup'
-                    ? 'e.g. Korean BBQ Night 🍖'
-                    : _selectedCategory == 'Market'
-                    ? 'e.g. iPhone 15 Pro Max'
-                    : _selectedCategory == 'Q&A'
-                    ? 'Your question...'
-                    : _selectedCategory == 'Job'
-                    ? 'e.g. English Teacher Needed'
-                    : 'Title',
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+                autofocus: true,
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1A1F36),
+                ),
+                decoration: InputDecoration(
+                  hintText: _selectedCategory == 'Meetup'
+                      ? 'e.g. Korean BBQ Night 🍖'
+                      : 'Title',
+                  hintStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.grey[350],
+                  ),
+                  border: InputBorder.none,
+                ),
+                onChanged: (_) => setState(() {}),
               ),
+              Divider(color: Colors.grey[200]),
 
               const SizedBox(height: 16),
 
-              // Image Selection
-              const Text(
-                'Images (Max 5)',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4B5563),
-                ),
-              ),
-              const SizedBox(height: 8),
+              // Images
               if (_existingImageUrls.isNotEmpty || _imageBytesList.isNotEmpty)
                 SizedBox(
                   height: 100,
@@ -684,13 +505,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                     scrollDirection: Axis.horizontal,
                     children: [
                       ..._existingImageUrls.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final url = entry.value;
+                        int idx = entry.key;
+                        String url = entry.value;
                         return Stack(
-                          key: ValueKey('existing_$idx'),
                           children: [
                             Container(
-                              margin: const EdgeInsets.only(right: 8),
+                              margin: const EdgeInsets.only(right: 12),
                               width: 100,
                               height: 100,
                               decoration: BoxDecoration(
@@ -703,7 +523,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             ),
                             Positioned(
                               top: 4,
-                              right: 12,
+                              right: 16,
                               child: GestureDetector(
                                 onTap: () => setState(() => _existingImageUrls.removeAt(idx)),
                                 child: Container(
@@ -712,7 +532,8 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     color: Colors.black54,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                  child: const Icon(Icons.close,
+                                      size: 16, color: Colors.white),
                                 ),
                               ),
                             ),
@@ -720,13 +541,12 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                         );
                       }),
                       ..._imageBytesList.asMap().entries.map((entry) {
-                        final idx = entry.key;
-                        final bytes = entry.value;
+                        int idx = entry.key;
+                        Uint8List bytes = entry.value;
                         return Stack(
-                          key: ValueKey('new_$idx'),
                           children: [
                             Container(
-                              margin: const EdgeInsets.only(right: 8),
+                              margin: const EdgeInsets.only(right: 12),
                               width: 100,
                               height: 100,
                               decoration: BoxDecoration(
@@ -739,7 +559,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                             ),
                             Positioned(
                               top: 4,
-                              right: 12,
+                              right: 16,
                               child: GestureDetector(
                                 onTap: () => setState(() => _imageBytesList.removeAt(idx)),
                                 child: Container(
@@ -748,59 +568,46 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                                     color: Colors.black54,
                                     shape: BoxShape.circle,
                                   ),
-                                  child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                  child: const Icon(Icons.close,
+                                      size: 16, color: Colors.white),
                                 ),
                               ),
                             ),
                           ],
                         );
                       }),
-                      if (_existingImageUrls.length + _imageBytesList.length < 5)
-                        GestureDetector(
-                          onTap: _isUploadingImage ? null : _pickImages,
-                          child: Container(
-                            width: 100,
-                            height: 100,
-                            decoration: BoxDecoration(
-                              color: Colors.teal.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: Colors.teal.withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: _isUploadingImage
-                                ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                                : const Icon(Icons.add_photo_alternate_outlined, color: Colors.teal, size: 32),
-                          ),
-                        ),
                     ],
                   ),
-                )
-              else
-                GestureDetector(
-                  onTap: _isUploadingImage ? null : _pickImages,
-                  child: Container(
-                    height: 100,
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.teal.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: Colors.teal.withValues(alpha: 0.3),
+                ),
+
+              GestureDetector(
+                onTap: _pickImages,
+                child: Container(
+                  margin: const EdgeInsets.only(top: 8, bottom: 24),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[50],
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey[200]!),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.image_outlined,
+                          color: Colors.grey[600], size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Add Images (${_existingImageUrls.length + _imageBytesList.length}/5)',
+                        style: TextStyle(
+                          color: Colors.grey[700],
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                    ),
-                    child: _isUploadingImage
-                        ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate_outlined, color: Colors.teal, size: 32),
-                              SizedBox(height: 4),
-                              Text('Add Photos', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.w600)),
-                            ],
-                          ),
+                    ],
                   ),
                 ),
+              ),
 
               const SizedBox(height: 16),
 
@@ -916,106 +723,7 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 const SizedBox(height: 16),
               ],
 
-              // ── Market-specific fields ──
-              if (_selectedCategory == 'Market') ...[
-                _buildField(
-                  controller: _priceController,
-                  label: 'Price (KRW)',
-                  hint: 'e.g. 50000',
-                  icon: Icons.attach_money,
-                  keyboardType: TextInputType.number,
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Required';
-                    if (double.tryParse(v) == null) {
-                      return 'Enter a valid number';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                _buildDropdown(
-                  label: 'Product Category',
-                  value: _productCategory,
-                  items: _productCategories,
-                  onChanged: (v) =>
-                      setState(() => _productCategory = v ?? 'Other'),
-                ),
-                const SizedBox(height: 16),
-              ],
 
-              // ── Job-specific fields ──
-              if (_selectedCategory == 'Job') ...[
-                _buildDropdown(
-                  label: 'Job Type',
-                  value: _jobType,
-                  items: _jobTypes,
-                  onChanged: (v) => setState(() => _jobType = v ?? 'Full-time'),
-                ),
-                const SizedBox(height: 16),
-                _buildField(
-                  controller: _salaryController,
-                  label: 'Salary / Rate',
-                  hint: 'e.g. 3,000,000 KRW/month',
-                  icon: Icons.payments_outlined,
-                  validator: (v) =>
-                      (v == null || v.trim().isEmpty) ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                _buildField(
-                  controller: _locationController,
-                  label: 'Location',
-                  hint: 'e.g. Seoul, Gangnam',
-                  icon: Icons.location_on_outlined,
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // ── Q&A-specific fields ──
-              if (_selectedCategory == 'Q&A') ...[
-                _buildDropdown(
-                  label: 'Q&A Category',
-                  value: _qnaSubCategory,
-                  items: _qnaSubCategories,
-                  onChanged: (v) =>
-                      setState(() => _qnaSubCategory = v ?? 'ALL'),
-                ),
-                const SizedBox(height: 16),
-              ],
-
-              // ── Event-specific fields ──
-              if (_selectedCategory == 'Event') ...[
-                _buildDropdown(
-                  label: 'Event Category',
-                  value: _eventSubCategory,
-                  items: _eventSubCategories,
-                  onChanged: (v) =>
-                      setState(() => _eventSubCategory = v ?? 'ALL'),
-                ),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: _eventDate ?? DateTime.now(),
-                      firstDate: DateTime.now().subtract(
-                        const Duration(days: 365),
-                      ),
-                      lastDate: DateTime.now().add(const Duration(days: 365)),
-                    );
-                    if (picked != null) {
-                      setState(() => _eventDate = picked);
-                    }
-                  },
-                  child: _buildReadonlyField(
-                    label: 'Event Date',
-                    value: _eventDate != null
-                        ? '${_eventDate!.month}/${_eventDate!.day}/${_eventDate!.year}'
-                        : 'Select Date',
-                    icon: Icons.calendar_today_outlined,
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
 
               // ── Quote Post Preview ──
               if (widget.sharedItemId != null) ...[
@@ -1086,90 +794,51 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
                 ),
               ],
 
-              // ── Anonymous posting toggle (only for General, Q&A, Event) ──
-              if (_selectedCategory == 'General' ||
-                  _selectedCategory == 'Q&A' ||
-                  _selectedCategory == 'Event') ...[
-                const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: _isAnonymous
-                        ? Colors.deepPurple.withValues(alpha: 0.08)
-                        : Colors.grey[50],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: _isAnonymous
-                          ? Colors.deepPurple.withValues(alpha: 0.3)
-                          : Colors.grey[200]!,
+              // ── Anonymous posting toggle (available for all boards except Meetup) ──
+              if (_selectedCategory != 'Meetup') ...[
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Post anonymously',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF1A1F36),
                     ),
                   ),
-                  child: CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text(
-                      'Post Anonymously',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF4B5563),
-                      ),
-                    ),
-                    subtitle: const Text(
-                      'Your name and profile will be hidden from others.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
-                    ),
-                    secondary: Icon(
-                      _isAnonymous ? Icons.visibility_off : Icons.visibility,
-                      color: _isAnonymous ? Colors.deepPurple : Colors.grey,
-                    ),
-                    value: _isAnonymous,
-                    activeColor: Colors.deepPurple,
-                    onChanged: (v) => setState(() => _isAnonymous = v ?? false),
-                    controlAffinity: ListTileControlAffinity.trailing,
+                  subtitle: Text(
+                    'Your name will be hidden',
+                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
                   ),
+                  value: _isAnonymous,
+                  onChanged: (val) => setState(() => _isAnonymous = val),
+                  activeThumbColor: Colors.teal,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 16),
+                Divider(color: Colors.grey[200]),
               ],
 
               // Content field (common)
-              const Text(
-                'Content',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF4B5563),
-                ),
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
+              TextField(
                 controller: _contentController,
-                maxLines: 6,
+                maxLines: null,
+                minLines: 8,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey[800],
+                  height: 1.6,
+                ),
                 decoration: InputDecoration(
                   hintText: _selectedCategory == 'Meetup'
-                      ? 'Describe your meetup...'
-                      : _selectedCategory == 'Market'
-                      ? 'Describe the item condition, details...'
-                      : _selectedCategory == 'Job'
-                      ? 'Job description, responsibilities...'
+                      ? 'Describe your meetup in detail...'
                       : "What's on your mind?",
-                  hintStyle: TextStyle(color: Colors.grey[400]),
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[200]!),
+                  hintStyle: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey[350],
                   ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.grey[200]!),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.teal, width: 2),
-                  ),
+                  border: InputBorder.none,
                 ),
-                validator: (v) =>
-                    (v == null || v.trim().isEmpty) ? 'Required' : null,
+                onChanged: (_) => setState(() {}),
               ),
             ],
           ),

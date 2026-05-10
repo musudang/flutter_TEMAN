@@ -2,10 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/firestore_service.dart';
 import '../services/algolia_service.dart';
-// Models are not explicitly needed in this file anymore
 import 'meetup_detail_screen.dart';
-import 'job_detail_screen.dart';
-import 'marketplace_detail_screen.dart';
 import 'post_detail_screen.dart';
 
 class SearchScreen extends StatefulWidget {
@@ -34,9 +31,6 @@ class _SearchScreenState extends State<SearchScreen>
   // Algolia search results
   List<Map<String, dynamic>> _algoliaPostResults = [];
   List<Map<String, dynamic>> _algoliaMeetupResults = [];
-  List<Map<String, dynamic>> _algoliaQnAResults = [];
-  List<Map<String, dynamic>> _algoliaJobResults = [];
-  List<Map<String, dynamic>> _algoliaMarketplaceResults = [];
   
   bool _isSearching = false;
 
@@ -67,9 +61,6 @@ class _SearchScreenState extends State<SearchScreen>
       setState(() {
         _algoliaPostResults = [];
         _algoliaMeetupResults = [];
-        _algoliaQnAResults = [];
-        _algoliaJobResults = [];
-        _algoliaMarketplaceResults = [];
         _isSearching = false;
       });
       return;
@@ -88,9 +79,6 @@ class _SearchScreenState extends State<SearchScreen>
       final results = await Future.wait([
         AlgoliaService.searchIndex('posts', query, filters: uniFilter),
         AlgoliaService.searchIndex('meetups', query, filters: uniFilter),
-        AlgoliaService.searchIndex('questions', query, filters: uniFilter),
-        AlgoliaService.searchIndex('jobs', query, filters: uniFilter),
-        AlgoliaService.searchIndex('marketplace', query, filters: uniFilter),
       ]);
 
       // Client-side belt-and-suspenders filter in case Algolia doesn't
@@ -109,9 +97,6 @@ class _SearchScreenState extends State<SearchScreen>
         setState(() {
           _algoliaPostResults = applyUniFilter(results[0]);
           _algoliaMeetupResults = applyUniFilter(results[1]);
-          _algoliaQnAResults = applyUniFilter(results[2]);
-          _algoliaJobResults = applyUniFilter(results[3]);
-          _algoliaMarketplaceResults = applyUniFilter(results[4]);
           _isSearching = false;
         });
       }
@@ -429,15 +414,19 @@ class _SearchScreenState extends State<SearchScreen>
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_algoliaQnAResults.isEmpty) {
+
+    final qnaPosts = _algoliaPostResults.where((hit) => hit['category'] == 'qna').toList();
+
+    if (qnaPosts.isEmpty) {
       return const Center(child: Text('No questions found'));
     }
     return ListView.builder(
-      itemCount: _algoliaQnAResults.length,
+      itemCount: qnaPosts.length,
       itemBuilder: (context, index) {
-        final hit = _algoliaQnAResults[index];
+        final hit = qnaPosts[index];
         final title = hit['title'] ?? '';
         final content = hit['content'] ?? '';
+        final objectId = hit['objectID'] ?? '';
 
         return ListTile(
           leading: Container(
@@ -455,6 +444,16 @@ class _SearchScreenState extends State<SearchScreen>
           ),
           title: Text(title.isNotEmpty ? title : 'Untitled Question'),
           subtitle: Text(content, maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: () {
+            if (objectId.isNotEmpty) {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PostDetailScreen(postId: objectId),
+                ),
+              );
+            }
+          },
         );
       },
     );
@@ -467,15 +466,18 @@ class _SearchScreenState extends State<SearchScreen>
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_algoliaJobResults.isEmpty) {
+
+    final jobPosts = _algoliaPostResults.where((hit) => hit['category'] == 'jobs').toList();
+
+    if (jobPosts.isEmpty) {
       return const Center(child: Text('No jobs found'));
     }
     return ListView.builder(
-      itemCount: _algoliaJobResults.length,
+      itemCount: jobPosts.length,
       itemBuilder: (context, index) {
-        final hit = _algoliaJobResults[index];
+        final hit = jobPosts[index];
         final title = hit['title'] ?? '';
-        final location = hit['location'] ?? '';
+        final content = hit['content'] ?? '';
         final objectId = hit['objectID'] ?? '';
 
         return ListTile(
@@ -493,18 +495,15 @@ class _SearchScreenState extends State<SearchScreen>
             ),
           ),
           title: Text(title.isNotEmpty ? title : 'Untitled Job'),
-          subtitle: Text(location),
-          onTap: () async {
+          subtitle: Text(content, maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: () {
             if (objectId.isNotEmpty) {
-              final job = await service.getJobById(objectId);
-              if (job != null && context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => JobDetailScreen(job: job),
-                  ),
-                );
-              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PostDetailScreen(postId: objectId),
+                ),
+              );
             }
           },
         );
@@ -519,15 +518,18 @@ class _SearchScreenState extends State<SearchScreen>
     if (_isSearching) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (_algoliaMarketplaceResults.isEmpty) {
+
+    final marketPosts = _algoliaPostResults.where((hit) => hit['category'] == 'market').toList();
+
+    if (marketPosts.isEmpty) {
       return const Center(child: Text('No items found'));
     }
     return ListView.builder(
-      itemCount: _algoliaMarketplaceResults.length,
+      itemCount: marketPosts.length,
       itemBuilder: (context, index) {
-        final hit = _algoliaMarketplaceResults[index];
+        final hit = marketPosts[index];
         final title = hit['title'] ?? '';
-        final price = hit['price']?.toString() ?? '0';
+        final content = hit['content'] ?? '';
         final objectId = hit['objectID'] ?? '';
 
         return ListTile(
@@ -545,18 +547,15 @@ class _SearchScreenState extends State<SearchScreen>
             ),
           ),
           title: Text(title.isNotEmpty ? title : 'Untitled Item'),
-          subtitle: Text('$price KRW'),
-          onTap: () async {
+          subtitle: Text(content, maxLines: 1, overflow: TextOverflow.ellipsis),
+          onTap: () {
             if (objectId.isNotEmpty) {
-              final item = await service.getMarketplaceItemById(objectId);
-              if (item != null && context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => MarketplaceDetailScreen(item: item),
-                  ),
-                );
-              }
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PostDetailScreen(postId: objectId),
+                ),
+              );
             }
           },
         );

@@ -38,8 +38,6 @@ class FeedScreen extends StatefulWidget {
 
 class _FeedScreenState extends State<FeedScreen> {
   String _selectedFilter = 'All';
-  String _selectedEventSubCategory = 'ALL';
-  String _selectedQnaSubCategory = 'ALL';
 
   // Pagination state
   final List<dynamic> _feedItems = [];
@@ -50,28 +48,7 @@ class _FeedScreenState extends State<FeedScreen> {
   final ScrollController _scrollController = ScrollController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
-  final List<String> _eventSubCategories = [
-    'ALL',
-    'CONCERT',
-    'LOCAL FESTIVAL',
-    'ACADEMIC',
-    'CAREER',
-    'EXPO',
-    'EXHIBITION',
-    'POP-UP',
-    'NETWORKING',
-    'OTHERS',
-  ];
-  final List<String> _qnaSubCategories = [
-    'ALL',
-    'IMMIGRATION',
-    'ACADEMICS',
-    'HOUSING',
-    'JOBS',
-    'DAILY LIFE',
-    'LANGUAGE',
-    'OTHERS',
-  ];
+  // Sub-categories removed
 
   @override
   void initState() {
@@ -294,23 +271,16 @@ class _FeedScreenState extends State<FeedScreen> {
                   ),
                   const SizedBox(width: 10),
                   _buildFilterChip(
-                    'Meetups',
-                    icon: Icons.groups_outlined,
-                    isSelected: _selectedFilter == 'Meetups',
+                    'Q&A',
+                    icon: Icons.help_outline,
+                    isSelected: _selectedFilter == 'Q&A',
                     color: const Color(0xFF6B7280),
                   ),
                   const SizedBox(width: 10),
                   _buildFilterChip(
                     'Events',
-                    icon: Icons.calendar_today_outlined,
+                    icon: Icons.event,
                     isSelected: _selectedFilter == 'Events',
-                    color: const Color(0xFF6B7280),
-                  ),
-                  const SizedBox(width: 10),
-                  _buildFilterChip(
-                    'Q&A',
-                    icon: Icons.help_outline,
-                    isSelected: _selectedFilter == 'Q&A',
                     color: const Color(0xFF6B7280),
                   ),
                   const SizedBox(width: 10),
@@ -327,73 +297,17 @@ class _FeedScreenState extends State<FeedScreen> {
                     isSelected: _selectedFilter == 'Jobs',
                     color: const Color(0xFF6B7280),
                   ),
+                  const SizedBox(width: 10),
+                  _buildFilterChip(
+                    'Meetups',
+                    icon: Icons.groups_outlined,
+                    isSelected: _selectedFilter == 'Meetups',
+                    color: const Color(0xFF6B7280),
+                  ),
                 ],
               ),
             ),
           ),
-
-          // Sub-category Chips
-          if (_selectedFilter == 'Events' || _selectedFilter == 'Q&A')
-            Container(
-              color: Colors.white,
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children:
-                      (_selectedFilter == 'Events'
-                              ? _eventSubCategories
-                              : _qnaSubCategories)
-                          .map((sub) {
-                            final isSelected = _selectedFilter == 'Events'
-                                ? _selectedEventSubCategory == sub
-                                : _selectedQnaSubCategory == sub;
-                            return Padding(
-                              padding: const EdgeInsets.only(right: 8.0),
-                              child: ChoiceChip(
-                                label: Text(
-                                  sub,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                selected: isSelected,
-                                onSelected: (selected) {
-                                  if (selected) {
-                                    setState(() {
-                                      if (_selectedFilter == 'Events') {
-                                        _selectedEventSubCategory = sub;
-                                      } else {
-                                        _selectedQnaSubCategory = sub;
-                                      }
-                                    });
-                                  }
-                                },
-                                selectedColor: const Color(
-                                  0xFFFF5A5F,
-                                ).withValues(alpha: 0.15),
-                                backgroundColor: Colors.grey[100],
-                                labelStyle: TextStyle(
-                                  color: isSelected
-                                      ? const Color(0xFFFF5A5F)
-                                      : Colors.grey[700],
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.w500,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(20),
-                                  side: BorderSide(
-                                    color: isSelected
-                                        ? const Color(0xFFFF5A5F)
-                                        : Colors.transparent,
-                                  ),
-                                ),
-                              ),
-                            );
-                          })
-                          .toList(),
-                ),
-              ),
-            ),
 
           // Dynamic Feed or Category-specific screen
           Expanded(
@@ -436,13 +350,7 @@ class _FeedScreenState extends State<FeedScreen> {
     FirestoreService firestoreService, {
     List<String> hiddenUsers = const [],
   }) {
-    // Navigate to dedicated screens for Jobs and Market
-    if (_selectedFilter == 'Jobs') {
-      return const JobsScreen(embedded: true);
-    }
-    if (_selectedFilter == 'Market') {
-      return const MarketplaceListScreen(embedded: true);
-    }
+    // Navigate to dedicated screens for Meetups
     if (_selectedFilter == 'Meetups') {
       return const MeetupListScreen(embedded: true);
     }
@@ -481,36 +389,11 @@ class _FeedScreenState extends State<FeedScreen> {
 
       // Also apply selected filter category
       if (_selectedFilter == 'All') return true;
-      if (_selectedFilter == 'General') {
-        if (item is Post && item.category == 'general') return true;
-        return false;
-      }
-      if (_selectedFilter == 'Q&A') {
-        if (item is Post && item.category == 'qna') {
-          if (_selectedQnaSubCategory != 'ALL' &&
-              item.subCategory != _selectedQnaSubCategory) {
-            return false;
-          }
-          return true;
-        }
-        if (item is Question) {
-          return _selectedQnaSubCategory == 'ALL';
-        }
-        return false;
-      }
-      if (_selectedFilter == 'Events') {
-        // Only show Posts with category 'event' OR 'events'
-        if (item is Post &&
-            (item.category == 'event' || item.category == 'events')) {
-          if (_selectedEventSubCategory != 'ALL' &&
-              item.subCategory != _selectedEventSubCategory) {
-            return false;
-          }
-          return true;
-        }
-        return false;
-      }
-
+      if (_selectedFilter == 'General' && item is Post && item.category == 'general') return true;
+      if (_selectedFilter == 'Q&A' && item is Post && item.category == 'qna') return true;
+      if (_selectedFilter == 'Events' && item is Post && item.category == 'events') return true;
+      if (_selectedFilter == 'Market' && item is Post && item.category == 'market') return true;
+      if (_selectedFilter == 'Jobs' && item is Post && item.category == 'jobs') return true;
       return false;
     }).toList();
 
@@ -596,12 +479,6 @@ class _FeedScreenState extends State<FeedScreen> {
                       );
                     },
                   );
-                } else if (item is Job) {
-                  return _buildJobItem(item);
-                } else if (item is MarketplaceItem) {
-                  return _buildMarketplaceItem(item);
-                } else if (item is Question) {
-                  return _buildQuestionItem(item);
                 }
                 return const SizedBox.shrink();
               },
@@ -797,7 +674,6 @@ class _FeedScreenState extends State<FeedScreen> {
     }
 
     final uid = firestoreService.currentUserId ?? '';
-    final isLiked = post.likedBy.contains(uid);
 
     return GestureDetector(
       onTap: () {
@@ -1332,320 +1208,6 @@ class _FeedScreenState extends State<FeedScreen> {
           ),
         );
       },
-    );
-  }
-
-  Widget _buildJobItem(Job job) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => JobDetailScreen(job: job)),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.teal.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.business, color: Colors.teal),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        job.title,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 16,
-                          color: Color(0xFF1A1F36),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Wrap(
-                        spacing: 6,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFEDE7F6),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: const Text(
-                              'Jobs',
-                              style: TextStyle(
-                                color: Color(0xFF4527A0),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            job.location,
-                            style: TextStyle(
-                              color: Colors.grey[600],
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      job.location,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
-                ),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.attach_money, size: 14, color: Colors.grey[600]),
-                    const SizedBox(width: 4),
-                    Text(
-                      job.salary,
-                      style: TextStyle(color: Colors.grey[600], fontSize: 12),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMarketplaceItem(MarketplaceItem item) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => MarketplaceDetailScreen(item: item),
-          ),
-        );
-      },
-      child: Container(
-        height: 120, // fixed height for inline market item
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.03),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Row(
-          children: [
-            Container(
-              width: 120,
-              height: 120,
-              color: Colors.grey[200],
-              child: item.imageUrls.isNotEmpty
-                  ? Image.network(item.imageUrls.first, fit: BoxFit.cover)
-                  : const Icon(Icons.image, color: Colors.grey, size: 40),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE8F5E9),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'Market',
-                            style: TextStyle(
-                              color: Color(0xFF2E7D32),
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                        const Spacer(),
-                        Text(
-                          item.condition,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      item.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₩${item.price.toStringAsFixed(0)}', // Adjust formatter if numberformat is preferred
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Colors.teal,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        CircleAvatar(
-                          radius: 10,
-                          backgroundColor: Colors.grey[300],
-                          backgroundImage: item.sellerAvatar.isNotEmpty
-                              ? NetworkImage(item.sellerAvatar)
-                              : null,
-                          child: item.sellerAvatar.isEmpty
-                              ? Text(
-                                  item.sellerName.isNotEmpty
-                                      ? item.sellerName[0].toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : null,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          item.sellerName,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuestionItem(Question question) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: const Color(0xFFE3F2FD), width: 1.5),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE3F2FD),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: const Text(
-                  'Q&A',
-                  style: TextStyle(
-                    color: Color(0xFF1565C0),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                question.authorName,
-                style: TextStyle(color: Colors.grey[600], fontSize: 12),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Text(
-            question.title,
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 16,
-              color: Color(0xFF1A1F36),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            question.content,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.grey[600], fontSize: 14),
-          ),
-        ],
-      ),
     );
   }
 }

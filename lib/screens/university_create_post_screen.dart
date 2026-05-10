@@ -3,7 +3,11 @@ import 'package:provider/provider.dart';
 import '../constants/university_constants.dart';
 import '../models/post_model.dart';
 import '../services/firestore_service.dart';
-
+import 'dart:typed_data';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:uuid/uuid.dart';
+import '../utils/image_compress_util.dart';
 /// Screen for creating a post in a university board.
 /// Supports General, News, and Q&A categories.
 class UniversityCreatePostScreen extends StatefulWidget {
@@ -35,6 +39,10 @@ class _UniversityCreatePostScreenState
   bool _isAnonymous = false;
   bool _isSubmitting = false;
 
+  final List<Uint8List> _imageBytesList = [];
+  List<String> _existingImageUrls = [];
+  bool _isUploadingImage = false;
+
   bool get _isEditing => widget.editingPost != null;
 
   Color get uniColor => Color(widget.university.colorValue);
@@ -48,6 +56,7 @@ class _UniversityCreatePostScreenState
       _contentController.text = editing.content;
       _selectedCategory = editing.category;
       _isAnonymous = editing.isAnonymous;
+      _existingImageUrls = List<String>.from(editing.imageUrls);
     } else {
       _selectedCategory = widget.initialCategory;
     }
@@ -58,6 +67,55 @@ class _UniversityCreatePostScreenState
     _titleController.dispose();
     _contentController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickImages() async {
+    if (_imageBytesList.length + _existingImageUrls.length >= 5) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Maximum 5 images allowed.')),
+        );
+      }
+      return;
+    }
+
+    final picker = ImagePicker();
+    final pickedFiles = await picker.pickMultiImage(imageQuality: 90);
+    
+    if (pickedFiles.isNotEmpty) {
+      if (_existingImageUrls.length + _imageBytesList.length + pickedFiles.length > 5) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Maximum 5 images allowed globally. Ignored additional images.')),
+          );
+        }
+      }
+
+      setState(() => _isUploadingImage = true);
+      
+      final toAdd = pickedFiles.take(5 - (_existingImageUrls.length + _imageBytesList.length));
+      for (var file in toAdd) {
+        final rawBytes = await file.readAsBytes();
+        final compressedBytes = await ImageCompressUtil.compressImage(rawBytes);
+        _imageBytesList.add(compressedBytes ?? rawBytes);
+      }
+
+      setState(() {
+        _isUploadingImage = false;
+      });
+    }
+  }
+
+  void _removeNewImage(int index) {
+    setState(() {
+      _imageBytesList.removeAt(index);
+    });
+  }
+
+  void _removeExistingImage(int index) {
+    setState(() {
+      _existingImageUrls.removeAt(index);
+    });
   }
 
   Future<void> _submit() async {
@@ -87,6 +145,31 @@ class _UniversityCreatePostScreenState
         return;
       }
 
+      // Upload newly selected images
+      List<String> uploadedUrls = [];
+      if (_imageBytesList.isNotEmpty) {
+        setState(() => _isUploadingImage = true);
+        String folder = 'university_posts/${widget.university.id}';
+        
+        for (var bytes in _imageBytesList) {
+          final ref = FirebaseStorage.instance
+              .ref()
+              .child(folder)
+              .child('${const Uuid().v4()}.jpg');
+
+          final uploadTask = ref.putData(
+            bytes,
+            SettableMetadata(contentType: 'image/jpeg'),
+          );
+          await uploadTask;
+          final url = await ref.getDownloadURL();
+          uploadedUrls.add(url);
+        }
+        setState(() => _isUploadingImage = false);
+      }
+
+      final finalImageUrls = [..._existingImageUrls, ...uploadedUrls];
+
       if (_isEditing) {
         // Edit path — only General/News posts are editable here.
         // (Q&A questions don't currently expose an edit flow.)
@@ -95,6 +178,7 @@ class _UniversityCreatePostScreenState
           widget.editingPost!.id,
           title: title,
           content: content,
+          imageUrls: finalImageUrls,
           isAnonymous: _isAnonymous,
         );
       } else if (_selectedCategory == 'qna') {
@@ -106,6 +190,8 @@ class _UniversityCreatePostScreenState
           authorId: user.id,
           authorName: user.name,
           authorAvatar: user.avatarUrl,
+          imageUrls: finalImageUrls,
+          isAnonymous: _isAnonymous,
         );
       } else {
         // Create a General or News post
@@ -116,6 +202,7 @@ class _UniversityCreatePostScreenState
           authorId: user.id,
           authorName: user.name,
           authorAvatar: user.avatarUrl,
+          imageUrls: finalImageUrls,
           category: _selectedCategory,
           isAnonymous: _isAnonymous,
         );
@@ -204,7 +291,7 @@ class _UniversityCreatePostScreenState
                   borderRadius: BorderRadius.circular(20),
                 ),
               ),
-              child: _isSubmitting
+              child: _isSubmitting || _isUploadingImage
                   ? const SizedBox(
                       width: 18,
                       height: 18,
@@ -225,29 +312,7 @@ class _UniversityCreatePostScreenState
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Category selector
-            const Text(
-              'Board',
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                fontSize: 14,
-                color: Color(0xFF1A1F36),
-              ),
-            ),
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                _buildCategoryChip('general', 'General', Icons.article_outlined),
-                const SizedBox(width: 8),
-                _buildCategoryChip(
-                    'news', 'News', Icons.newspaper_rounded),
-                const SizedBox(width: 8),
-                _buildCategoryChip('qna', 'Q&A', Icons.help_outline_rounded),
-              ],
-            ),
-            const SizedBox(height: 24),
-
-            // Title
+            // 1. Title
             TextField(
               controller: _titleController,
               autofocus: true,
@@ -257,11 +322,7 @@ class _UniversityCreatePostScreenState
                 color: Color(0xFF1A1F36),
               ),
               decoration: InputDecoration(
-                hintText: _selectedCategory == 'qna'
-                    ? 'What is your question?'
-                    : _selectedCategory == 'news'
-                        ? 'News headline'
-                        : 'Title',
+                hintText: 'Title',
                 hintStyle: TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -273,7 +334,143 @@ class _UniversityCreatePostScreenState
             ),
             Divider(color: Colors.grey[200]),
 
-            // Content
+            const SizedBox(height: 16),
+
+            // 2. Images
+            if (_existingImageUrls.isNotEmpty || _imageBytesList.isNotEmpty)
+              SizedBox(
+                height: 100,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  children: [
+                    ..._existingImageUrls.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      String url = entry.value;
+                      return Stack(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(right: 12),
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              image: DecorationImage(
+                                image: NetworkImage(url),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 16,
+                            child: GestureDetector(
+                              onTap: () => _removeExistingImage(idx),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close,
+                                    size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    ..._imageBytesList.asMap().entries.map((entry) {
+                      int idx = entry.key;
+                      Uint8List bytes = entry.value;
+                      return Stack(
+                        children: [
+                          Container(
+                            margin: const EdgeInsets.only(right: 12),
+                            width: 100,
+                            height: 100,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              image: DecorationImage(
+                                image: MemoryImage(bytes),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            top: 4,
+                            right: 16,
+                            child: GestureDetector(
+                              onTap: () => _removeNewImage(idx),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  color: Colors.black54,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.close,
+                                    size: 16, color: Colors.white),
+                              ),
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                  ],
+                ),
+              ),
+
+            GestureDetector(
+              onTap: _pickImages,
+              child: Container(
+                margin: const EdgeInsets.only(top: 8, bottom: 24),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.grey[50],
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.grey[200]!),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.image_outlined,
+                        color: Colors.grey[600], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Add Images (${_existingImageUrls.length + _imageBytesList.length}/5)',
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // 3. Post anonymous
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Post anonymously',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A1F36),
+                ),
+              ),
+              subtitle: Text(
+                'Your name will be hidden',
+                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+              ),
+              value: _isAnonymous,
+              onChanged: (val) => setState(() => _isAnonymous = val),
+              activeThumbColor: uniColor,
+            ),
+            const SizedBox(height: 16),
+            Divider(color: Colors.grey[200]),
+
+            // 4. Content
             TextField(
               controller: _contentController,
               maxLines: null,
@@ -284,11 +481,7 @@ class _UniversityCreatePostScreenState
                 height: 1.6,
               ),
               decoration: InputDecoration(
-                hintText: _selectedCategory == 'qna'
-                    ? 'Describe your question in detail...'
-                    : _selectedCategory == 'news'
-                        ? 'Share the news details...'
-                        : "What's on your mind?",
+                hintText: "What's on your mind?",
                 hintStyle: TextStyle(
                   fontSize: 16,
                   color: Colors.grey[350],
@@ -296,67 +489,6 @@ class _UniversityCreatePostScreenState
                 border: InputBorder.none,
               ),
               onChanged: (_) => setState(() {}),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Anonymous toggle (only for general, not Q&A)
-            if (_selectedCategory != 'qna')
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text(
-                  'Post anonymously',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1A1F36),
-                  ),
-                ),
-                subtitle: Text(
-                  'Your name will be hidden',
-                  style: TextStyle(fontSize: 12, color: Colors.grey[500]),
-                ),
-                value: _isAnonymous,
-                onChanged: (val) => setState(() => _isAnonymous = val),
-                activeThumbColor: uniColor,
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryChip(String value, String label, IconData icon) {
-    final isSelected = _selectedCategory == value;
-    return GestureDetector(
-      onTap: () => setState(() => _selectedCategory = value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? uniColor : Colors.grey[100],
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? uniColor : Colors.grey[300]!,
-            width: 1,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              size: 16,
-              color: isSelected ? Colors.white : Colors.grey[600],
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: isSelected ? Colors.white : Colors.grey[700],
-              ),
             ),
           ],
         ),

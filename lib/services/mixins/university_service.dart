@@ -259,6 +259,61 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
         transaction.set(commentRef, docData);
         transaction.update(postRef, {'comments': FieldValue.increment(1)});
       });
+
+      // Notifications — main `users/{uid}/notifications` subcollection
+      // is on the primary FirebaseFirestore instance (`_db` is not
+      // accessible from this mixin, so use FirebaseFirestore.instance).
+      final notifDb = FirebaseFirestore.instance;
+
+      // 1) Notify post author when someone (else) comments
+      try {
+        final postSnap = await postRef.get();
+        final postAuthorId = postSnap.data()?['authorId'] ?? '';
+        if (postAuthorId.isNotEmpty && postAuthorId != user.uid) {
+          await notifDb
+              .collection('users')
+              .doc(postAuthorId)
+              .collection('notifications')
+              .add({
+            'userId': postAuthorId,
+            'title': 'New Comment 💬',
+            'body': isAnonymous
+                ? 'Someone commented anonymously on your post.'
+                : '${userData?.name ?? "Someone"} commented on your post.',
+            'type': 'comment',
+            'relatedId': postId,
+            'timestamp': FieldValue.serverTimestamp(),
+            'isRead': false,
+          });
+        }
+
+        // 2) Reply notification — also notify parent comment author.
+        if (replyToCommentId != null) {
+          final parentSnap = await commentsRef.doc(replyToCommentId).get();
+          final parentAuthorId = parentSnap.data()?['authorId'] ?? '';
+          if (parentAuthorId.isNotEmpty &&
+              parentAuthorId != user.uid &&
+              parentAuthorId != postAuthorId) {
+            await notifDb
+                .collection('users')
+                .doc(parentAuthorId)
+                .collection('notifications')
+                .add({
+              'userId': parentAuthorId,
+              'title': 'New Reply 💬',
+              'body': isAnonymous
+                  ? 'Someone replied to your comment anonymously.'
+                  : '${userData?.name ?? "Someone"} replied to your comment.',
+              'type': 'reply',
+              'relatedId': postId,
+              'timestamp': FieldValue.serverTimestamp(),
+              'isRead': false,
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('University comment notification skipped: $e');
+      }
     } catch (e) {
       debugPrint("Error adding university post comment: $e");
       rethrow;
@@ -316,6 +371,45 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     } catch (e) {
       debugPrint("Error deleting university comment: $e");
       rethrow;
+    }
+  }
+
+  /// Toggle an emoji reaction on a university post comment.
+  /// Mirrors `PostService.toggleCommentReaction` for the main board so
+  /// the comment UX is identical across both feeds.
+  Future<void> toggleUniversityCommentReaction({
+    required String uniId,
+    required String postId,
+    required String commentId,
+    required String emoji,
+  }) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+
+    final commentRef = _uniDb
+        .collection('universities')
+        .doc(uniId)
+        .collection('posts')
+        .doc(postId)
+        .collection('comments')
+        .doc(commentId);
+
+    try {
+      await _uniDb.runTransaction((transaction) async {
+        final snap = await transaction.get(commentRef);
+        if (!snap.exists) return;
+        final data = snap.data() as Map<String, dynamic>;
+        final reactions = Map<String, dynamic>.from(data['reactions'] ?? {});
+        // Toggle: same emoji again clears it; otherwise overwrite.
+        if (reactions[uid] == emoji) {
+          reactions.remove(uid);
+        } else {
+          reactions[uid] = emoji;
+        }
+        transaction.update(commentRef, {'reactions': reactions});
+      });
+    } catch (e) {
+      debugPrint("Error toggling university comment reaction: $e");
     }
   }
 
@@ -436,6 +530,8 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     required String authorId,
     required String authorName,
     String authorAvatar = '',
+    List<String> imageUrls = const [],
+    bool isAnonymous = false,
   }) async {
     if (_uniAuth.currentUser == null) {
       throw Exception('User must be logged in to ask a question');
@@ -455,6 +551,8 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       'authorAvatar': authorAvatar,
       'timestamp': FieldValue.serverTimestamp(),
       'answersCount': 0,
+      'imageUrls': imageUrls,
+      'isAnonymous': isAnonymous,
       'authorUniversityId': userData?.universityId,
     });
   }

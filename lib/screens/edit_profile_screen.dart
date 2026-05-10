@@ -96,8 +96,10 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     try {
       final picker = ImagePicker();
+      // imageQuality < 100 forces iOS to transcode HEIC → JPEG.
       final picked = await picker.pickImage(
         source: ImageSource.gallery,
+        imageQuality: 90,
       );
       if (picked == null) return;
 

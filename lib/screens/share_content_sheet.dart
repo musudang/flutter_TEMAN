@@ -181,21 +181,34 @@ class _ShareContentSheetState extends State<ShareContentSheet> {
       child: SafeArea(
         child: Column(
           children: [
-            // Header
+            // Header — close button + centered title in a Row so the
+            // close icon never overlaps the title (the previous Stack
+            // layout drew the IconButton's hit-area on top of the text).
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8.0),
-              child: Stack(
-                alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(
+                vertical: 8.0,
+                horizontal: 8.0,
+              ),
+              child: Row(
                 children: [
-                  const Text(
-                    'Share',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 24),
+                    onPressed: () => Navigator.pop(context),
                   ),
-                  Positioned(
-                    left: 8,
-                    child: IconButton(
-                      icon: const Icon(Icons.close, size: 28),
-                      onPressed: () => Navigator.pop(context),
+                  const Expanded(
+                    child: Center(
+                      child: Padding(
+                        // Offset so the title visually centers despite the
+                        // leading 48px close button (no trailing widget).
+                        padding: EdgeInsets.only(right: 48),
+                        child: Text(
+                          'Share',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
                 ],

@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
-import '../models/post_model.dart';
+import '../models/meetup_model.dart';
 import 'chat_screen.dart';
-import 'follow_list_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/university_badge.dart';
 
@@ -269,37 +269,11 @@ class UserProfileScreen extends StatelessWidget {
                           ),
                         ),
                       ],
-                      const SizedBox(height: 12),
-
-                      // Stats (Followers/Following)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          _buildStatItem(
-                            context,
-                            'Followers',
-                            user.followers.length,
-                            user.id,
-                            user.name,
-                            0,
-                          ),
-                          Container(
-                            height: 20,
-                            width: 1,
-                            color: Colors.grey[300],
-                            margin: const EdgeInsets.symmetric(horizontal: 20),
-                          ),
-                          _buildStatItem(
-                            context,
-                            'Following',
-                            user.following.length,
-                            user.id,
-                            user.name,
-                            1,
-                          ),
-                        ],
-                      ),
                       const SizedBox(height: 16),
+
+                      // (Followers/Following stats and Posts list removed
+                      // — viewing another user's profile only exposes
+                      // their public identity and Past Joined Meetups.)
 
                       // DM Button
                       // Follow/Unfollow & Message Buttons
@@ -404,87 +378,12 @@ class UserProfileScreen extends StatelessWidget {
                 ),
               ),
 
-              // User's Posts
-              const SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(24, 24, 24, 12),
-                  child: Text(
-                    'Posts',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF1A1F36),
-                    ),
-                  ),
+              // Past Joined Meetups — read-only history (no detail nav).
+              SliverToBoxAdapter(
+                child: _PastJoinedMeetupsSection(
+                  userId: userId,
+                  service: firestoreService,
                 ),
-              ),
-              StreamBuilder<List<Post>>(
-                stream: firestoreService.getUserPosts(userId),
-                builder: (context, postSnap) {
-                  if (postSnap.connectionState == ConnectionState.waiting) {
-                    return const SliverToBoxAdapter(
-                      child: Center(
-                        child: Padding(
-                          padding: EdgeInsets.all(32),
-                          child: CircularProgressIndicator(),
-                        ),
-                      ),
-                    );
-                  }
-                  final posts = postSnap.data ?? [];
-                  if (posts.isEmpty) {
-                    return SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Center(
-                          child: Text(
-                            'No posts yet.',
-                            style: TextStyle(color: Colors.grey[500]),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final post = posts[index];
-                      return Container(
-                        margin: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 6,
-                        ),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              post.title,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 15,
-                              ),
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              post.content,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.grey[600],
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    }, childCount: posts.length),
-                  );
-                },
               ),
 
               const SliverToBoxAdapter(child: SizedBox(height: 80)),
@@ -495,40 +394,103 @@ class UserProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildStatItem(
-    BuildContext context,
-    String label,
-    int count,
-    String userId,
-    String userName,
-    int tabIndex,
-  ) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => FollowListScreen(
-              userId: userId,
-              userName: userName,
-              initialTabIndex: tabIndex,
-            ),
+}
+
+/// Past joined meetups for a user, shown read-only in their public
+/// profile. Tapping a row does NOT navigate to the meetup detail —
+/// it's just a record. (Currently joined / future meetups are kept
+/// private to the user's own profile screen.)
+class _PastJoinedMeetupsSection extends StatelessWidget {
+  final String userId;
+  final FirestoreService service;
+
+  const _PastJoinedMeetupsSection({
+    required this.userId,
+    required this.service,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<Meetup>>(
+      stream: service.getJoinedMeetups(userId),
+      builder: (context, snap) {
+        final meetups = snap.data ?? [];
+        // Past = either explicitly closed OR start time has elapsed.
+        final now = DateTime.now();
+        final past = meetups
+            .where((m) => m.isClosed || m.dateTime.isBefore(now))
+            .toList()
+          ..sort((a, b) => b.dateTime.compareTo(a.dateTime));
+
+        if (past.isEmpty) return const SizedBox.shrink();
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 8),
+                child: Text(
+                  'Past Joined Meetups',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF1A1F36),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              ...past.map(
+                (m) => Container(
+                  margin: const EdgeInsets.symmetric(vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.grey[100],
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.history_toggle_off,
+                        color: Colors.grey[500],
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              m.title,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 14,
+                                color: Color(0xFF1A1F36),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              DateFormat('yyyy-MM-dd').format(m.dateTime),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[500],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       },
-      child: Column(
-        children: [
-          Text(
-            '$count',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A1F36),
-            ),
-          ),
-          Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-        ],
-      ),
     );
   }
 }

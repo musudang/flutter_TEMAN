@@ -1264,7 +1264,8 @@ class _UniversityCommentsSectionState
       );
     }
 
-    final fs = Provider.of<FirestoreService>(context, listen: false);
+    // (Service handle moved to _showReactionReplySheet — the tile body
+    // itself no longer needs it after switching to long-press UX.)
     final isMine = c.authorId == uid;
     final isAnon = c.isAnonymous;
 
@@ -1287,7 +1288,9 @@ class _UniversityCommentsSectionState
       }
     }
 
-    return Padding(
+    return GestureDetector(
+      onLongPress: () => _showReactionReplySheet(c),
+      child: Padding(
       padding: EdgeInsets.only(
         left: isReply ? 32 : 0,
         bottom: 10,
@@ -1392,62 +1395,128 @@ class _UniversityCommentsSectionState
                     ),
                   ),
                 ),
-                Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => _setReplyTo(c),
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4, right: 12),
-                        child: Text(
-                          'Reply',
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                // Reactions row — visible if any users have reacted
+                if (c.reactions != null && c.reactions!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Wrap(
+                      spacing: 4,
+                      children: _aggregateReactions(c.reactions!),
                     ),
-                    if (isMine)
-                      GestureDetector(
-                        onTap: () async {
-                          final confirmed =
-                              await showConfirmDeleteCommentDialog(context);
-                          if (confirmed != true) return;
-                          try {
-                            await fs.deleteUniversityPostComment(
-                              widget.uniId,
-                              widget.postId,
-                              c.id,
-                            );
-                          } catch (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                    content: Text('Failed to delete: $e')),
-                              );
-                            }
-                          }
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.only(top: 4),
-                          child: Text(
-                            'Delete',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.red[400],
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
         ],
       ),
+      ),
+    );
+  }
+
+  /// Aggregate `{userId: emoji}` map into chips like "👍 3"
+  /// (matches the main-board comment style).
+  List<Widget> _aggregateReactions(Map<String, String> reactions) {
+    final counts = <String, int>{};
+    for (final emoji in reactions.values) {
+      counts[emoji] = (counts[emoji] ?? 0) + 1;
+    }
+    return counts.entries.map((e) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.grey[100],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          '${e.key} ${e.value}',
+          style: const TextStyle(fontSize: 12),
+        ),
+      );
+    }).toList();
+  }
+
+  /// Long-press on a comment opens this bottom sheet so users can react
+  /// with an emoji, reply, or delete (own only). Mirrors the main-feed
+  /// `post_detail_screen._showReactionReplySheet`.
+  void _showReactionReplySheet(Comment comment) {
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    final myUid = fs.currentUserId ?? '';
+    final isMine = comment.authorId == myUid;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Emoji reactions row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: ['👍', '❤️', '😂', '😮', '😢', '🔥'].map((emoji) {
+                  return GestureDetector(
+                    onTap: () {
+                      fs.toggleUniversityCommentReaction(
+                        uniId: widget.uniId,
+                        postId: widget.postId,
+                        commentId: comment.id,
+                        emoji: emoji,
+                      );
+                      Navigator.pop(sheetCtx);
+                    },
+                    child: Text(emoji,
+                        style: const TextStyle(fontSize: 28)),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 16),
+              const Divider(),
+              ListTile(
+                leading: const Icon(Icons.reply),
+                title: const Text('Reply'),
+                onTap: () {
+                  Navigator.pop(sheetCtx);
+                  _setReplyTo(comment);
+                },
+              ),
+              if (isMine)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline,
+                      color: Colors.red),
+                  title: const Text(
+                    'Delete',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () async {
+                    Navigator.pop(sheetCtx);
+                    final confirmed =
+                        await showConfirmDeleteCommentDialog(context);
+                    if (confirmed != true) return;
+                    try {
+                      await fs.deleteUniversityPostComment(
+                        widget.uniId,
+                        widget.postId,
+                        comment.id,
+                      );
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Failed to delete: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

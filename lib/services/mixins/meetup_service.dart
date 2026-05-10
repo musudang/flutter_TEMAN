@@ -21,13 +21,20 @@ mixin MeetupService on ChangeNotifier {
         .limit(limit)
         .snapshots()
         .map((snapshot) {
-          final meetups = snapshot.docs
+          final now = DateTime.now();
+          var meetups = snapshot.docs
               .map((doc) => _fromDocument(doc))
+              // Hide meetups whose start time has already elapsed —
+              // they live on as records in the host's / participants'
+              // profile only. Active and future meetups stay visible.
+              .where((m) => m.dateTime.isAfter(now))
               .toList();
-          if (hiddenUsers.isEmpty) return meetups;
-          return meetups
-              .where((m) => !hiddenUsers.contains(m.host.id))
-              .toList();
+          if (hiddenUsers.isNotEmpty) {
+            meetups = meetups
+                .where((m) => !hiddenUsers.contains(m.host.id))
+                .toList();
+          }
+          return meetups;
         });
   }
 
@@ -46,13 +53,21 @@ mixin MeetupService on ChangeNotifier {
 
     final uid = _auth.currentUser!.uid;
     if (meetup.id.isEmpty) {
+      // Only ACTIVE (future-dated) meetups count toward the 1-active
+      // limit — past meetups are records and should not block creating
+      // a new one.
       final existingHostedQuery = await _db
           .collection('meetups')
           .where('hostId', isEqualTo: uid)
-          .limit(1)
           .get();
-      
-      if (existingHostedQuery.docs.isNotEmpty) {
+
+      final now = DateTime.now();
+      final activeHosted = existingHostedQuery.docs.where((doc) {
+        final dt = (doc.data()['dateTime'] as Timestamp?)?.toDate();
+        return dt != null && dt.isAfter(now);
+      }).toList();
+
+      if (activeHosted.isNotEmpty) {
         throw Exception('You can only have one active meetup created at a time.');
       }
     }
@@ -93,16 +108,24 @@ mixin MeetupService on ChangeNotifier {
       return false;
     }
 
-    // Check if user is already participating in another meetup
+    // Check if user is already participating in another ACTIVE meetup.
+    // Past meetups are records only and should not block joining a new one.
     final existingJoinedQuery = await _db
         .collection('meetups')
         .where('participantIds', arrayContains: uid)
         .get();
 
-    // Filter out meetups where they are the host, to only count meetups they JOINED as a non-host.
-    final joinedAsParticipant = existingJoinedQuery.docs
-        .where((doc) => doc.data()['hostId'] != uid && doc.id != meetupId)
-        .toList();
+    final nowJoin = DateTime.now();
+    // Filter out meetups where they are the host, the same meetup, or
+    // any meetup whose start time has elapsed.
+    final joinedAsParticipant = existingJoinedQuery.docs.where((doc) {
+      final data = doc.data();
+      if (data['hostId'] == uid) return false;
+      if (doc.id == meetupId) return false;
+      final dt = (data['dateTime'] as Timestamp?)?.toDate();
+      if (dt == null) return false;
+      return dt.isAfter(nowJoin);
+    }).toList();
 
     if (joinedAsParticipant.isNotEmpty) {
       throw Exception('You can only participate in one meetup at a time.');
@@ -763,8 +786,9 @@ mixin MeetupService on ChangeNotifier {
 
       // Notify host directly using _db
       final meetupDoc = await _db.collection('meetups').doc(meetupId).get();
+      String hostId = '';
       if (meetupDoc.exists) {
-        final hostId = meetupDoc.data()?['hostId'] ?? '';
+        hostId = meetupDoc.data()?['hostId'] ?? '';
         if (hostId.isNotEmpty && hostId != user.uid) {
           await _db
               .collection('users')
@@ -780,6 +804,39 @@ mixin MeetupService on ChangeNotifier {
                 'timestamp': FieldValue.serverTimestamp(),
                 'isRead': false,
               });
+        }
+      }
+
+      // Reply notification: notify parent comment's author too.
+      if (replyToCommentId != null) {
+        try {
+          final parentSnap = await _db
+              .collection('meetups')
+              .doc(meetupId)
+              .collection('comments')
+              .doc(replyToCommentId)
+              .get();
+          final parentAuthorId = parentSnap.data()?['authorId'] ?? '';
+          if (parentAuthorId.isNotEmpty &&
+              parentAuthorId != user.uid &&
+              parentAuthorId != hostId) {
+            await _db
+                .collection('users')
+                .doc(parentAuthorId)
+                .collection('notifications')
+                .add({
+              'userId': parentAuthorId,
+              'title': 'New Reply 💬',
+              'body':
+                  '${userData?['name'] ?? "Someone"} replied to your comment.',
+              'type': 'reply',
+              'relatedId': meetupId,
+              'timestamp': FieldValue.serverTimestamp(),
+              'isRead': false,
+            });
+          }
+        } catch (e) {
+          debugPrint('Meetup reply notification skipped: $e');
         }
       }
     } catch (e) {

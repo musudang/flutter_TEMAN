@@ -65,33 +65,10 @@ mixin PostService on ChangeNotifier {
         .snapshots()
         .map((s) => s.docs.map((d) => Meetup.fromFirestore(d)).toList());
 
-    final jobsStream = _db
-        .collection(AppConstants.jobsCollection)
-        .orderBy('postedDate', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Job.fromFirestore(d)).toList());
-
-    final marketplaceStream = _db
-        .collection(AppConstants.marketplaceCollection)
-        .orderBy('postedDate', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((s) => s.docs.map((d) => MarketplaceItem.fromFirestore(d)).toList());
-
-    final questionsStream = _db
-        .collection(AppConstants.questionsCollection)
-        .orderBy('timestamp', descending: true)
-        .limit(limit)
-        .snapshots()
-        .map((s) => s.docs.map((d) => Question.fromFirestore(d)).toList());
-
+    // Removed legacy streams.
     return CombineLatestStream.list([
       postsStream,
       meetupsStream,
-      jobsStream,
-      marketplaceStream,
-      questionsStream,
     ]).map((lists) {
       final allItems = lists.expand((i) => i).toList();
 
@@ -101,12 +78,6 @@ mixin PostService on ChangeNotifier {
           authorId = item.authorId;
         } else if (item is Meetup) {
           authorId = item.host.id;
-        } else if (item is Job) {
-          authorId = item.authorId;
-        } else if (item is MarketplaceItem) {
-          authorId = item.sellerId;
-        } else if (item is Question) {
-          authorId = item.authorId;
         }
         return !hiddenUsers.contains(authorId);
       }).toList();
@@ -114,22 +85,10 @@ mixin PostService on ChangeNotifier {
       filtered.sort((a, b) {
         DateTime timeA = a is Post
             ? a.timestamp
-            : a is Meetup
-            ? a.createdAt
-            : a is Job
-            ? a.postedDate
-            : a is MarketplaceItem
-            ? a.postedDate
-            : (a as Question).timestamp;
+            : (a as Meetup).createdAt;
         DateTime timeB = b is Post
             ? b.timestamp
-            : b is Meetup
-            ? b.createdAt
-            : b is Job
-            ? b.postedDate
-            : b is MarketplaceItem
-            ? b.postedDate
-            : (b as Question).timestamp;
+            : (b as Meetup).createdAt;
         return timeB.compareTo(timeA);
       });
 
@@ -277,71 +236,7 @@ mixin PostService on ChangeNotifier {
           ),
     );
 
-    // Jobs
-    Query jobsQ = _db
-        .collection(AppConstants.jobsCollection)
-        .orderBy('postedDate', descending: true);
-    if (lastTimestamp != null) {
-      jobsQ = jobsQ.where(
-        'postedDate',
-        isLessThan: Timestamp.fromDate(lastTimestamp),
-      );
-    }
-    queries.add(
-      jobsQ
-          .limit(limit)
-          .get()
-          .then(
-            (snap) => snap.docs
-                .map((d) => Job.fromFirestore(d))
-                .where((j) => !hiddenUsers.contains(j.authorId))
-                .toList(),
-          ),
-    );
 
-    // Market
-    Query marketQ = _db
-        .collection(AppConstants.marketplaceCollection)
-        .orderBy('postedDate', descending: true);
-    if (lastTimestamp != null) {
-      marketQ = marketQ.where(
-        'postedDate',
-        isLessThan: Timestamp.fromDate(lastTimestamp),
-      );
-    }
-    queries.add(
-      marketQ
-          .limit(limit)
-          .get()
-          .then(
-            (snap) => snap.docs
-                .map((d) => MarketplaceItem.fromFirestore(d))
-                .where((m) => !hiddenUsers.contains(m.sellerId))
-                .toList(),
-          ),
-    );
-
-    // Questions
-    Query questionsQ = _db
-        .collection(AppConstants.questionsCollection)
-        .orderBy('timestamp', descending: true);
-    if (lastTimestamp != null) {
-      questionsQ = questionsQ.where(
-        'timestamp',
-        isLessThan: Timestamp.fromDate(lastTimestamp),
-      );
-    }
-    queries.add(
-      questionsQ
-          .limit(limit)
-          .get()
-          .then(
-            (snap) => snap.docs
-                .map((d) => Question.fromFirestore(d))
-                .where((q) => !hiddenUsers.contains(q.authorId))
-                .toList(),
-          ),
-    );
 
     final results = await Future.wait(queries);
     final allItems = results.expand((i) => i).toList();
@@ -349,22 +244,10 @@ mixin PostService on ChangeNotifier {
     allItems.sort((a, b) {
       DateTime timeA = a is Post
           ? a.timestamp
-          : a is Meetup
-          ? a.createdAt
-          : a is Job
-          ? a.postedDate
-          : a is MarketplaceItem
-          ? a.postedDate
-          : (a as Question).timestamp;
+          : (a as Meetup).createdAt;
       DateTime timeB = b is Post
           ? b.timestamp
-          : b is Meetup
-          ? b.createdAt
-          : b is Job
-          ? b.postedDate
-          : b is MarketplaceItem
-          ? b.postedDate
-          : (b as Question).timestamp;
+          : (b as Meetup).createdAt;
       return timeB.compareTo(timeA);
     });
 
@@ -891,6 +774,37 @@ mixin PostService on ChangeNotifier {
             type: 'comment',
             relatedId: postId,
           );
+        }
+      }
+
+      // Reply notification — also notify the parent comment author when
+      // this comment is a reply (and they're not the post owner we
+      // already notified, and not the replier themself).
+      if (replyToCommentId != null) {
+        try {
+          final parentSnap = await _db
+              .collection(AppConstants.postsCollection)
+              .doc(postId)
+              .collection(AppConstants.commentsCollection)
+              .doc(replyToCommentId)
+              .get();
+          final parentAuthorId = parentSnap.data()?['authorId'] ?? '';
+          final postAuthorId = postDoc.data()?['authorId'] ?? '';
+          if (parentAuthorId.isNotEmpty &&
+              parentAuthorId != user.uid &&
+              parentAuthorId != postAuthorId) {
+            await sendNotification(
+              userId: parentAuthorId,
+              title: 'New Reply 💬',
+              body: isAnonymous
+                  ? 'Someone replied to your comment anonymously.'
+                  : '${userData?.name ?? "Someone"} replied to your comment.',
+              type: 'reply',
+              relatedId: postId,
+            );
+          }
+        } catch (e) {
+          debugPrint('Reply notification skipped: $e');
         }
       }
     } catch (e) {
