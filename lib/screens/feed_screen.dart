@@ -940,6 +940,12 @@ class _FeedScreenState extends State<FeedScreen> {
                           );
                           if (confirm == true) {
                             await firestoreService.deletePost(post.id);
+                            if (mounted) {
+                              setState(() {
+                                _feedItems.removeWhere(
+                                    (item) => item is Post && item.id == post.id);
+                              });
+                            }
                           }
                         } else if (value == 'report') {
                           showReportPostDialog(context, post.id);

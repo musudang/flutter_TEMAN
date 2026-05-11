@@ -52,12 +52,64 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:1065473302917:android:ed44287a0cf2fe0c4f64ec",
+        "android_client_info": {
+          "package_name": "com.teman.app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1065473302917-f8sidn15b9lka1ul0bcan9t184dsdfma.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.teman.app",
+            "certificate_hash": "e3f13489de6f6a7ecf6ff2348a6b7bea407e3af2"
+          }
+        },
+        {
+          "client_id": "1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDjTCNI8oL2zBw1b4Dc1A5WlWOGDZX5yvU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.temanFlutterAppCode"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:1065473302917:android:f9a195995a0e265b4f64ec",
         "android_client_info": {
           "package_name": "com.teman.community"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "1065473302917-ovq54d86m42n9bb0h0s1pj7mb4h8kgl8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.teman.community",
+            "certificate_hash": "e3f13489de6f6a7ecf6ff2348a6b7bea407e3af2"
+          }
+        },
         {
           "client_id": "1065473302917-8vfsrl7a5den48k1b3pk26jhk6l3t1rm.apps.googleusercontent.com",
           "client_type": 3

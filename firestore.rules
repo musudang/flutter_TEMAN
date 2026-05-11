@@ -52,7 +52,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
       allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'comments', 'reportCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments', 'reportCount'])
       );
       // Allow delete by owner, admin, or automatically if reported enough (client-side mod logic)
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
@@ -177,7 +177,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
         allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'comments', 'reportCount'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments', 'reportCount'])
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
           isAuthenticated() && resource.data.reportCount >= 5
@@ -199,7 +199,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
         allow update: if isDocumentOwner(resource.data) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answersCount', 'likes', 'likedBy', 'scrappedBy', 'comments', 'reportCount'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answersCount', 'likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments', 'reportCount'])
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
           isAuthenticated() && resource.data.reportCount >= 5

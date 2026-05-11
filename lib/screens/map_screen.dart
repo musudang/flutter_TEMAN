@@ -31,6 +31,7 @@ class _MapScreenState extends State<MapScreen> {
   Timer? _refreshTimer;
   final MapController _mapController = MapController();
   bool _safetyDialogShownThisSession = false;
+  int _panelTabIndex = 0; // 0 = Nearby, 1 = Friends
 
   @override
   void initState() {
@@ -240,18 +241,194 @@ class _MapScreenState extends State<MapScreen> {
     );
   }
 
+  void _showHelpDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.help_outline, color: Colors.teal, size: 26),
+            SizedBox(width: 10),
+            Text('Map Guide', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _helpRow(Icons.location_on, Colors.teal, 'Location Sharing (Green)',
+                'When ON, your location is visible to nearby users and friends within 1km.'),
+            const SizedBox(height: 16),
+            _helpRow(Icons.visibility_off, Colors.red, 'Hide from Friends (Red)',
+                'When ON, even your mutual friends cannot see your location on the map.'),
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.amber.shade300),
+              ),
+              child: const Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 22),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Always turn OFF location sharing when you are not using this feature to protect your privacy and save battery.',
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black87, height: 1.4),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Got it!', style: TextStyle(color: Colors.teal, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
+    );
+  }
 
-
-  // ── Combined list: friends + discover (deduplicated) ──
-  List<app_models.User> get _allMapUsers {
-    final friendIds = _nearbyFriends.map((u) => u.id).toSet();
-    final discoverOnly =
-        _nearbyUsers.where((u) => !friendIds.contains(u.id)).toList();
-    return [..._nearbyFriends, ...discoverOnly];
+  Widget _helpRow(IconData icon, Color color, String title, String desc) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14, color: color)),
+              const SizedBox(height: 4),
+              Text(desc, style: TextStyle(fontSize: 12, color: Colors.grey[700], height: 1.4)),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 
   bool _isFriend(String userId) {
     return _nearbyFriends.any((u) => u.id == userId);
+  }
+
+  Widget _buildNearbyTab() {
+    final nearbyOnly = _nearbyUsers.where((u) => !_isFriend(u.id)).toList();
+    if (nearbyOnly.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.explore_off, size: 40, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No nearby people found.\nTry again later!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: nearbyOnly.length,
+      itemBuilder: (context, index) {
+        final user = nearbyOnly[index];
+        return ListTile(
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                backgroundImage: user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
+                child: user.avatarUrl.isEmpty ? const Icon(Icons.person) : null,
+              ),
+              Positioned(
+                bottom: 0, right: 0,
+                child: Container(
+                  width: 12, height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.orange,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          title: Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            'Nearby${user.universityId.isNotEmpty ? ' · ${user.universityId}' : user.nationality.isNotEmpty ? ' · ${user.nationality}' : ''}',
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+          trailing: const Icon(Icons.person_add_alt_1, size: 18, color: Colors.orange),
+          onTap: () => _openUserProfile(user),
+        );
+      },
+    );
+  }
+
+  Widget _buildFriendsTab() {
+    if (_nearbyFriends.isEmpty) {
+      return const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.people_outline, size: 40, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No friends nearby.\nInvite friends to TEMAN!',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.grey, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+    return ListView.builder(
+      padding: EdgeInsets.zero,
+      itemCount: _nearbyFriends.length,
+      itemBuilder: (context, index) {
+        final user = _nearbyFriends[index];
+        return ListTile(
+          leading: Stack(
+            children: [
+              CircleAvatar(
+                backgroundImage: user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
+                child: user.avatarUrl.isEmpty ? const Icon(Icons.person) : null,
+              ),
+              Positioned(
+                bottom: 0, right: 0,
+                child: Container(
+                  width: 12, height: 12,
+                  decoration: BoxDecoration(
+                    color: Colors.teal,
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          title: Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+          subtitle: Text(
+            'Friend${user.universityId.isNotEmpty ? ' · ${user.universityId}' : ''}',
+            maxLines: 1, overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 12),
+          ),
+          trailing: const Icon(Icons.chat_bubble_outline, size: 18, color: Colors.teal),
+          onTap: () => _openChatWithUser(user),
+        );
+      },
+    );
   }
 
   @override
@@ -419,22 +596,17 @@ class _MapScreenState extends State<MapScreen> {
                       ),
                     ),
                   ),
-                  // User markers (friends + nearby combined)
-                  ..._allMapUsers
+                  // Only mutual friends show precise location on the map
+                  ..._nearbyFriends
                       .where((u) => u.latitude != null && u.longitude != null)
                       .map((u) {
-                        final isFriend = _isFriend(u.id);
-                        final userColor = isFriend
-                            ? Colors.teal
-                            : Colors.orange;
+                        final userColor = Colors.teal;
                         return Marker(
                           point: LatLng(u.latitude!, u.longitude!),
                           width: 60,
                           height: 60,
                           child: GestureDetector(
-                            onTap: () => isFriend
-                                ? _openChatWithUser(u)
-                                : _openUserProfile(u),
+                            onTap: () => _openChatWithUser(u),
                             child: Column(
                               children: [
                                 Container(
@@ -487,6 +659,11 @@ class _MapScreenState extends State<MapScreen> {
                       }),
                 ],
               ),
+              const RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution('OpenStreetMap contributors'),
+                ],
+              ),
             ],
           ),
 
@@ -498,6 +675,26 @@ class _MapScreenState extends State<MapScreen> {
             child: Row(
               children: [
                 const Spacer(),
+                // Help button
+                GestureDetector(
+                  onTap: _showHelpDialog,
+                  child: Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: const Icon(Icons.help_outline, color: Colors.teal, size: 20),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 // Hide from friends toggle chip
                 Container(
                   padding:
@@ -651,94 +848,83 @@ class _MapScreenState extends State<MapScreen> {
                     ),
                   ),
                 ),
-                // Panel body
-                Expanded(
-                  child: Container(
-                    color: Colors.white,
-                    child: _allMapUsers.isEmpty
-                        ? Center(
-                            child: Column(
+                // Tab bar
+                Container(
+                  color: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _panelTabIndex = 0),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _panelTabIndex == 0
+                                  ? Colors.orange.withValues(alpha: 0.12)
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
-                                  Icons.people_outline,
-                                  size: 40,
-                                  color: Colors.grey,
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  'No friends or nearby people found.\nTry again later!',
-                                  textAlign: TextAlign.center,
+                                Icon(Icons.explore, size: 16,
+                                    color: _panelTabIndex == 0 ? Colors.orange : Colors.grey),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Nearby (${_nearbyUsers.where((u) => !_isFriend(u.id)).length})',
                                   style: TextStyle(
-                                      color: Colors.grey, fontSize: 13),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _panelTabIndex == 0 ? Colors.orange.shade800 : Colors.grey,
+                                  ),
                                 ),
                               ],
                             ),
-                          )
-                        : ListView.builder(
-                            padding: EdgeInsets.zero,
-                            itemCount: _allMapUsers.length,
-                            itemBuilder: (context, index) {
-                              final user = _allMapUsers[index];
-                              final isFriend = _isFriend(user.id);
-                              return ListTile(
-                                leading: Stack(
-                                  children: [
-                                    CircleAvatar(
-                                      backgroundImage:
-                                          user.avatarUrl.isNotEmpty
-                                              ? NetworkImage(user.avatarUrl)
-                                              : null,
-                                      child: user.avatarUrl.isEmpty
-                                          ? const Icon(Icons.person)
-                                          : null,
-                                    ),
-                                    Positioned(
-                                      bottom: 0,
-                                      right: 0,
-                                      child: Container(
-                                        width: 12,
-                                        height: 12,
-                                        decoration: BoxDecoration(
-                                          color: isFriend
-                                              ? Colors.teal
-                                              : Colors.orange,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                              color: Colors.white, width: 1.5),
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                title: Text(user.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis),
-                                subtitle: Text(
-                                  isFriend
-                                      ? 'Friend${user.universityId.isNotEmpty ? ' · ${user.universityId}' : ''}'
-                                      : 'Nearby${user.universityId.isNotEmpty ? ' · ${user.universityId}' : user.nationality.isNotEmpty ? ' · ${user.nationality}' : ''}',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                                trailing: isFriend
-                                    ? const Icon(
-                                        Icons.chat_bubble_outline,
-                                        size: 18,
-                                        color: Colors.teal,
-                                      )
-                                    : const Icon(
-                                        Icons.person_add_alt_1,
-                                        size: 18,
-                                        color: Colors.orange,
-                                      ),
-                                onTap: () => isFriend
-                                    ? _openChatWithUser(user)
-                                    : _openUserProfile(user),
-                              );
-                            },
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _panelTabIndex = 1),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 10),
+                            decoration: BoxDecoration(
+                              color: _panelTabIndex == 1
+                                  ? Colors.teal.withValues(alpha: 0.12)
+                                  : Colors.grey.shade100,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.people, size: 16,
+                                    color: _panelTabIndex == 1 ? Colors.teal : Colors.grey),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Friends (${_nearbyFriends.length})',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                    color: _panelTabIndex == 1 ? Colors.teal.shade800 : Colors.grey,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Panel list content
+                Expanded(
+                  child: Container(
+                    color: Colors.white,
+                    child: _panelTabIndex == 0
+                        ? _buildNearbyTab()
+                        : _buildFriendsTab(),
                   ),
                 ),
               ],
