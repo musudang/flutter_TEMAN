@@ -216,9 +216,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final url = Uri.parse(
                   'https://teman-web-2026.web.app/community-rules.html',
                 );
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
+                // Use external browser — see login_screen for rationale.
+                await launchUrl(
+                  url,
+                  mode: LaunchMode.externalApplication,
+                );
               },
             ),
           ]),
@@ -257,9 +259,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final url = Uri.parse(
                   'https://teman-web-2026.web.app/terms.html',
                 );
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
+                // Use external browser — see login_screen for rationale.
+                await launchUrl(
+                  url,
+                  mode: LaunchMode.externalApplication,
+                );
               },
             ),
             _buildSettingItem(
@@ -269,9 +273,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 final url = Uri.parse(
                   'https://teman-web-2026.web.app/privacy.html',
                 );
-                if (await canLaunchUrl(url)) {
-                  await launchUrl(url);
-                }
+                // Use external browser — see login_screen for rationale.
+                await launchUrl(
+                  url,
+                  mode: LaunchMode.externalApplication,
+                );
               },
             ),
           ]),

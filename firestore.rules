@@ -12,11 +12,19 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Helper to check ownership via a field in the document
+    // Helper to check ownership via a field in the document.
+    // Covers every primary-owner field used across collections:
+    //   • authorId  — posts, jobs, questions, university posts, comments
+    //   • hostId    — meetups
+    //   • sellerId  — marketplace (THIS was missing → marketplace delete
+    //                 always returned permission-denied for the seller)
+    //   • userId    — notifications, subcollections under /users/{uid}/…
+    //   • deletedBy — tombstones in deleted_posts
     function isDocumentOwner(data) {
       return isAuthenticated() && (
-        data.authorId == request.auth.uid || 
-        data.hostId == request.auth.uid || 
+        data.authorId == request.auth.uid ||
+        data.hostId == request.auth.uid ||
+        data.sellerId == request.auth.uid ||
         data.userId == request.auth.uid ||
         data.deletedBy == request.auth.uid
       );
@@ -261,8 +269,15 @@ service cloud.firestore {
         ('meetupId' in resource.data && 
          request.auth.uid in get(/databases/$(database)/documents/meetups/$(resource.data.meetupId)).data.participantIds)
       );
-      allow delete: if isAdmin();
-      
+      // Allow deletion by admin OR by a participant of a meetup-linked
+      // group chat (the host triggers this when they delete the meetup).
+      // 1:1 conversations (no meetupId) remain admin-only on purpose.
+      allow delete: if isAdmin() || (
+        isAuthenticated() &&
+        'meetupId' in resource.data &&
+        request.auth.uid in resource.data.participantIds
+      );
+
       match /messages/{messageId} {
         // Only participants of the parent conversation can read/write messages
         allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
@@ -281,6 +296,15 @@ service cloud.firestore {
     }
 
     match /deleted_posts/{postId} {
+      allow create, update: if isDocumentOwner(request.resource.data);
+      allow read, delete: if isAdmin();
+    }
+
+    // Author-written tombstone created by deletePost() before hard-deleting
+    // the original. Without this block client writes here silently fail
+    // and the user sees "permission denied" on every main-feed post
+    // delete. Mirrors deleted_posts.
+    match /admin_deleted_posts/{postId} {
       allow create, update: if isDocumentOwner(request.resource.data);
       allow read, delete: if isAdmin();
     }

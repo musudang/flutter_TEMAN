@@ -569,15 +569,27 @@ mixin MeetupService on ChangeNotifier {
         // Delete the meetup
         await _db.collection('meetups').doc(meetupId).delete();
 
-        // Also try to find and delete the associated conversation
-        final query = await _db
-            .collection('conversations')
-            .where('meetupId', isEqualTo: meetupId)
-            .where('participantIds', arrayContains: uid)
-            .get();
+        // Also try to find and delete the associated conversation.
+        // Best-effort: if rules deny (legacy conversation without
+        // meetupId, race with host change, …) we swallow the error so
+        // the meetup itself still deletes cleanly.
+        try {
+          final query = await _db
+              .collection('conversations')
+              .where('meetupId', isEqualTo: meetupId)
+              .where('participantIds', arrayContains: uid)
+              .get();
 
-        for (var doc in query.docs) {
-          await _db.collection('conversations').doc(doc.id).delete();
+          for (var doc in query.docs) {
+            try {
+              await _db.collection('conversations').doc(doc.id).delete();
+            } catch (e) {
+              debugPrint(
+                  "Warning: could not delete conversation ${doc.id}: $e");
+            }
+          }
+        } catch (e) {
+          debugPrint("Warning: could not enumerate conversations: $e");
         }
       } else {
         throw Exception('Only the host can delete this meetup');

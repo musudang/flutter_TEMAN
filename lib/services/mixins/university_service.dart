@@ -822,6 +822,35 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     });
   }
 
+  /// Stream of university posts scrapped (bookmarked) by [userId],
+  /// across ALL university subcollections (not just their own).
+  /// Uses a collectionGroup query — requires a COLLECTION_GROUP-scoped
+  /// index on `scrappedBy` (see `firestore.indexes.json`).
+  ///
+  /// Distinct from `getScrappedUniversityPosts(uniId, userId)` above,
+  /// which is scoped to a single university subcollection.
+  Stream<List<Post>> getAllScrappedUniversityPosts(String userId) {
+    return _uniDb
+        .collectionGroup('posts')
+        .where('scrappedBy', arrayContains: userId)
+        .snapshots()
+        .map((snapshot) {
+      final posts = <Post>[];
+      for (var doc in snapshot.docs) {
+        // Restrict to docs under universities/{uniId}/posts/{postId}
+        // so the query doesn't accidentally pull in main-feed posts too.
+        final segs = doc.reference.path.split('/');
+        if (segs.length >= 4 && segs[0] == 'universities') {
+          try {
+            posts.add(Post.fromFirestore(doc));
+          } catch (_) {}
+        }
+      }
+      posts.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      return posts;
+    });
+  }
+
   /// Stream of all university posts authored by a specific user.
   /// Uses a collectionGroup query to search across all university post subcollections.
   Stream<List<Post>> getUserUniversityPosts(String userId) {

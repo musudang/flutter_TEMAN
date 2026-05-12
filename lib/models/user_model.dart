@@ -28,6 +28,13 @@ class User {
   final bool locationSharingEnabled;
   final bool hideLocationFromFriends;
 
+  /// "Map friends" — the user's opt-in close-friends list for location
+  /// visibility. Bilateral: A sees B's pin on the map only if
+  /// A.mapFriends.contains(B) && B.mapFriends.contains(A).
+  /// Independent of `following`/`followers` (you can be mutual without
+  /// being map friends).
+  final List<String> mapFriends;
+
   User({
     required this.id,
     required this.name,
@@ -52,6 +59,7 @@ class User {
     this.longitude,
     this.locationSharingEnabled = true,
     this.hideLocationFromFriends = false,
+    this.mapFriends = const [],
   });
 
   bool get isAdmin => role == 'admin';

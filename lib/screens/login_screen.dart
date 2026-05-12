@@ -205,9 +205,15 @@ class _LoginScreenState extends State<LoginScreen>
                                       final url = Uri.parse(
                                         'https://teman-web-2026.web.app/terms.html',
                                       );
-                                      if (await canLaunchUrl(url)) {
-                                        await launchUrl(url);
-                                      }
+                                      // Force the external browser. On Android
+                                      // 11+ the default platformDefault mode
+                                      // can silently fail for some https
+                                      // targets when the OS routes through an
+                                      // in-app webview.
+                                      await launchUrl(
+                                        url,
+                                        mode: LaunchMode.externalApplication,
+                                      );
                                     },
                                 ),
                                 const TextSpan(text: ' and '),
@@ -224,9 +230,15 @@ class _LoginScreenState extends State<LoginScreen>
                                       final url = Uri.parse(
                                         'https://teman-web-2026.web.app/privacy.html',
                                       );
-                                      if (await canLaunchUrl(url)) {
-                                        await launchUrl(url);
-                                      }
+                                      // Force the external browser. On Android
+                                      // 11+ the default platformDefault mode
+                                      // can silently fail for some https
+                                      // targets when the OS routes through an
+                                      // in-app webview.
+                                      await launchUrl(
+                                        url,
+                                        mode: LaunchMode.externalApplication,
+                                      );
                                     },
                                 ),
                               ],

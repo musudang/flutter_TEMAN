@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../models/conversation_model.dart';
 import '../models/user_model.dart' as app_models;
 import '../services/firestore_service.dart';
 import 'chat_screen.dart';
 import 'create_post_screen.dart';
+
+/// Web fallback host. Deep-link landing pages live here under
+/// `/post/{id}` and `/meetup/{id}`. Once Android App Links + iOS
+/// Universal Links are configured, a tap on this URL on a phone with
+/// the app installed will open TEMAN directly; otherwise the user sees
+/// the web fallback with an "Open in TEMAN" CTA.
+const String _kShareLinkHost = 'https://teman-web-2026.web.app';
 
 class ShareContentSheet extends StatefulWidget {
   final String itemId;
@@ -34,6 +42,29 @@ class _ShareContentSheetState extends State<ShareContentSheet> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// Build the canonical share URL for this item. Web hosting should
+  /// serve `/post/{id}` and `/meetup/{id}` landing pages; in-app deep
+  /// link routing (see `main.dart` once App Links land) intercepts the
+  /// same URL when the app is installed.
+  String _buildShareUrl() {
+    final type = widget.itemType == 'meetup' ? 'meetup' : 'post';
+    return '$_kShareLinkHost/$type/${widget.itemId}';
+  }
+
+  Future<void> _copyLinkToClipboard() async {
+    final url = _buildShareUrl();
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Link copied: $url'),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+    Navigator.pop(context);
   }
 
   void _shareToFreeBoard() {
@@ -354,26 +385,22 @@ class _ShareContentSheetState extends State<ShareContentSheet> {
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
                 children: [
-                  _buildShareOption(Icons.link, 'Copy Link', () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Link copied.')),
-                    );
-                    Navigator.pop(context);
-                  }),
+                  // Only Copy Link + Free Board remain. Facebook /
+                  // Messenger / WhatsApp / Email / Threads were
+                  // removed — they were placeholders with empty
+                  // onTaps (no real intent wiring). When external-app
+                  // sharing is implemented later we'll re-add via
+                  // the `share_plus` plugin instead of dummy buttons.
+                  _buildShareOption(
+                    Icons.link,
+                    'Copy Link',
+                    _copyLinkToClipboard,
+                  ),
                   _buildShareOption(
                     Icons.article_outlined,
                     'Free Board',
                     _shareToFreeBoard,
                   ),
-                  _buildShareOption(Icons.facebook, 'Facebook', () {}),
-                  _buildShareOption(
-                    Icons.chat_bubble_outline,
-                    'Messenger',
-                    () {},
-                  ),
-                  _buildShareOption(Icons.message_outlined, 'WhatsApp', () {}),
-                  _buildShareOption(Icons.email_outlined, 'Email', () {}),
-                  _buildShareOption(Icons.alternate_email, 'Threads', () {}),
                 ],
               ),
             ),

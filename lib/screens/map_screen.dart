@@ -23,8 +23,18 @@ class _MapScreenState extends State<MapScreen> {
   bool _isLoading = true;
   String _errorMessage = '';
   Position? _currentPosition;
+  /// People who pass the BILATERAL `mapFriends` gate AND are currently
+  /// present + sharing — these get pins on the map.
   List<app_models.User> _nearbyFriends = [];
+  /// Strangers (NOT mutual followers) within 1 km. Rendered only as a
+  /// list in the Nearby tab — no pins, no precise position on the map.
   List<app_models.User> _nearbyUsers = [];
+  /// Every mutual follower regardless of distance / location-sharing /
+  /// `mapFriends` opt-in. Drives the Friends tab so the user can
+  /// check / uncheck individuals.
+  List<app_models.User> _mutualFollowers = [];
+  /// My own `mapFriends` array. Mirrors what's in Firestore on `users/{me}`.
+  Set<String> _myMapFriendIds = <String>{};
   bool _locationSharingEnabled = true;
   bool _hideFromFriends = false;
   bool _panelOpen = false;
@@ -73,6 +83,7 @@ class _MapScreenState extends State<MapScreen> {
       if (currentUser != null) {
         _locationSharingEnabled = currentUser.locationSharingEnabled;
         _hideFromFriends = currentUser.hideLocationFromFriends;
+        _myMapFriendIds = currentUser.mapFriends.toSet();
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -158,7 +169,9 @@ class _MapScreenState extends State<MapScreen> {
       }
     }
 
-    // Refresh both lists in parallel
+    // Refresh three lists in parallel. `getMutualFollowerUsers` is
+    // independent of distance/location so it doesn't need to wait for a
+    // GPS fix; we fire it alongside for one round-trip.
     final results = await Future.wait([
       firestoreService.getNearbyFriends(
         _currentPosition!.latitude,
@@ -169,14 +182,56 @@ class _MapScreenState extends State<MapScreen> {
         _currentPosition!.longitude,
         radiusInMeters: 1000,
       ),
+      firestoreService.getMutualFollowerUsers(),
     ]);
+
+    // Also re-pull my own mapFriends array since I may have toggled
+    // someone from the Friends tab. Cheap single-doc read.
+    final me = await firestoreService.getCurrentUser();
 
     if (mounted) {
       setState(() {
         _nearbyFriends = results[0];
         _nearbyUsers = results[1];
+        _mutualFollowers = results[2];
+        if (me != null) {
+          _myMapFriendIds = me.mapFriends.toSet();
+        }
       });
     }
+  }
+
+  Future<void> _toggleMapFriend(app_models.User other) async {
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+    // Optimistic flip
+    setState(() {
+      if (_myMapFriendIds.contains(other.id)) {
+        _myMapFriendIds.remove(other.id);
+      } else {
+        _myMapFriendIds.add(other.id);
+      }
+    });
+    try {
+      await firestoreService.toggleMapFriend(other.id);
+    } catch (e) {
+      // Roll back optimistic update on failure
+      if (mounted) {
+        setState(() {
+          if (_myMapFriendIds.contains(other.id)) {
+            _myMapFriendIds.remove(other.id);
+          } else {
+            _myMapFriendIds.add(other.id);
+          }
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to update map friend: $e')),
+        );
+      }
+    }
+    // Pull fresh nearby/friends after the toggle so the map pin appears
+    // or disappears immediately when bilateral becomes (un)satisfied.
+    await _refreshData();
   }
 
   Future<void> _toggleLocationSharing() async {
@@ -379,55 +434,126 @@ class _MapScreenState extends State<MapScreen> {
   }
 
   Widget _buildFriendsTab() {
-    if (_nearbyFriends.isEmpty) {
+    // Split mutual followers into two sections, mirroring Instagram's
+    // close-friends UI:
+    //   • Map Friends — mutuals I've checked in. Filled checkbox.
+    //   • Mutual Followers — the rest. Empty checkbox.
+    // Tapping any row toggles my side of the bilateral pair.
+    final mapFriends =
+        _mutualFollowers.where((u) => _myMapFriendIds.contains(u.id)).toList();
+    final others =
+        _mutualFollowers.where((u) => !_myMapFriendIds.contains(u.id)).toList();
+
+    if (_mutualFollowers.isEmpty) {
       return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(Icons.people_outline, size: 40, color: Colors.grey),
             SizedBox(height: 8),
-            Text('No friends nearby.\nInvite friends to TEMAN!',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(
+              'No mutual followers yet.\nFollow someone who follows you back!',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
           ],
         ),
       );
     }
-    return ListView.builder(
+
+    return ListView(
       padding: EdgeInsets.zero,
-      itemCount: _nearbyFriends.length,
-      itemBuilder: (context, index) {
-        final user = _nearbyFriends[index];
-        return ListTile(
-          leading: Stack(
-            children: [
-              CircleAvatar(
-                backgroundImage: user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
-                child: user.avatarUrl.isEmpty ? const Icon(Icons.person) : null,
-              ),
-              Positioned(
-                bottom: 0, right: 0,
-                child: Container(
-                  width: 12, height: 12,
-                  decoration: BoxDecoration(
-                    color: Colors.teal,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 1.5),
-                  ),
+      children: [
+        if (mapFriends.isNotEmpty) ...[
+          _sectionHeader(
+            'Map Friends',
+            'Both of you have to check each other. Then you appear on each other\'s map.',
+          ),
+          ...mapFriends.map((u) => _mapFriendRow(u, checked: true)),
+        ],
+        if (others.isNotEmpty) ...[
+          _sectionHeader(
+            'Mutual Followers',
+            'Tap to add them to Map Friends (one-sided — they have to add you too).',
+          ),
+          ...others.map((u) => _mapFriendRow(u, checked: false)),
+        ],
+        const SizedBox(height: 16),
+      ],
+    );
+  }
+
+  Widget _sectionHeader(String title, String subtitle) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Color(0xFF1A1F36),
+              letterSpacing: 0.2,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _mapFriendRow(app_models.User user, {required bool checked}) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundImage:
+            user.avatarUrl.isNotEmpty ? NetworkImage(user.avatarUrl) : null,
+        child: user.avatarUrl.isEmpty ? const Icon(Icons.person) : null,
+      ),
+      title: Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        user.universityId.isNotEmpty
+            ? user.universityId
+            : (user.nationality.isNotEmpty ? user.nationality : 'Mutual'),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 12),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chat_bubble_outline,
+                size: 18, color: Colors.teal),
+            tooltip: 'Message',
+            onPressed: () => _openChatWithUser(user),
+          ),
+          GestureDetector(
+            onTap: () => _toggleMapFriend(user),
+            child: Container(
+              width: 26,
+              height: 26,
+              decoration: BoxDecoration(
+                color: checked ? Colors.teal : Colors.transparent,
+                border: Border.all(
+                  color: checked ? Colors.teal : Colors.grey.shade400,
+                  width: 1.6,
                 ),
+                borderRadius: BorderRadius.circular(6),
               ),
-            ],
+              child: checked
+                  ? const Icon(Icons.check, size: 18, color: Colors.white)
+                  : null,
+            ),
           ),
-          title: Text(user.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-          subtitle: Text(
-            'Friend${user.universityId.isNotEmpty ? ' · ${user.universityId}' : ''}',
-            maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 12),
-          ),
-          trailing: const Icon(Icons.chat_bubble_outline, size: 18, color: Colors.teal),
-          onTap: () => _openChatWithUser(user),
-        );
-      },
+        ],
+      ),
+      onTap: () => _openUserProfile(user),
     );
   }
 
@@ -827,7 +953,7 @@ class _MapScreenState extends State<MapScreen> {
                             ),
                             const SizedBox(width: 6),
                             Text(
-                              'Friends (${_nearbyFriends.length}) · Nearby (${_nearbyUsers.length})',
+                              'Friends (${_mutualFollowers.length}) · Nearby (${_nearbyUsers.length})',
                               style: const TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.bold,
@@ -903,7 +1029,7 @@ class _MapScreenState extends State<MapScreen> {
                                     color: _panelTabIndex == 1 ? Colors.teal : Colors.grey),
                                 const SizedBox(width: 6),
                                 Text(
-                                  'Friends (${_nearbyFriends.length})',
+                                  'Friends (${_mutualFollowers.length})',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w600,

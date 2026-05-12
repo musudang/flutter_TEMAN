@@ -111,6 +111,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       longitude: data['longitude']?.toDouble(),
       locationSharingEnabled: data['locationSharingEnabled'] ?? true,
       hideLocationFromFriends: data['hideLocationFromFriends'] ?? false,
+      mapFriends: List<String>.from(data['mapFriends'] ?? []),
     );
   }
 
@@ -212,18 +213,27 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     // because the reverse check also applies when those friends fetch).
     if (currentUser.hideLocationFromFriends) return [];
 
-    // Mutual follow: only users who are in BOTH following AND followers lists
+    // Only mutual followers may show on the map at all. Then we apply a
+    // SECOND opt-in filter: `mapFriends`. A sees B on the map only when
+    // BOTH A.mapFriends.contains(B) AND B.mapFriends.contains(A).
+    // (Instagram close-friends model.)
     final mutualFriends = currentUser.following
         .where((id) => currentUser.followers.contains(id))
         .toList();
     if (mutualFriends.isEmpty) return [];
 
+    // First gate: I must have added them to my mapFriends.
+    final myMapFriends = currentUser.mapFriends.toSet();
+    final candidates =
+        mutualFriends.where(myMapFriends.contains).toList();
+    if (candidates.isEmpty) return [];
+
     List<app_models.User> nearbyFriends = [];
 
     // Process in batches of 10 for whereIn query
-    for (int i = 0; i < mutualFriends.length; i += 10) {
-      final end = (i + 10 < mutualFriends.length) ? i + 10 : mutualFriends.length;
-      final batch = mutualFriends.sublist(i, end);
+    for (int i = 0; i < candidates.length; i += 10) {
+      final end = (i + 10 < candidates.length) ? i + 10 : candidates.length;
+      final batch = candidates.sublist(i, end);
 
       final snapshot = await _db.collection('users').where('id', whereIn: batch).get();
       for (var doc in snapshot.docs) {
@@ -233,6 +243,11 @@ mixin UserService on ChangeNotifier implements UserDependencies {
         // MUTUAL INVISIBILITY: Skip friends who chose to hide their location from friends
         // (if they hide from us, we also hide from them)
         if (data['hideLocationFromFriends'] == true) continue;
+        // BILATERAL MAP-FRIEND GATE: the other side must ALSO have added
+        // me to their mapFriends. If not, no pin.
+        final theirMapFriends =
+            List<String>.from(data['mapFriends'] ?? []);
+        if (!theirMapFriends.contains(currentUser.id)) continue;
         // PRESENCE: Skip friends who haven't pinged the server recently
         // (offline / app closed / no signal). They shouldn't appear stale.
         if (!_isUserPresent(data)) continue;
@@ -247,6 +262,60 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     }
 
     return nearbyFriends;
+  }
+
+  /// Returns every mutual follower (both `following` and `followers`),
+  /// independent of distance, location-sharing, or `mapFriends` opt-in.
+  /// Used by the Map Friends tab so users can choose who to add to their
+  /// map opt-in list.
+  Future<List<app_models.User>> getMutualFollowerUsers() async {
+    final currentUser = await getCurrentUser();
+    if (currentUser == null) return [];
+    final mutualIds = currentUser.following
+        .where((id) => currentUser.followers.contains(id))
+        .toList();
+    if (mutualIds.isEmpty) return [];
+
+    final result = <app_models.User>[];
+    for (int i = 0; i < mutualIds.length; i += 10) {
+      final end =
+          (i + 10 < mutualIds.length) ? i + 10 : mutualIds.length;
+      final batch = mutualIds.sublist(i, end);
+      final snap = await _db
+          .collection('users')
+          .where('id', whereIn: batch)
+          .get();
+      for (var doc in snap.docs) {
+        result.add(_userFromData(doc.data(), doc.id));
+      }
+    }
+    return result;
+  }
+
+  /// Toggle a single user in / out of my `mapFriends` array. This is
+  /// one-sided — the other user must also call this for full visibility
+  /// (see `getNearbyFriends` bilateral gate).
+  Future<void> toggleMapFriend(String otherUserId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    final ref = _db.collection('users').doc(uid);
+    try {
+      await _db.runTransaction((tx) async {
+        final snap = await tx.get(ref);
+        if (!snap.exists) return;
+        final data = snap.data() as Map<String, dynamic>;
+        final list = List<String>.from(data['mapFriends'] ?? []);
+        if (list.contains(otherUserId)) {
+          list.remove(otherUserId);
+        } else {
+          list.add(otherUserId);
+        }
+        tx.update(ref, {'mapFriends': list});
+      });
+    } catch (e) {
+      debugPrint('Error toggling map friend: $e');
+      rethrow;
+    }
   }
 
   /// Discover ALL TEMAN users within [radiusInMeters] (default 1km).
@@ -277,12 +346,11 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       // Skip self and blocked
       if (excludeIds.contains(userId)) continue;
 
-      // If this user is a mutual friend, and they've hidden their location from friends, skip them.
-      // We can approximate mutual friend by checking if userId is in our following and followers.
-      final isMutualFriend = currentUser.following.contains(userId) && currentUser.followers.contains(userId);
-      if (isMutualFriend && data['hideLocationFromFriends'] == true) {
-        continue;
-      }
+      // Mutual followers belong in the Friends tab, NEVER in Nearby.
+      // One-way follow does NOT count as mutual (and stays in Nearby).
+      final isMutualFriend = currentUser.following.contains(userId) &&
+          currentUser.followers.contains(userId);
+      if (isMutualFriend) continue;
 
       // PRESENCE: Skip stale users (not pinging within freshness window).
       // Without this, users who closed the app or lost connection would

@@ -59,9 +59,18 @@ class _ProfileScreenState extends State<ProfileScreen>
   String? _scrappedUid;
   StreamSubscription<List<dynamic>>? _scrappedFeedSub;
   StreamSubscription<List<Post>>? _scrappedUniPostsSub;
+  StreamSubscription<List<Post>>? _scrappedOwnUniPostsSub;
   StreamSubscription<List<Question>>? _scrappedUniQuestionsSub;
   List<dynamic> _cachedScrappedFeed = [];
+  /// Uni posts scrapped from ANY university (collectionGroup query).
+  /// Requires COLLECTION_GROUP-scoped index on `scrappedBy` — while the
+  /// index is still `Building` after a fresh deploy this stream errors
+  /// silently; `_cachedScrappedOwnUniPosts` (below) keeps the user's
+  /// own-uni scraps visible in the meantime.
   List<Post> _cachedScrappedUniPosts = [];
+  /// Fallback: posts scrapped from the user's OWN uni only. Plain
+  /// subcollection query, no special index needed → works instantly.
+  List<Post> _cachedScrappedOwnUniPosts = [];
   List<Question> _cachedScrappedUniQuestions = [];
   bool _scrappedInitialLoad = true;
 
@@ -123,29 +132,89 @@ class _ProfileScreenState extends State<ProfileScreen>
     _scrappedUid = user.id;
     _scrappedFeedSub?.cancel();
     _scrappedUniPostsSub?.cancel();
+    _scrappedOwnUniPostsSub?.cancel();
     _scrappedUniQuestionsSub?.cancel();
     _cachedScrappedFeed = [];
     _cachedScrappedUniPosts = [];
+    _cachedScrappedOwnUniPosts = [];
     _cachedScrappedUniQuestions = [];
     _scrappedInitialLoad = true;
 
-    _scrappedFeedSub = service.getScrappedFeed(user.id).listen((d) {
-      if (!mounted) return;
-      setState(() {
-        _cachedScrappedFeed = d;
-        _scrappedInitialLoad = false;
-      });
-    });
+    // ANY of the three streams' first emission flips the initial-load
+    // flag — previously only the main feed flipped it, which meant
+    // users with zero main-feed scraps but uni scraps stared at a
+    // spinner forever.
+    void firstEmission() {
+      if (_scrappedInitialLoad) {
+        setState(() => _scrappedInitialLoad = false);
+      }
+    }
 
-    if (user.universityId.isNotEmpty) {
-      _scrappedUniPostsSub = service.getScrappedUniversityPosts(user.universityId, user.id).listen((d) {
+    _scrappedFeedSub = service.getScrappedFeed(user.id).listen(
+      (d) {
+        if (!mounted) return;
+        setState(() => _cachedScrappedFeed = d);
+        firstEmission();
+      },
+      onError: (e) {
+        debugPrint('[ProfileScreen] getScrappedFeed error: $e');
+        firstEmission();
+      },
+    );
+
+    // Scrapped uni posts: pull across ALL universities (not just user's
+    // own) via the collectionGroup query — users can bookmark posts from
+    // any university board, and they should all surface here.
+    _scrappedUniPostsSub =
+        service.getAllScrappedUniversityPosts(user.id).listen(
+      (d) {
         if (!mounted) return;
         setState(() => _cachedScrappedUniPosts = d);
-      });
-      _scrappedUniQuestionsSub = service.getScrappedUniversityQuestions(user.universityId, user.id).listen((d) {
-        if (!mounted) return;
-        setState(() => _cachedScrappedUniQuestions = d);
-      });
+        firstEmission();
+      },
+      onError: (e) {
+        // The most common cause here is the COLLECTION_GROUP index on
+        // `scrappedBy` still being in `Building` state (1–5 min after a
+        // fresh `firebase deploy --only firestore:indexes`). The error
+        // message usually contains a clickable link to auto-create the
+        // index — surface it loudly.
+        debugPrint('[ProfileScreen] getAllScrappedUniversityPosts error: $e');
+        firstEmission();
+      },
+    );
+
+    if (user.universityId.isNotEmpty) {
+      // FALLBACK: subscribe to a plain subcollection query on the user's
+      // own uni. This works the instant they install — no waiting for a
+      // collectionGroup index. The render merges the two caches.
+      _scrappedOwnUniPostsSub = service
+          .getScrappedUniversityPosts(user.universityId, user.id)
+          .listen(
+        (d) {
+          if (!mounted) return;
+          setState(() => _cachedScrappedOwnUniPosts = d);
+          firstEmission();
+        },
+        onError: (e) {
+          debugPrint(
+              '[ProfileScreen] getScrappedUniversityPosts (own uni) error: $e');
+          firstEmission();
+        },
+      );
+      _scrappedUniQuestionsSub = service
+          .getScrappedUniversityQuestions(user.universityId, user.id)
+          .listen(
+        (d) {
+          if (!mounted) return;
+          setState(() => _cachedScrappedUniQuestions = d);
+          firstEmission();
+        },
+        onError: (e) {
+          debugPrint(
+              '[ProfileScreen] getScrappedUniversityQuestions error: $e');
+          firstEmission();
+        },
+      );
     }
   }
 
@@ -165,6 +234,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     _uniQuestionsSub?.cancel();
     _scrappedFeedSub?.cancel();
     _scrappedUniPostsSub?.cancel();
+    _scrappedOwnUniPostsSub?.cancel();
     _scrappedUniQuestionsSub?.cancel();
     super.dispose();
   }
@@ -1090,7 +1160,18 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     final List<dynamic> allItems = [..._cachedScrappedFeed];
 
-    for (var uniPost in _cachedScrappedUniPosts) {
+    // Merge uni posts from BOTH sources (collectionGroup across all unis
+    // + own-uni fallback) and dedup by id. Either source may be empty
+    // while indexes finish building — taking the union ensures we never
+    // hide a scrap from the user just because one stream isn't ready.
+    final mergedUniPosts = <String, Post>{};
+    for (final p in _cachedScrappedUniPosts) {
+      mergedUniPosts[p.id] = p;
+    }
+    for (final p in _cachedScrappedOwnUniPosts) {
+      mergedUniPosts.putIfAbsent(p.id, () => p);
+    }
+    for (var uniPost in mergedUniPosts.values) {
       if (!allItems.any((item) => item is Post && item.id == uniPost.id)) {
         allItems.add(_UniPostWrapper(uniPost));
       }
