@@ -330,6 +330,19 @@ class AuthService extends ChangeNotifier {
     required VoidCallback onAutoVerified,
   }) async {
     try {
+      if (kIsWeb) {
+        final recaptchaVerifier = firebase_auth.RecaptchaVerifier(
+          size: firebase_auth.RecaptchaVerifierSize.invisible,
+          theme: firebase_auth.RecaptchaVerifierTheme.light,
+        );
+        final confirmationResult = await _auth.signInWithPhoneNumber(
+          phoneNumber,
+          recaptchaVerifier,
+        );
+        onCodeSent(confirmationResult.verificationId);
+        return;
+      }
+
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         verificationCompleted:
@@ -394,6 +407,19 @@ class AuthService extends ChangeNotifier {
     required VoidCallback onAutoVerified,
   }) async {
     try {
+      if (kIsWeb) {
+        final recaptchaVerifier = firebase_auth.RecaptchaVerifier(
+          size: firebase_auth.RecaptchaVerifierSize.invisible,
+          theme: firebase_auth.RecaptchaVerifierTheme.light,
+        );
+        final confirmationResult = await _auth.signInWithPhoneNumber(
+          phoneNumber,
+          recaptchaVerifier,
+        );
+        onCodeSent(confirmationResult.verificationId);
+        return;
+      }
+
       await _auth.verifyPhoneNumber(
         phoneNumber: phoneNumber,
         verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
