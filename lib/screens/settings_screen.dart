@@ -148,10 +148,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     navigator.pop(); // Close loading
 
+    if (!context.mounted) return;
+
     if (result.isSuccess) {
-      // ignore: use_build_context_synchronously
       await showDialog(
-        context: navigator.context,
+        context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
