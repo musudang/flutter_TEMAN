@@ -75,6 +75,30 @@ class _LoginScreenState extends State<LoginScreen>
     }
   }
 
+  Future<void> _loginWithApple() async {
+    setState(() => _isLoading = true);
+    final authService = Provider.of<AuthService>(context, listen: false);
+    final messenger = ScaffoldMessenger.of(context);
+    final result = await authService.signInWithApple();
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    if (!result.isSuccess) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            result.errorMessage ?? 'Apple sign-in failed. Please try again.',
+          ),
+          backgroundColor: Colors.red.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _navigateToPhoneAuth() async {
     Navigator.push(
       context,
@@ -162,6 +186,24 @@ class _LoginScreenState extends State<LoginScreen>
                             borderColor: Colors.grey.shade300,
                           ),
                           const SizedBox(height: 12),
+
+                          // ── Apple button (if iOS) ──
+                          if (Theme.of(context).platform == TargetPlatform.iOS) ...[
+                            _AuthButton(
+                              onPressed: _isLoading ? null : _loginWithApple,
+                              isLoading: _isLoading,
+                              icon: const Icon(
+                                Icons.apple,
+                                color: Colors.white,
+                                size: 26,
+                              ),
+                              label: 'Continue with Apple',
+                              backgroundColor: Colors.black,
+                              textColor: Colors.white,
+                              borderColor: Colors.transparent,
+                            ),
+                            const SizedBox(height: 12),
+                          ],
 
                           // ── Phone button ──
                           _AuthButton(

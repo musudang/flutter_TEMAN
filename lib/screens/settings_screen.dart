@@ -136,6 +136,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     AuthService authService,
     String? password,
   ) async {
+    final navigator = Navigator.of(context, rootNavigator: true);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -144,17 +146,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     final result = await authService.deleteAccount(currentPassword: password);
 
-    if (!context.mounted) return;
-    Navigator.of(context).pop(); // Close loading
+    navigator.pop(); // Close loading
 
     if (result.isSuccess) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Your account and data have been permanently deleted.'),
-          duration: Duration(seconds: 4),
+      // ignore: use_build_context_synchronously
+      await showDialog(
+        context: navigator.context,
+        barrierDismissible: false,
+        builder: (ctx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Account Deleted'),
+          content: const Text('Your account and data have been permanently deleted.'),
+          actions: [
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E56C8)),
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+            ),
+          ],
         ),
       );
+
+      navigator.pushNamedAndRemoveUntil('/', (route) => false);
     } else {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(result.errorMessage ?? 'Failed to delete account.'),

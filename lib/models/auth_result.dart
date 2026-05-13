@@ -3,12 +3,14 @@ class AuthUser {
   final String? email;
   final String? displayName;
   final String? photoURL;
+  final String? phoneNumber;
 
   const AuthUser({
     required this.uid,
     this.email,
     this.displayName,
     this.photoURL,
+    this.phoneNumber,
   });
 }
 

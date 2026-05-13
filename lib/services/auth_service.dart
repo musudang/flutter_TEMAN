@@ -33,6 +33,7 @@ class AuthService extends ChangeNotifier {
       email: firebaseUser.email,
       displayName: firebaseUser.displayName,
       photoURL: firebaseUser.photoURL,
+      phoneNumber: firebaseUser.phoneNumber,
     );
   }
 
@@ -377,6 +378,91 @@ class AuthService extends ChangeNotifier {
       if (user != null) {
         await _ensurePhoneUserDocument(user);
       }
+      return AuthResult.success();
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
+  // Link Phone Auth: Send OTP
+  Future<void> sendPhoneVerificationForLink({
+    required String phoneNumber,
+    required Function(String verificationId) onCodeSent,
+    required Function(String error) onError,
+    required VoidCallback onAutoVerified,
+  }) async {
+    try {
+      await _auth.verifyPhoneNumber(
+        phoneNumber: phoneNumber,
+        verificationCompleted: (firebase_auth.PhoneAuthCredential credential) async {
+          try {
+            final user = _auth.currentUser;
+            if (user != null) {
+              final result = await user.linkWithCredential(credential);
+              await _db.collection('users').doc(user.uid).update({'phoneNumber': result.user?.phoneNumber ?? phoneNumber});
+            }
+            onAutoVerified();
+          } catch (e) {
+            onError(e.toString());
+          }
+        },
+        verificationFailed: (firebase_auth.FirebaseAuthException e) {
+          onError(e.message ?? 'Phone verification failed.');
+        },
+        codeSent: (String verificationId, int? resendToken) {
+          onCodeSent(verificationId);
+        },
+        codeAutoRetrievalTimeout: (String verificationId) {},
+        timeout: const Duration(seconds: 60),
+      );
+    } catch (e) {
+      if (e is firebase_auth.FirebaseAuthException) {
+        onError(e.message ?? e.toString());
+      } else {
+        onError(e.toString());
+      }
+    }
+  }
+
+  // Link Phone Auth: Verify OTP
+  Future<AuthResult> linkWithPhoneOtp({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      final credential = firebase_auth.PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+      final user = _auth.currentUser;
+      if (user == null) return AuthResult.failure('Not logged in');
+      final result = await user.linkWithCredential(credential);
+      await _db.collection('users').doc(user.uid).update({'phoneNumber': result.user?.phoneNumber});
+      return AuthResult.success();
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
+  // Link Email Auth
+  Future<AuthResult> linkWithEmailAndPassword({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final credential = firebase_auth.EmailAuthProvider.credential(
+        email: email,
+        password: password,
+      );
+      final user = _auth.currentUser;
+      if (user == null) return AuthResult.failure('Not logged in');
+      await user.linkWithCredential(credential);
+      await user.sendEmailVerification();
+      await _db.collection('users').doc(user.uid).update({'email': email});
       return AuthResult.success();
     } on firebase_auth.FirebaseAuthException catch (e) {
       return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);

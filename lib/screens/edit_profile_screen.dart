@@ -10,6 +10,7 @@ import '../models/user_model.dart' as app_models;
 import '../widgets/interest_selection_sheet.dart';
 import '../utils/image_compress_util.dart';
 import '../constants/university_constants.dart';
+import '../screens/verification_steps.dart'; // Add for PhoneVerificationStep
 
 class EditProfileScreen extends StatefulWidget {
   final app_models.User user;
@@ -444,6 +445,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _emailController,
               'your@email.com',
               keyboardType: TextInputType.emailAddress,
+              readOnly: true,
             ),
 
             const SizedBox(height: 20),
@@ -453,6 +455,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _phoneController,
               '+82 10-0000-0000',
               keyboardType: TextInputType.phone,
+              readOnly: true,
+              suffixIcon: TextButton(
+                onPressed: _showPhoneVerificationSheet,
+                child: const Text('Change'),
+              ),
             ),
 
             // ── 비밀번호 변경 섹션 (이메일 로그인 사용자만) ──
@@ -568,16 +575,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     String hint, {
     int maxLines = 1,
     TextInputType? keyboardType,
+    bool readOnly = false,
+    Widget? suffixIcon,
   }) {
     return TextField(
       controller: controller,
       maxLines: maxLines,
       keyboardType: keyboardType,
+      readOnly: readOnly,
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: TextStyle(color: Colors.grey[400]),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: readOnly ? Colors.grey[100] : Colors.white,
+        suffixIcon: suffixIcon,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: Colors.grey[200]!),
@@ -595,6 +606,46 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
           vertical: 14,
         ),
       ),
+    );
+  }
+
+  void _showPhoneVerificationSheet() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom,
+          ),
+          child: SizedBox(
+            height: MediaQuery.of(ctx).size.height * 0.7,
+            child: PhoneVerificationStep(
+              onNext: () {
+                Navigator.pop(ctx);
+                // Auth phone number updated successfully
+                // Reflect on controller if possible, but Firebase auth user's phone might just be refreshed
+                final currentUser = FirebaseAuth.instance.currentUser;
+                if (currentUser != null && currentUser.phoneNumber != null) {
+                  setState(() {
+                    _phoneController.text = currentUser.phoneNumber!;
+                  });
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Phone number verified and updated.')),
+                  );
+                }
+              },
+              onBack: () {
+                Navigator.pop(ctx);
+              },
+            ),
+          ),
+        );
+      },
     );
   }
 
