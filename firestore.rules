@@ -26,6 +26,7 @@ service cloud.firestore {
         data.hostId == request.auth.uid ||
         data.sellerId == request.auth.uid ||
         data.userId == request.auth.uid ||
+        data.senderId == request.auth.uid ||
         data.deletedBy == request.auth.uid
       );
     }
@@ -282,7 +283,12 @@ service cloud.firestore {
         // Only participants of the parent conversation can read/write messages
         allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
         allow create: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds;
-        allow update, delete: if isDocumentOwner(resource.data) || isAdmin();
+        allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+          isAuthenticated() && 
+          request.auth.uid in get(/databases/$(database)/documents/conversations/$(conversationId)).data.participantIds &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reactions'])
+        );
+        allow delete: if isDocumentOwner(resource.data) || isAdmin();
       }
     }
 

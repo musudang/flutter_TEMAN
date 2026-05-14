@@ -9,6 +9,7 @@ class Conversation {
   final bool isGroup;
   final String? groupName;
   final String? meetupId;
+  final List<String> hiddenByIds;
 
   Conversation({
     required this.id,
@@ -19,6 +20,7 @@ class Conversation {
     this.isGroup = false,
     this.groupName,
     this.meetupId,
+    this.hiddenByIds = const [],
   });
 
   factory Conversation.fromFirestore(DocumentSnapshot doc) {
@@ -33,6 +35,7 @@ class Conversation {
       isGroup: data['isGroup'] ?? false,
       groupName: data['groupName'],
       meetupId: data['meetupId'],
+      hiddenByIds: List<String>.from(data['hiddenByIds'] ?? []),
     );
   }
 }

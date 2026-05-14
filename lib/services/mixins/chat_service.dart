@@ -121,6 +121,7 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
         .map((snapshot) {
           final conversations = snapshot.docs
               .map((doc) => Conversation.fromFirestore(doc))
+              .where((c) => !c.hiddenByIds.contains(user.uid))
               .toList();
 
           // Client-side sort to avoid composite index requirement
@@ -143,6 +144,9 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
           int total = 0;
           for (var doc in snapshot.docs) {
             final data = doc.data();
+            final hiddenByIds = List<String>.from(data['hiddenByIds'] ?? []);
+            if (hiddenByIds.contains(uid)) continue;
+            
             final unreads = data['unreadCounts'];
             if (unreads != null && unreads is Map) {
               final count = unreads[uid];
@@ -171,7 +175,9 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
     final uid = _auth.currentUser?.uid;
     if (uid == null) throw Exception('Not logged in');
 
-    // Look for an existing conversation
+    // Look for an existing conversation between these two users.
+    // We query by the current user first, then also check conversations
+    // the current user may have left (hiddenByIds) by querying the other user.
     final querySnapshot = await _db
         .collection('conversations')
         .where('participantIds', arrayContains: uid)
@@ -188,7 +194,14 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
           meetupId == null &&
           participants.length == 2 &&
           participants.contains(otherUserId)) {
-        return doc.id; // Existing 1:1 conversation found
+        // Found existing conversation — clear hiddenByIds so both see it
+        final hiddenByIds = List<String>.from(doc.data()['hiddenByIds'] ?? []);
+        if (hiddenByIds.isNotEmpty) {
+          await _db.collection('conversations').doc(doc.id).update({
+            'hiddenByIds': [],
+          });
+        }
+        return doc.id;
       }
     }
 
@@ -199,6 +212,7 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
       'lastMessageTime': FieldValue.serverTimestamp(),
       'unreadCounts': {uid: 0, otherUserId: 0},
       'isGroup': false,
+      'hiddenByIds': [],
     });
 
     return newDoc.id;
@@ -217,15 +231,13 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
         final data = snapshot.data();
         if (data == null) return;
 
-        final participants = List<String>.from(data['participantIds'] ?? []);
-        if (participants.contains(uid)) {
-          participants.remove(uid);
-          // If no participants left, maybe delete?
-          // For now just keep it or let a cleanup job handle it.
+        final hiddenByIds = List<String>.from(data['hiddenByIds'] ?? []);
+        if (!hiddenByIds.contains(uid)) {
+          hiddenByIds.add(uid);
 
           transaction.update(docRef, {
-            'participantIds': participants,
-            'unreadCounts.$uid': FieldValue.delete(),
+            'hiddenByIds': hiddenByIds,
+            'unreadCounts.$uid': 0, // Reset unread count
           });
         }
       });
@@ -295,6 +307,7 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
       final updates = <String, dynamic>{
         'lastMessage': content,
         'lastMessageTime': FieldValue.serverTimestamp(),
+        'hiddenByIds': [], // Unhide for everyone when a new message is sent
       };
 
       for (final pid in participants) {
@@ -320,7 +333,7 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
           if (pid != user.id) {
             await sendNotification(
               userId: pid,
-              title: 'New Message ?',
+              title: 'New Message',
               body: '${user.name}: $content',
               type: 'message',
               relatedId: conversationId,

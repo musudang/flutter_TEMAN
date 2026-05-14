@@ -553,7 +553,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
 
     await sendNotification(
       userId: targetUserId,
-      title: 'New Follower ?��',
+      title: 'New Follower',
       body: '$followerName started following you!',
       type: 'follow',
       relatedId: uid,

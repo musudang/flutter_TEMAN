@@ -582,7 +582,7 @@ mixin PostService on ChangeNotifier {
               final likerName = userData?.name ?? 'Someone';
               sendNotification(
                 userId: authorId,
-                title: 'New Like ❤️',
+                title: 'New Like',
                 body: '$likerName liked your post!',
                 type: 'like',
                 relatedId: postId,
@@ -767,7 +767,7 @@ mixin PostService on ChangeNotifier {
         if (authorId.isNotEmpty && authorId != user.uid) {
           await sendNotification(
             userId: authorId,
-            title: 'New Comment 💬',
+            title: 'New Comment',
             body: isAnonymous
                 ? 'Someone commented anonymously on your post.'
                 : '${userData?.name ?? "Someone"} commented on your post.',
@@ -795,7 +795,7 @@ mixin PostService on ChangeNotifier {
               parentAuthorId != postAuthorId) {
             await sendNotification(
               userId: parentAuthorId,
-              title: 'New Reply 💬',
+              title: 'New Reply',
               body: isAnonymous
                   ? 'Someone replied to your comment anonymously.'
                   : '${userData?.name ?? "Someone"} replied to your comment.',
