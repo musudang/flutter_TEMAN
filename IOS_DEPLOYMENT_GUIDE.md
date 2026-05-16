@@ -127,3 +127,160 @@ Firebase iOS 클라이언트 ID의 REVERSED_CLIENT_ID가 등록됨.
 - iOS 남은 작업: **Mac 환경에서 3번 체크리스트 진행** → Xcode Archive → App Store Connect 업로드
 
 향후 iOS 배포 타이밍이 오면, 이 문서를 열고 **3번 항목의 체크리스트**를 하나씩 지워가며 세팅을 진행하시면 헤매지 않고 부드럽게 양대 마켓 배포를 완료하실 수 있습니다.
+
+---
+
+## 6. Windows에서 iOS 배포하기 (Codemagic 활용) ← 지금 당장 가능한 방법
+
+> **핵심 원리**: Mac이 없어도 **Codemagic**이라는 클라우드 CI/CD 서비스가 자신들의 Mac 서버에서 대신 빌드하고, App Store Connect에 자동 업로드해줍니다. Windows에서 코드만 GitHub에 push하면 됩니다.
+
+### 사전 준비 (한 번만 하면 됨)
+
+| # | 항목 | 위치 |
+|---|---|---|
+| 1 | **Apple Developer 계정** (연 $99) | developer.apple.com |
+| 2 | **App Store Connect에서 앱 생성** | appstoreconnect.apple.com |
+| 3 | **GitHub에 이 repo를 push** | github.com |
+| 4 | **Codemagic 계정 생성** | codemagic.io (GitHub 계정으로 가입) |
+
+---
+
+### Step 1: Apple Developer 포털에서 사전 설정
+
+#### 1-1. App ID 등록
+1. [developer.apple.com](https://developer.apple.com) → Certificates, Identifiers & Profiles → **Identifiers**
+2. `+` 버튼 → App IDs → App 선택
+3. Bundle ID: `com.teman.app` (Explicit 선택)
+4. Capabilities에서 반드시 체크:
+   - ✅ **Sign In with Apple**
+   - ✅ **Push Notifications**
+5. Register 클릭
+
+#### 1-2. APNs 키(.p8) 발급
+1. 왼쪽 메뉴 → **Keys** → `+` 클릭
+2. 이름: `TEMAN APNs Key`
+3. **Apple Push Notifications service (APNs)** 체크
+4. Continue → Register → **Download** (⚠️ 단 한 번만 다운로드 가능, 잘 보관)
+5. Key ID를 메모해 둠
+
+#### 1-3. Firebase에 APNs 키 등록
+1. [Firebase Console](https://console.firebase.google.com) → 프로젝트 설정 → 클라우드 메시징
+2. iOS 앱(`com.teman.app`) 선택 → APNs 인증 키 업로드
+3. `.p8` 파일 업로드, Key ID, Team ID 입력 → 저장
+
+---
+
+### Step 2: App Store Connect에서 앱 등록
+
+1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → 나의 앱 → `+` → 새 앱
+2. 플랫폼: iOS
+3. 이름: `TEMAN: Universities In Seoul`
+4. 번들 ID: `com.teman.app` (드롭다운에 1-1에서 만든 것이 뜸)
+5. SKU: `teman-app-ios-001` (임의 고유값)
+6. 기본 언어: 한국어 → 생성
+
+---
+
+### Step 3: Codemagic 설정
+
+#### 3-1. 프로젝트 연결
+1. [codemagic.io](https://codemagic.io) 접속 → GitHub으로 로그인
+2. `Add application` → Flutter App 선택
+3. `flutter_TEMAN` repo 선택
+
+#### 3-2. codemagic.yaml 생성
+프로젝트 루트에 아래 파일을 생성합니다:
+
+```yaml
+# codemagic.yaml (프로젝트 루트에 저장)
+workflows:
+  ios-release:
+    name: iOS Release
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: com.teman.app
+      vars:
+        APP_STORE_CONNECT_ISSUER_ID: Encrypted(...)   # Step 3-3에서 채움
+        APP_STORE_CONNECT_KEY_IDENTIFIER: Encrypted(...)
+        APP_STORE_CONNECT_PRIVATE_KEY: Encrypted(...)
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+      - name: Install pods
+        script: find . -name "Podfile" -execdir pod install \;
+      - name: Flutter build ipa
+        script: |
+          flutter build ipa \
+            --release \
+            --export-options-plist=/Users/builder/export_options.plist
+    artifacts:
+      - build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
+```
+
+#### 3-3. App Store Connect API 키 발급 (Codemagic ↔ Apple 연결)
+1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → 사용자 및 액세스 → **통합** → App Store Connect API
+2. `+` 클릭 → 이름: `Codemagic`, 역할: `App Manager`
+3. **다운로드** (`.p8` 파일) — Key ID와 Issuer ID를 메모
+4. Codemagic → 해당 앱 설정 → **Integrations** → App Store Connect → 키 정보 입력
+
+---
+
+### Step 4: 빌드 및 업로드 실행
+
+#### 방법 A: 자동 트리거 (권장)
+```
+# Windows PowerShell에서
+git add .
+git commit -m "chore: trigger iOS release build"
+git push origin main
+```
+→ Codemagic이 push를 감지하고 자동으로 Mac 서버에서 빌드 시작  
+→ 빌드 완료 (약 15~30분) 후 App Store Connect에 자동 업로드  
+→ 이메일로 결과 알림이 옴
+
+#### 방법 B: 수동 트리거
+1. Codemagic 대시보드 → `ios-release` 워크플로 → **Start new build**
+
+---
+
+### Step 5: App Store Connect에서 심사 제출
+
+1. [appstoreconnect.apple.com](https://appstoreconnect.apple.com) → 나의 앱 → TEMAN
+2. TestFlight 탭에서 빌드가 처리됨을 확인 (약 10~30분 소요)
+3. App Store 탭 → 버전 정보 작성 (스크린샷, 설명, 키워드 등)
+4. **심사를 위해 제출** 클릭
+
+---
+
+### 비용 안내
+
+| 서비스 | 무료 플랜 | 유료 플랜 |
+|---|---|---|
+| **Codemagic** | 월 500 빌드 분 무료 (첫 달) | $29/월 (무제한) |
+| **Apple Developer** | — | $99/년 (필수) |
+
+> 💡 **팁**: 첫 iOS 배포는 무료 플랜으로도 충분합니다. 빌드 한 번에 약 20~25분이므로 한 달에 약 20회 빌드 가능.
+
+---
+
+### 현재 상태 체크리스트 (Windows → App Store)
+
+- [ ] Apple Developer 계정 가입 ($99/년)
+- [ ] App Store Connect에서 앱 등록 (`com.teman.app`)
+- [ ] Apple Developer 포털에서 App ID 생성 및 Capabilities 활성화
+- [ ] APNs 키 발급 + Firebase에 등록
+- [ ] GitHub에 코드 push 완료
+- [ ] Codemagic 계정 생성 및 repo 연결
+- [ ] `codemagic.yaml` 작성 및 push
+- [ ] App Store Connect API 키 발급 → Codemagic에 연결
+- [ ] Codemagic에서 빌드 트리거 → IPA 생성 확인
+- [ ] App Store Connect에서 빌드 선택 및 심사 제출
