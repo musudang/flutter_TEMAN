@@ -5,7 +5,7 @@ workflows:
     instance_type: mac_mini_m2
 
     integrations:
-      app_store_connect: integration  # Codemagic 대시보드에서 연결한 이름과 동일해야 함
+      app_store_connect: codemagic  # Codemagic 대시보드에서 연결한 이름과 동일해야 함
 
     environment:
       flutter: stable
@@ -44,6 +44,6 @@ workflows:
           success: true
           failure: true
       app_store_connect:
-        auth: integration
+        auth: codemagic
         submit_to_testflight: true
         submit_to_app_store: false
