@@ -23,6 +23,10 @@ workflows:
         script: |
           find . -name "Podfile" -execdir pod install \;
 
+      - name: Set up code signing settings on macOS build machine
+        script: |
+          xcode-project use-profiles
+
       - name: Set build number
         script: |
           BUILD_NUMBER=$(($(app-store-connect get-latest-testflight-build-number 6768842296) + 1))
@@ -30,7 +34,8 @@ workflows:
           flutter build ipa \
             --release \
             --build-name=1.0.0 \
-            --build-number=$BUILD_NUMBER
+            --build-number=$BUILD_NUMBER \
+            --export-options-plist=/Users/builder/export_options.plist
 
     artifacts:
       - build/ios/ipa/*.ipa
