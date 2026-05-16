@@ -60,3 +60,46 @@ workflows:
         auth: integration
         submit_to_testflight: true
         submit_to_app_store: false
+
+  android-release:
+    name: Android Google Play Release
+    max_build_duration: 60
+    instance_type: linux_m2
+
+    triggering:
+      events:
+        - push
+      branch_patterns:
+        - pattern: '*'
+          include: true
+          source: true
+
+    environment:
+      groups:
+        - google_play_credentials # Codemagic UI에서 설정해야 함
+      flutter: stable
+
+    scripts:
+      - name: Get Flutter packages
+        script: flutter pub get
+
+      - name: Build Android App Bundle
+        script: |
+          flutter build appbundle --release \
+            --build-name=$(grep 'version: ' pubspec.yaml | sed 's/version: //;s/+.*//') \
+            --build-number=$(grep 'version: ' pubspec.yaml | sed 's/.*+//')
+
+    artifacts:
+      - build/app/outputs/bundle/release/*.aab
+
+    publishing:
+      email:
+        recipients:
+          - musudang411@gmail.com
+        notify:
+          success: true
+          failure: true
+      # Google Play 배포를 원하시면 서비스 계정 JSON을 Codemagic에 등록하고 아래 주석을 해제하세요
+      # google_play:
+      #   credentials: $GCLOUD_SERVICE_ACCOUNT_CREDENTIALS
+      #   track: internal
