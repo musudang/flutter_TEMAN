@@ -151,24 +151,32 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!context.mounted) return;
 
     if (result.isSuccess) {
+      // Show confirmation then navigate to login.
+      // Use navigator (rootNavigator) for the dialog to avoid context issues
+      // after the Firebase user has been deleted.
       await showDialog(
         context: context,
         barrierDismissible: false,
         builder: (ctx) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: const Text('Account Deleted'),
-          content: const Text('Your account and data have been permanently deleted.'),
+          content: const Text(
+            'Your account and data have been permanently deleted.\nYou will be redirected to the login screen.',
+          ),
           actions: [
             ElevatedButton(
               style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E56C8)),
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: () {
+                Navigator.pop(ctx);
+                // Navigate to root — AuthWrapper will show LoginScreen
+                // since the Firebase user is now null.
+                navigator.pushNamedAndRemoveUntil('/', (route) => false);
+              },
               child: const Text('Confirm', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
       );
-
-      navigator.pushNamedAndRemoveUntil('/', (route) => false);
     } else {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -230,7 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Community Guidelines',
               onTap: () async {
                 final url = Uri.parse(
-                  'https://teman-web-2026.web.app/community-rules.html',
+                  'https://teman.space/community-rules',
                 );
                 // Use external browser — see login_screen for rationale.
                 await launchUrl(
@@ -273,7 +281,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Terms of Service',
               onTap: () async {
                 final url = Uri.parse(
-                  'https://teman-web-2026.web.app/terms.html',
+                  'https://teman.space/terms',
                 );
                 // Use external browser — see login_screen for rationale.
                 await launchUrl(
@@ -287,7 +295,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: 'Privacy Policy',
               onTap: () async {
                 final url = Uri.parse(
-                  'https://teman-web-2026.web.app/privacy.html',
+                  'https://teman.space/privacy',
                 );
                 // Use external browser — see login_screen for rationale.
                 await launchUrl(

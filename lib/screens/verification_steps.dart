@@ -25,10 +25,10 @@ class _VerificationStepState extends State<VerificationStep> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final auth = Provider.of<AuthService>(context, listen: false);
       final user = auth.currentUser;
-      final hasPhone = user?.phoneNumber != null && user!.phoneNumber!.isNotEmpty;
       final hasEmail = user?.email != null && user!.email!.isNotEmpty;
 
-      if (hasPhone && hasEmail) {
+      // Decoupled phone verification: Only check for email
+      if (hasEmail) {
         widget.onNext();
       }
     });
@@ -38,12 +38,9 @@ class _VerificationStepState extends State<VerificationStep> {
   Widget build(BuildContext context) {
     final auth = Provider.of<AuthService>(context);
     final user = auth.currentUser;
-    final hasPhone = user?.phoneNumber != null && user!.phoneNumber!.isNotEmpty;
     final hasEmail = user?.email != null && user!.email!.isNotEmpty;
 
-    if (!hasPhone) {
-      return PhoneVerificationStep(onNext: widget.onNext, onBack: widget.onBack);
-    } else if (!hasEmail) {
+    if (!hasEmail) {
       return EmailVerificationStep(onNext: widget.onNext, onBack: widget.onBack);
     } else {
       return const SizedBox.shrink(); // Moving to next step automatically

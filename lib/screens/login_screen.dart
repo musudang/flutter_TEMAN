@@ -245,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () async {
                                       final url = Uri.parse(
-                                        'https://teman-web-2026.web.app/terms.html',
+                                        'https://teman.space/terms',
                                       );
                                       // Force the external browser. On Android
                                       // 11+ the default platformDefault mode
@@ -270,7 +270,7 @@ class _LoginScreenState extends State<LoginScreen>
                                   recognizer: TapGestureRecognizer()
                                     ..onTap = () async {
                                       final url = Uri.parse(
-                                        'https://teman-web-2026.web.app/privacy.html',
+                                        'https://teman.space/privacy',
                                       );
                                       // Force the external browser. On Android
                                       // 11+ the default platformDefault mode

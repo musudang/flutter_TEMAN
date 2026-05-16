@@ -10,6 +10,7 @@ import 'chat_screen.dart';
 import 'user_profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/map_safety_dialog.dart';
+import '../utils/verification_helper.dart';
 
 class MapScreen extends StatefulWidget {
   final bool isVisible;
@@ -84,6 +85,11 @@ class _MapScreenState extends State<MapScreen> {
         _locationSharingEnabled = currentUser.locationSharingEnabled;
         _hideFromFriends = currentUser.hideLocationFromFriends;
         _myMapFriendIds = currentUser.mapFriends.toSet();
+
+        // Phone-unverified users cannot share location
+        if (!currentUser.isPhoneVerified) {
+          _locationSharingEnabled = false;
+        }
       }
 
       LocationPermission permission = await Geolocator.checkPermission();
@@ -239,6 +245,19 @@ class _MapScreenState extends State<MapScreen> {
         Provider.of<FirestoreService>(context, listen: false);
 
     final newValue = !_locationSharingEnabled;
+
+    // JIT phone verification: require when ENABLING location sharing
+    if (newValue) {
+      final verified = await checkPhoneVerification(
+        context,
+        title: 'Phone Verification Required',
+        description:
+            'For community safety, please verify your phone number before '
+            'sharing your location on the map.',
+      );
+      if (!verified || !mounted) return;
+    }
+
     setState(() => _locationSharingEnabled = newValue);
 
     await firestoreService.toggleLocationSharing(newValue);

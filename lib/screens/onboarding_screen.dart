@@ -10,11 +10,11 @@ import '../widgets/teman_logo.dart';
 import '../widgets/interest_selection_sheet.dart';
 import '../utils/image_compress_util.dart';
 import 'main_screen.dart';
-import 'verification_steps.dart';
+// import 'verification_steps.dart'; // No longer needed in onboarding
 
 // ──────────────────────────────────────────────────────────────────────────────
 // OnboardingScreen — drives the entire new-user onboarding flow
-// Steps: 0=Rules  1=Name  2=Birthday  3=Gender  4=University  5=Verification  6=Extras  7=Welcome
+// Steps: 0=Rules  1=Name  2=Birthday  3=Gender  4=University  5=Extras  6=Welcome
 // ──────────────────────────────────────────────────────────────────────────────
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -25,7 +25,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with TickerProviderStateMixin {
-  int _step = 0; // 0..7
+  int _step = 0; // 0..6
 
   // Collected data
   String _name = '';
@@ -167,11 +167,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           onBack: _prevStep,
         );
       case 5:
-        return VerificationStep(
-          onNext: _nextStep,
-          onBack: _prevStep,
-        );
-      case 6:
         return _ProfileExtrasStep(
           onNext: (profilePic, bio, instagram, interests) async {
             setState(() => _isSavingExtras = true);
@@ -257,7 +252,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           },
           onBack: _prevStep,
         );
-      case 7:
+      case 6:
         return _WelcomeStep(
           name: _name,
           onEnter: () {

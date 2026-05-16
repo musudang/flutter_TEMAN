@@ -8,6 +8,8 @@ import 'meetup_detail_screen.dart';
 import 'create_meetup_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../widgets/meetup_safety_dialog.dart';
+import '../utils/verification_helper.dart';
+
 class MeetupListScreen extends StatefulWidget {
   final bool embedded;
   const MeetupListScreen({super.key, this.embedded = false});
@@ -62,7 +64,15 @@ class _MeetupListScreenState extends State<MeetupListScreen> {
               actions: [
                 IconButton(
                   icon: const Icon(Icons.add),
-                  onPressed: () {
+                  onPressed: () async {
+                    final verified = await checkPhoneVerification(
+                      context,
+                      title: 'Phone Verification Required',
+                      description:
+                          'For community safety, please verify your phone '
+                          'number before creating a meetup.',
+                    );
+                    if (!verified || !context.mounted) return;
                     Navigator.push(
                       context,
                       MaterialPageRoute(

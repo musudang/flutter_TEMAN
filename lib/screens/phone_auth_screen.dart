@@ -4,7 +4,12 @@ import 'package:provider/provider.dart';
 import '../services/auth_service.dart';
 
 class PhoneAuthScreen extends StatefulWidget {
-  const PhoneAuthScreen({super.key});
+  /// When `true`, the screen links the phone credential to the
+  /// currently signed-in account instead of performing a standalone
+  /// sign-in. Used by the JIT (Just-in-Time) verification flow.
+  final bool linkMode;
+
+  const PhoneAuthScreen({super.key, this.linkMode = false});
 
   @override
   State<PhoneAuthScreen> createState() => _PhoneAuthScreenState();
@@ -14,6 +19,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
     with SingleTickerProviderStateMixin {
   // Step 1: Phone number entry
   // Step 2: OTP verification
+  // Step 3: Google account linking (standalone mode only)
   int _step = 1;
 
   final TextEditingController _phoneController = TextEditingController();
@@ -21,6 +27,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
 
   bool _isLoading = false;
   String _verificationId = '';
+  String _verifiedSmsCode = '';
   String _selectedCountryCode = '+82'; // Korea default
 
   // Common country codes
@@ -75,31 +82,52 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
     final authService = Provider.of<AuthService>(context, listen: false);
 
     try {
-      await authService.verifyPhoneNumber(
-        phoneNumber: fullPhone,
-        onCodeSent: (verificationId) {
-          if (!mounted) return;
-          setState(() {
-            _verificationId = verificationId;
-            _step = 2;
-            _isLoading = false;
-          });
+      final onCodeSent = (String verificationId) {
+        if (!mounted) return;
+        setState(() {
+          _verificationId = verificationId;
+          _step = 2;
+          _isLoading = false;
+        });
+        _animController.reset();
+        _animController.forward();
+      };
+      final onError = (String error) {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        _showError(error);
+      };
+      final onAutoVerified = () {
+        if (!mounted) return;
+        setState(() => _isLoading = false);
+        if (widget.linkMode) {
+          _popWithSuccess();
+        } else {
+          // Auto-verified on mobile: go straight to Google linking.
+          // The OTP was auto-read so we don't have it, but the phone
+          // provider was already attached by verifyPhoneNumber's
+          // verificationCompleted callback. _linkGoogle will handle it.
+          setState(() => _step = 3);
           _animController.reset();
           _animController.forward();
-        },
-        onError: (error) {
-          if (!mounted) return;
-          setState(() => _isLoading = false);
-          _showError(error);
-        },
-        onAutoVerified: () {
-          if (!mounted) return;
-          setState(() => _isLoading = false);
-          if (Navigator.canPop(context)) {
-            Navigator.pop(context);
-          }
-        },
-      );
+        }
+      };
+
+      if (widget.linkMode) {
+        await authService.sendPhoneVerificationForLink(
+          phoneNumber: fullPhone,
+          onCodeSent: onCodeSent,
+          onError: onError,
+          onAutoVerified: onAutoVerified,
+        );
+      } else {
+        await authService.verifyPhoneNumber(
+          phoneNumber: fullPhone,
+          onCodeSent: onCodeSent,
+          onError: onError,
+          onAutoVerified: onAutoVerified,
+        );
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() => _isLoading = false);
@@ -114,25 +142,70 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
       return;
     }
 
-    setState(() => _isLoading = true);
+    if (widget.linkMode) {
+      // JIT link mode: verify and link to current account
+      setState(() => _isLoading = true);
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final result = await authService.linkWithPhoneOtp(
+        verificationId: _verificationId,
+        smsCode: otp,
+      );
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      if (!result.isSuccess) {
+        _showError(result.errorMessage ?? 'Verification failed. Please try again.');
+      } else {
+        _popWithSuccess();
+      }
+    } else {
+      // Standalone mode: DON'T sign in with phone.
+      // Just store the OTP and proceed to Google linking (step 3).
+      // The phone credential will be linked after Google sign-in.
+      _verifiedSmsCode = otp;
+      setState(() => _step = 3);
+      _animController.reset();
+      _animController.forward();
+    }
+  }
 
+  Future<void> _linkGoogle() async {
+    setState(() => _isLoading = true);
     final authService = Provider.of<AuthService>(context, listen: false);
-    final result = await authService.signInWithPhoneOtp(
+
+    final result = await authService.signInWithGoogleAndLinkPhone(
       verificationId: _verificationId,
-      smsCode: otp,
+      smsCode: _verifiedSmsCode,
     );
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (!result.isSuccess) {
-      _showError(
-        result.errorMessage ?? 'Verification failed. Please try again.',
+      _showError(result.errorMessage ?? 'Google linking failed.');
+      return;
+    }
+
+    // Navigate to root — AuthWrapper picks up the auth state
+    // and routes to onboarding or main screen.
+    Navigator.of(context, rootNavigator: true)
+        .pushNamedAndRemoveUntil('/', (route) => false);
+  }
+
+  /// Pops the screen, returning `true` to indicate success.
+  /// Shows a success snackbar in linkMode.
+  void _popWithSuccess() {
+    if (widget.linkMode && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Phone verified successfully! ✅'),
+          backgroundColor: Colors.green.shade400,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
       );
-    } else {
-      if (Navigator.canPop(context)) {
-        Navigator.pop(context);
-      }
+    }
+    if (Navigator.canPop(context)) {
+      Navigator.pop(context, widget.linkMode ? true : null);
     }
   }
 
@@ -154,25 +227,27 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
       appBar: AppBar(
         backgroundColor: Colors.white,
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(
-            Icons.arrow_back_ios,
-            color: Colors.black87,
-            size: 20,
-          ),
-          onPressed: () {
-            if (_step == 2) {
-              setState(() {
-                _step = 1;
-                _otpController.clear();
-              });
-              _animController.reset();
-              _animController.forward();
-            } else {
-              Navigator.pop(context);
-            }
-          },
-        ),
+        leading: _step == 3
+            ? null
+            : IconButton(
+                icon: const Icon(
+                  Icons.arrow_back_ios,
+                  color: Colors.black87,
+                  size: 20,
+                ),
+                onPressed: () {
+                  if (_step == 2) {
+                    setState(() {
+                      _step = 1;
+                      _otpController.clear();
+                    });
+                    _animController.reset();
+                    _animController.forward();
+                  } else {
+                    Navigator.pop(context);
+                  }
+                },
+              ),
       ),
       body: SafeArea(
         child: FadeTransition(
@@ -190,6 +265,10 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                     _buildStepDot(1),
                     const SizedBox(width: 8),
                     _buildStepDot(2),
+                    if (!widget.linkMode) ...[
+                      const SizedBox(width: 8),
+                      _buildStepDot(3),
+                    ],
                   ],
                 ),
                 const SizedBox(height: 28),
@@ -321,7 +400,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                     ),
                   ),
                   const SizedBox(height: 32),
-                ] else ...[
+                ] else if (_step == 2) ...[
                   const Text(
                     'Enter the code\nwe sent you',
                     style: TextStyle(
@@ -421,6 +500,60 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                             ),
                     ),
                   ),
+                  const SizedBox(height: 32),
+                ] else if (_step == 3) ...[
+                  const Text(
+                    'Link your\nGoogle account',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF1A1A2E),
+                      height: 1.2,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Connect your Google account to complete sign-up.\nIf you already have a TEMAN account, it will be linked automatically.',
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500, height: 1.5),
+                  ),
+                  const SizedBox(height: 48),
+
+                  // Google sign-in button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: OutlinedButton.icon(
+                      onPressed: _isLoading ? null : _linkGoogle,
+                      icon: _isLoading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            )
+                          : Image.network(
+                              'https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg',
+                              width: 24,
+                              height: 24,
+                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.g_mobiledata, size: 28),
+                            ),
+                      label: const Text(
+                        'Continue with Google',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A2E),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        side: BorderSide(color: Colors.grey.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const Spacer(),
                   const SizedBox(height: 32),
                 ],
               ],

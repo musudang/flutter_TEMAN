@@ -10,6 +10,7 @@ import 'meetup_comments_sheet.dart';
 import 'share_content_sheet.dart';
 import 'create_meetup_screen.dart';
 import '../widgets/report_dialog.dart';
+import '../utils/verification_helper.dart';
 
 class MeetupDetailScreen extends StatelessWidget {
   final String meetupId;
@@ -851,6 +852,16 @@ class MeetupDetailScreen extends StatelessWidget {
                                           );
                                         }
                                       } else {
+                                        // JIT phone verification before joining
+                                        final verified =
+                                            await checkPhoneVerification(
+                                          context,
+                                          title: 'Phone Verification Required',
+                                          description:
+                                              'For community safety, please verify your phone '
+                                              'number before joining a meetup.',
+                                        );
+                                        if (!verified || !context.mounted) return;
                                         // The modified joinMeetup triggers Exceptions if cooldown active
                                         final success = await firestoreService
                                             .joinMeetup(meetupId);

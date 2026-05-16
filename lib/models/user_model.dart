@@ -63,4 +63,6 @@ class User {
   });
 
   bool get isAdmin => role == 'admin';
+
+  bool get isPhoneVerified => phoneNumber.isNotEmpty;
 }

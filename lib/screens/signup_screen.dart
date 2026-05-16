@@ -447,7 +447,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         recognizer: TapGestureRecognizer()
                           ..onTap = () async {
                             final url = Uri.parse(
-                              'https://teman-web-2026.web.app/terms.html',
+                              'https://teman.space/terms',
                             );
                             if (await canLaunchUrl(url)) {
                               await launchUrl(url);
@@ -464,7 +464,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         recognizer: TapGestureRecognizer()
                           ..onTap = () async {
                             final url = Uri.parse(
-                              'https://teman-web-2026.web.app/privacy.html',
+                              'https://teman.space/privacy',
                             );
                             if (await canLaunchUrl(url)) {
                               await launchUrl(url);

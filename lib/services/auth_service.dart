@@ -487,6 +487,209 @@ class AuthService extends ChangeNotifier {
     }
   }
 
+  /// Links a Google account to the currently signed-in phone user.
+  /// If the Google account already exists as a separate Firebase user,
+  /// this method merges them: signs into the existing Google account and
+  /// links the phone credential to it (preserving the old user's data).
+  Future<AuthResult> linkGoogleToCurrentUser() async {
+    try {
+      final currentUser = _auth.currentUser;
+      if (currentUser == null) return AuthResult.failure('Not logged in');
+
+      // Get Google credential
+      final firebase_auth.AuthCredential credential;
+      if (kIsWeb) {
+        final googleProvider = firebase_auth.GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+        // On web, use popup to get the credential without signing in
+        try {
+          final result = await currentUser.linkWithPopup(googleProvider);
+          // linkWithPopup succeeded — update Firestore
+          final user = result.user;
+          if (user != null) {
+            await _db.collection('users').doc(user.uid).update({
+              'email': user.email ?? '',
+              'avatarUrl': user.photoURL ?? '',
+              'name': user.displayName ?? '',
+            });
+          }
+          return AuthResult.success();
+        } on firebase_auth.FirebaseAuthException catch (e) {
+          if (e.code == 'credential-already-in-use') {
+            // Merge: sign into existing Google account, update phone
+            final pendingCred = e.credential;
+            if (pendingCred == null) {
+              return AuthResult.failure('Could not retrieve Google credential for merge.');
+            }
+            final phoneNumber = currentUser.phoneNumber;
+            final phoneUid = currentUser.uid;
+            final googleResult = await _auth.signInWithCredential(pendingCred);
+            final existingUser = googleResult.user;
+            if (existingUser == null) {
+              return AuthResult.failure('Failed to sign into existing account');
+            }
+            await _db.collection('users').doc(existingUser.uid).update({
+              'phoneNumber': phoneNumber ?? '',
+            });
+            if (phoneUid != existingUser.uid) {
+              await _db.collection('users').doc(phoneUid).delete();
+            }
+            return AuthResult.success();
+          }
+          return AuthResult.failure(e.message ?? 'Failed to link Google account', e.code);
+        }
+      }
+
+      // Mobile: use google_sign_in package
+      await _ensureGoogleSignInInitialized();
+      final googleUser = await _googleSignIn.authenticate();
+      final googleAuth = googleUser.authentication;
+      final authz = await googleUser.authorizationClient
+          .authorizationForScopes(['email', 'profile']);
+
+      credential = firebase_auth.GoogleAuthProvider.credential(
+        accessToken: authz?.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      try {
+        // Try linking Google to the current (phone) user
+        final result = await currentUser.linkWithCredential(credential);
+        // Update Firestore with Google profile info
+        final user = result.user;
+        if (user != null) {
+          await _db.collection('users').doc(user.uid).update({
+            'email': user.email ?? '',
+            'avatarUrl': user.photoURL ?? '',
+            'name': user.displayName ?? '',
+          });
+        }
+        return AuthResult.success();
+      } on firebase_auth.FirebaseAuthException catch (e) {
+        if (e.code == 'credential-already-in-use') {
+          // The Google account is already linked to another Firebase user.
+          // Strategy: sign into that existing account and link phone to it.
+          final phoneNumber = currentUser.phoneNumber;
+          final phoneUid = currentUser.uid;
+
+          // Sign in with the existing Google credential
+          final googleResult = await _auth.signInWithCredential(credential);
+          final existingUser = googleResult.user;
+          if (existingUser == null) {
+            return AuthResult.failure('Failed to sign into existing account');
+          }
+
+          // Update existing user's phoneNumber in Firestore
+          await _db.collection('users').doc(existingUser.uid).update({
+            'phoneNumber': phoneNumber ?? '',
+          });
+
+          // Delete the orphan phone-only user document if different
+          if (phoneUid != existingUser.uid) {
+            await _db.collection('users').doc(phoneUid).delete();
+          }
+
+          return AuthResult.success();
+        }
+        return AuthResult.failure(e.message ?? 'Failed to link Google account', e.code);
+      }
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
+  /// Signs in with Google first, then links the phone credential.
+  /// This avoids the double-account problem: no phone sign-in happens,
+  /// so there's only one Firebase Auth user (the Google one) with phone
+  /// linked as a secondary provider.
+  Future<AuthResult> signInWithGoogleAndLinkPhone({
+    required String verificationId,
+    required String smsCode,
+  }) async {
+    try {
+      // Step 1: Sign in with Google
+      firebase_auth.UserCredential googleResult;
+
+      if (kIsWeb) {
+        final googleProvider = firebase_auth.GoogleAuthProvider();
+        googleProvider.addScope('email');
+        googleProvider.addScope('profile');
+        googleResult = await _auth.signInWithPopup(googleProvider);
+      } else {
+        await _ensureGoogleSignInInitialized();
+        final googleUser = await _googleSignIn.authenticate();
+        final googleAuth = googleUser.authentication;
+        final authz = await googleUser.authorizationClient
+            .authorizationForScopes(['email', 'profile']);
+        final cred = firebase_auth.GoogleAuthProvider.credential(
+          accessToken: authz?.accessToken,
+          idToken: googleAuth.idToken,
+        );
+        googleResult = await _auth.signInWithCredential(cred);
+      }
+
+      final user = googleResult.user;
+      if (user == null) return AuthResult.failure('Google sign-in failed');
+
+      // Ensure Firestore user doc exists
+      final doc = await _db.collection('users').doc(user.uid).get();
+      if (!doc.exists) {
+        final String name = user.displayName ?? 'Google User';
+        await _db.collection('users').doc(user.uid).set({
+          'id': user.uid,
+          'name': name,
+          'avatarUrl': user.photoURL ??
+              'https://ui-avatars.com/api/?name=${Uri.encodeComponent(name)}&background=random',
+          'nationality': 'Other 🌏',
+          'email': user.email ?? '',
+          'bio': '',
+          'role': 'user',
+          'age': null,
+          'personalInfo': '',
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Step 2: Link phone credential to Google account
+      final phoneCredential = firebase_auth.PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
+      );
+
+      try {
+        await user.linkWithCredential(phoneCredential);
+      } on firebase_auth.FirebaseAuthException catch (e) {
+        if (e.code == 'provider-already-linked') {
+          // Phone already linked to this Google account — fine
+        } else {
+          // Phone linking failed, but Google sign-in succeeded.
+          // Return error so the user knows phone wasn't linked.
+          return AuthResult.failure(
+            e.message ?? 'Google signed in, but phone linking failed.',
+            e.code,
+          );
+        }
+      }
+
+      // Update Firestore with phone number
+      final refreshedUser = _auth.currentUser;
+      if (refreshedUser != null) {
+        await _db.collection('users').doc(refreshedUser.uid).update({
+          'phoneNumber': refreshedUser.phoneNumber ?? '',
+        });
+      }
+
+      return AuthResult.success();
+    } on firebase_auth.FirebaseAuthException catch (e) {
+      return AuthResult.failure(e.message ?? 'Unknown auth error', e.code);
+    } catch (e) {
+      return AuthResult.failure(e.toString());
+    }
+  }
+
   // Ensure a Firestore user document exists for phone auth users
   Future<void> _ensurePhoneUserDocument(firebase_auth.User user) async {
     final doc = await _db.collection('users').doc(user.uid).get();

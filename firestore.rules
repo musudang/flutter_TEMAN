@@ -43,6 +43,11 @@ service cloud.firestore {
       return !(field in request.resource.data.diff(resource.data).affectedKeys());
     }
 
+    // Helper to check if user has verified their phone number
+    function isPhoneVerified() {
+      return isAuthenticated() && request.auth.token.phone_number != null;
+    }
+
     // ==========================================================
     // NOTICES
     // ==========================================================
@@ -61,11 +66,16 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
       allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments', 'reportCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments'])
+      ) || (
+        // reportCount: allow only +1 increment (prevents arbitrary manipulation)
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+        request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
       );
       // Allow delete by owner, admin, or automatically if reported enough (client-side mod logic)
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-        isAuthenticated() && resource.data.reportCount >= 5
+        isAuthenticated() && resource.data.get('reportCount', 0) >= 5
       );
       
       // Post Comments
@@ -74,7 +84,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
         allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount', 'reactions'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reactions'])
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin();
       }
@@ -83,21 +93,32 @@ service cloud.firestore {
     // Meetups: Public Read, Owner Write + Public Join/Like/Report
     match /meetups/{meetupId} {
       allow read: if true;
-      allow create: if isAuthenticated() && request.resource.data.hostId == request.auth.uid;
-      allow update: if (isDocumentOwner(resource.data) && isUnchanged('hostId')) || 
+      allow create: if isPhoneVerified() && request.resource.data.hostId == request.auth.uid;
+      allow update: if (isDocumentOwner(resource.data) && isUnchanged('hostId')) ||
         // Allow host to transfer ownership when leaving (hostId + participantIds change together)
-        (isDocumentOwner(resource.data) && 
+        (isDocumentOwner(resource.data) &&
          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['participantIds', 'hostId'])) ||
         isAdmin() || (
-        isAuthenticated() && 
+        // Joining/leaving meetups requires phone verification
+        isPhoneVerified() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly([
-          'likes', 'likedBy', 'scrappedBy', 'comments', 
-          'participantIds', 'pendingParticipantIds', 'reportCount',
+          'participantIds', 'pendingParticipantIds',
           'hostName', 'hostAvatar'
         ])
+      ) || (
+        // Likes/scraps/comments don't require phone verification
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'likes', 'likedBy', 'scrappedBy', 'comments'
+        ])
+      ) || (
+        // reportCount: allow only +1 increment
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+        request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
       );
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-        isAuthenticated() && resource.data.reportCount >= 5
+        isAuthenticated() && resource.data.get('reportCount', 0) >= 5
       );
       
       // Meetup Comments
@@ -106,7 +127,7 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
         allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy'])
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin();
       }
@@ -118,10 +139,15 @@ service cloud.firestore {
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
       allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'reportCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy'])
+      ) || (
+        // reportCount: allow only +1 increment
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+        request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
       );
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-        isAuthenticated() && resource.data.reportCount >= 5
+        isAuthenticated() && resource.data.get('reportCount', 0) >= 5
       );
     }
     
@@ -129,12 +155,17 @@ service cloud.firestore {
     match /marketplace/{itemId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.sellerId == request.auth.uid;
-      allow update: if (isDocumentOwner(resource.data) && (isUnchanged('sellerId') || isUnchanged('authorId'))) || isAdmin() || (
+      allow update: if (isDocumentOwner(resource.data) && isUnchanged('sellerId') && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'reportCount', 'isSold'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'isSold'])
+      ) || (
+        // reportCount: allow only +1 increment
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+        request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
       );
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-        isAuthenticated() && resource.data.reportCount >= 5
+        isAuthenticated() && resource.data.get('reportCount', 0) >= 5
       );
     }
 
@@ -153,21 +184,26 @@ service cloud.firestore {
     match /questions/{questionId} {
       allow read: if true;
       allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-      allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+      allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
         isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'comments', 'reportCount'])
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'comments'])
+      ) || (
+        // reportCount: allow only +1 increment
+        isAuthenticated() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+        request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
       );
       allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-        isAuthenticated() && resource.data.reportCount >= 5
+        isAuthenticated() && resource.data.get('reportCount', 0) >= 5
       );
       
       // Answers
       match /answers/{answerId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-        allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+        allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy'])
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin();
       }
@@ -186,10 +222,15 @@ service cloud.firestore {
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
         allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments', 'reportCount'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments'])
+        ) || (
+          // reportCount: allow only +1 increment
+          isAuthenticated() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+          request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-          isAuthenticated() && resource.data.reportCount >= 5
+          isAuthenticated() && resource.data.get('reportCount', 0) >= 4
         );
         
         match /comments/{commentId} {
@@ -197,7 +238,7 @@ service cloud.firestore {
           allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
           allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
             isAuthenticated() && 
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy'])
           );
           allow delete: if isDocumentOwner(resource.data) || isAdmin();
         }
@@ -206,20 +247,25 @@ service cloud.firestore {
       match /questions/{questionId} {
         allow read: if true;
         allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-        allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+        allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
           isAuthenticated() && 
-          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answersCount', 'likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments', 'reportCount'])
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['answersCount', 'likes', 'likedBy', 'scrappedBy', 'scrapCount', 'shareCount', 'comments'])
+        ) || (
+          // reportCount: allow only +1 increment
+          isAuthenticated() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reportCount']) &&
+          request.resource.data.reportCount == resource.data.get('reportCount', 0) + 1
         );
         allow delete: if isDocumentOwner(resource.data) || isAdmin() || (
-          isAuthenticated() && resource.data.reportCount >= 5
+          isAuthenticated() && resource.data.get('reportCount', 0) >= 4
         );
         
         match /answers/{answerId} {
           allow read: if true;
           allow create: if isAuthenticated() && request.resource.data.authorId == request.auth.uid;
-          allow update: if isDocumentOwner(resource.data) || isAdmin() || (
+          allow update: if (isDocumentOwner(resource.data) && isUnchanged('authorId')) || isAdmin() || (
             isAuthenticated() && 
-            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy', 'reportCount'])
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes', 'likedBy'])
           );
           allow delete: if isDocumentOwner(resource.data) || isAdmin();
         }
@@ -327,14 +373,27 @@ service cloud.firestore {
     }
 
     match /admin_reports/{reportId} {
-      allow create: if isAuthenticated() && reportId == request.resource.data.postId + '_' + request.auth.uid;
-      allow read: if isAdmin() || (isAuthenticated() && reportId.matches('.*_' + request.auth.uid));
+      allow create: if isAuthenticated() && request.resource.data.reportedBy == request.auth.uid;
+      allow read: if isAdmin() || (isAuthenticated() && (resource == null || resource.data.reportedBy == request.auth.uid));
       allow update, delete: if isAdmin();
     }
 
     match /admin_contact_inquiries/{inquiryId} {
       allow create: if isAuthenticated();
       allow read, update, delete: if isAdmin();
+    }
+
+    // ==========================================================
+    // COLLECTION GROUP SUPPORT
+    // ==========================================================
+    // collectionGroup('posts') queries need read access across all
+    // paths named 'posts'. The rules above already cover /posts/{id}
+    // and /universities/{uniId}/posts/{id}, but the catch-all below
+    // would block any path the evaluator checks speculatively.
+    // This wildcard ensures collectionGroup reads are allowed for
+    // 'posts' under any parent.
+    match /{path=**}/posts/{postId} {
+      allow read: if true;
     }
 
     // ==========================================================
