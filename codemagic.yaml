@@ -64,7 +64,7 @@ workflows:
   android-release:
     name: Android Google Play Release
     max_build_duration: 60
-    instance_type: linux_m2
+    instance_type: linux
 
     triggering:
       events:
