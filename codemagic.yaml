@@ -39,7 +39,7 @@ workflows:
     publishing:
       email:
         recipients:
-          - musudang@gmail.com  # 빌드 결과 알림 이메일
+          - musudang411@gmail.com  # 빌드 결과 알림 이메일
         notify:
           success: true
           failure: true
