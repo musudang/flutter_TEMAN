@@ -49,6 +49,8 @@
 	<string>내 주변의 친구나 모임을 지도에서 확인하기 위해 위치 권한이 필요합니다.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
 	<string>내 주변의 친구나 모임을 지도에서 확인하기 위해 위치 권한이 필요합니다.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>내 주변의 친구나 모임을 지도에서 확인하기 위해 위치 권한이 필요합니다.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>게시글에 첨부할 사진을 찍거나 프로필 사진을 변경하기 위해 카메라 권한이 필요합니다.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
