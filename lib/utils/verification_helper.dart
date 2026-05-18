@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/firestore_service.dart';
 import '../widgets/phone_verification_dialog.dart';
 import '../screens/phone_auth_screen.dart';
@@ -24,8 +25,15 @@ Future<bool> checkPhoneVerification(
       Provider.of<FirestoreService>(context, listen: false);
   final currentUser = await firestoreService.getCurrentUser();
 
+  // Check both Firestore doc AND Firebase Auth provider list.
+  // The Firestore security rules check request.auth.token.phone_number,
+  // which requires the phone provider to be linked in Firebase Auth.
+  final firebaseUser = FirebaseAuth.instance.currentUser;
+  final hasPhoneProvider = firebaseUser?.providerData
+      .any((info) => info.providerId == 'phone') ?? false;
+
   // Already verified — let them through immediately.
-  if (currentUser != null && currentUser.isPhoneVerified) {
+  if (currentUser != null && currentUser.isPhoneVerified && hasPhoneProvider) {
     return true;
   }
 

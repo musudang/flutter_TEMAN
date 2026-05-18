@@ -33,6 +33,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late TextEditingController _emailController;
   late List<String> _selectedInterests;
   String _selectedUniversityId = '';
+  late TextEditingController _majorController;
+  late TextEditingController _classOfController;
+  bool _showClassOf = false;
 
   // 비밀번호 변경
   final _currentPasswordController = TextEditingController();
@@ -65,6 +68,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _emailController = TextEditingController(text: widget.user.email);
     _selectedInterests = List<String>.from(widget.user.interests);
     _selectedUniversityId = widget.user.universityId;
+    _majorController = TextEditingController(text: widget.user.major);
+    _classOfController = TextEditingController(text: widget.user.classOf);
+    _showClassOf = widget.user.showClassOf;
   }
 
   @override
@@ -78,6 +84,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _instagramController.dispose();
     _phoneController.dispose();
     _emailController.dispose();
+    _majorController.dispose();
+    _classOfController.dispose();
     _currentPasswordController.dispose();
     _newPasswordController.dispose();
     _confirmNewPasswordController.dispose();
@@ -195,6 +203,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         email: _emailController.text.trim(),
         interests: _selectedInterests,
         universityId: _selectedUniversityId,
+        major: _majorController.text.trim(),
+        classOf: _classOfController.text.trim(),
+        showClassOf: _showClassOf,
       );
 
       if (mounted) {
@@ -405,6 +416,33 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   setState(() => _selectedUniversityId = val ?? '');
                 },
               ),
+            ),
+
+            const SizedBox(height: 20),
+            _buildLabel('Major'),
+            const SizedBox(height: 8),
+            _buildTextField(
+              _majorController,
+              'e.g. Computer Science',
+            ),
+
+            const SizedBox(height: 20),
+            _buildLabel('Class Of'),
+            const SizedBox(height: 8),
+            _buildTextField(
+              _classOfController,
+              "e.g. 2024",
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text(
+                'Show Class Of on profile',
+                style: TextStyle(fontSize: 14),
+              ),
+              value: _showClassOf,
+              activeTrackColor: Colors.teal[200],
+              onChanged: (val) => setState(() => _showClassOf = val),
             ),
 
             const SizedBox(height: 20),

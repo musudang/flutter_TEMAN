@@ -14,7 +14,7 @@ import 'main_screen.dart';
 
 // ──────────────────────────────────────────────────────────────────────────────
 // OnboardingScreen — drives the entire new-user onboarding flow
-// Steps: 0=Rules  1=Name  2=Birthday  3=Gender  4=University  5=Extras  6=Welcome
+// Steps: 0=Rules  1=Name  2=Birthday  3=Gender  4=University  5=MajorClassOf  6=Extras  7=Welcome
 // ──────────────────────────────────────────────────────────────────────────────
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -25,14 +25,16 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with TickerProviderStateMixin {
-  int _step = 0; // 0..6
+  int _step = 0; // 0..7
 
   // Collected data
   String _name = '';
   DateTime? _birthday;
   String _gender = '';
-  // Optional step 4 (university) & step 5 (extras)
+  // Optional step 4 (university), step 5 (major/classOf) & step 6 (extras)
   String _universityId = '';
+  String _major = '';
+  String _classOf = '';
   String _bio = '';
   String _instagram = '';
   List<String> _interests = [];
@@ -89,9 +91,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       instagram: _instagram,
       interests: _interests,
       universityId: _universityId.isNotEmpty ? _universityId : null,
+      major: _major.isNotEmpty ? _major : null,
+      classOf: _classOf.isNotEmpty ? _classOf : null,
     );
     if (!mounted) return;
-    _nextStep(); // go to step 4 (extras)
+    _nextStep(); // go to step 4 (university)
   }
 
   int _calcAge(DateTime birthday) {
@@ -167,6 +171,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           onBack: _prevStep,
         );
       case 5:
+        return _MajorClassOfStep(
+          onNext: (major, classOf) {
+            _major = major;
+            _classOf = classOf;
+            _nextStep();
+          },
+          onBack: _prevStep,
+        );
+      case 6:
         return _ProfileExtrasStep(
           onNext: (profilePic, bio, instagram, interests) async {
             setState(() => _isSavingExtras = true);
@@ -209,6 +222,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 interests: interests,
                 avatarUrl: avatarUrl,
                 universityId: _universityId.isNotEmpty ? _universityId : null,
+                major: _major.isNotEmpty ? _major : null,
+                classOf: _classOf.isNotEmpty ? _classOf : null,
               );
 
               _bio = bio;
@@ -241,6 +256,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 interests: [],
                 avatarUrl: avatarUrl,
                 universityId: _universityId.isNotEmpty ? _universityId : null,
+                major: _major.isNotEmpty ? _major : null,
+                classOf: _classOf.isNotEmpty ? _classOf : null,
               );
             } catch (e) {
               // Ignore
@@ -252,7 +269,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           },
           onBack: _prevStep,
         );
-      case 6:
+      case 7:
         return _WelcomeStep(
           name: _name,
           onEnter: () {
@@ -686,6 +703,12 @@ class _BirthdayStepState extends State<_BirthdayStep> {
       final y = int.parse(_yearCtrl.text);
       final m = int.parse(_monthCtrl.text);
       final d = int.parse(_dayCtrl.text);
+      // Validate month and day ranges before creating DateTime
+      if (m < 1 || m > 12) return null;
+      if (d < 1 || d > 31) return null;
+      // Check actual days in the given month/year
+      final maxDay = DateTime(y, m + 1, 0).day;
+      if (d > maxDay) return null;
       return DateTime(y, m, d);
     } catch (_) {
       return null;
@@ -695,7 +718,7 @@ class _BirthdayStepState extends State<_BirthdayStep> {
   void _validate() {
     final date = _parsed;
     if (date == null) {
-      setState(() => _error = 'Please enter a valid date.');
+      setState(() => _error = 'Please enter a valid date (e.g. 2000 / 01 / 15).');
       return;
     }
     final now = DateTime.now();
@@ -1221,7 +1244,157 @@ class _UniversityStepState extends State<_UniversityStep> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Step 5 — Profile Extras (Optional: Bio, Instagram, Interests)
+// Step 5 — Major & Class Of (Optional)
+// ──────────────────────────────────────────────────────────────────────────────
+class _MajorClassOfStep extends StatefulWidget {
+  final Function(String major, String classOf) onNext;
+  final VoidCallback onBack;
+  const _MajorClassOfStep({required this.onNext, required this.onBack});
+
+  @override
+  State<_MajorClassOfStep> createState() => _MajorClassOfStepState();
+}
+
+class _MajorClassOfStepState extends State<_MajorClassOfStep> {
+  final _majorCtrl = TextEditingController();
+  final _classOfCtrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _majorCtrl.dispose();
+    _classOfCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(8, 12, 0, 0),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_ios, color: Colors.black87, size: 20),
+            onPressed: widget.onBack,
+          ),
+        ),
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 24),
+                const Text(
+                  'What do you\nstudy?',
+                  style: TextStyle(
+                    fontSize: 30,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF1A1A2E),
+                    height: 1.2,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Optional — your major will be shown on your profile.',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+                ),
+                const SizedBox(height: 32),
+
+                // Major field
+                TextField(
+                  controller: _majorCtrl,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Major / Department',
+                    hintText: 'e.g. Computer Science',
+                    prefixIcon: const Icon(Icons.school_outlined),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1E56C8), width: 2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // Class of field
+                TextField(
+                  controller: _classOfCtrl,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  decoration: InputDecoration(
+                    labelText: 'Class of (Graduation Year)',
+                    hintText: 'e.g. 2026',
+                    prefixIcon: const Icon(Icons.calendar_today_outlined),
+                    counterText: '',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: Color(0xFF1E56C8), width: 2),
+                    ),
+                  ),
+                ),
+
+                const Spacer(),
+
+                // Buttons
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton(
+                        onPressed: () => widget.onNext('', ''),
+                        child: Text(
+                          'Skip',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.grey.shade500,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 52,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            widget.onNext(
+                              _majorCtrl.text.trim(),
+                              _classOfCtrl.text.trim(),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF1E56C8),
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                          child: const Text(
+                            'Continue',
+                            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Step 6 — Profile Extras (Optional: Bio, Instagram, Interests)
 // ──────────────────────────────────────────────────────────────────────────────
 class _ProfileExtrasStep extends StatefulWidget {
   final Function(
@@ -1672,6 +1845,32 @@ class _WelcomeStepState extends State<_WelcomeStep>
                       color: Colors.grey.shade500,
                       height: 1.6,
                     ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.shade50,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.blue.shade100),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.info_outline, color: Colors.blue.shade400, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Phone verification is required to use Map and Meetups features. You can verify anytime from those screens.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.blue.shade700,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],

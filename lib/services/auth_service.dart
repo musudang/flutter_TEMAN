@@ -73,6 +73,8 @@ class AuthService extends ChangeNotifier {
     List<String> interests = const [],
     String? avatarUrl,
     String? universityId,
+    String? major,
+    String? classOf,
   }) async {
     final uid = _auth.currentUser?.uid;
     if (uid == null) return;
@@ -91,6 +93,12 @@ class AuthService extends ChangeNotifier {
     }
     if (universityId != null) {
       updateData['universityId'] = universityId;
+    }
+    if (major != null) {
+      updateData['major'] = major;
+    }
+    if (classOf != null) {
+      updateData['classOf'] = classOf;
     }
 
     await _db

@@ -212,27 +212,6 @@ class UserProfileScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                          if (user.age != null) ...[
-                            const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.blue[50],
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                'Age: ${user.age}',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.blue[700],
-                                ),
-                              ),
-                            ),
-                          ],
                           if (user.universityId.isNotEmpty) ...[
                             const SizedBox(width: 8),
                             UniversityBadge(
@@ -241,6 +220,48 @@ class UserProfileScreen extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 8,
                                 vertical: 4,
+                              ),
+                            ),
+                          ],
+                          if (user.major.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.purple[50],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                user.major,
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.purple[700],
+                                ),
+                              ),
+                            ),
+                          ],
+                          if (user.showClassOf && user.classOf.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.orange[50],
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                "'${user.classOf}",
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                  color: Colors.orange[700],
+                                ),
                               ),
                             ),
                           ],

@@ -22,6 +22,9 @@ class User {
 
   // University affiliation
   final String universityId;
+  final String major;
+  final String classOf; // e.g. "2024"
+  final bool showClassOf; // whether to show classOf on profile
   // Location
   final double? latitude;
   final double? longitude;
@@ -55,6 +58,9 @@ class User {
     this.blockedUsers = const [],
     this.blockedBy = const [],
     this.universityId = '',
+    this.major = '',
+    this.classOf = '',
+    this.showClassOf = false,
     this.latitude,
     this.longitude,
     this.locationSharingEnabled = true,

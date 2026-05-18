@@ -107,6 +107,9 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       blockedUsers: List<String>.from(data['blockedUsers'] ?? []),
       blockedBy: List<String>.from(data['blockedBy'] ?? []),
       universityId: data['universityId'] ?? '',
+      major: data['major'] ?? '',
+      classOf: data['classOf'] ?? '',
+      showClassOf: data['showClassOf'] ?? false,
       latitude: data['latitude']?.toDouble(),
       longitude: data['longitude']?.toDouble(),
       locationSharingEnabled: data['locationSharingEnabled'] ?? true,
@@ -383,6 +386,9 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     String? email,
     List<String>? interests,
     String? universityId,
+    String? major,
+    String? classOf,
+    bool? showClassOf,
   }) async {
     final uid = currentUserId;
     if (uid == null) return;
@@ -401,6 +407,9 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     if (email != null) data['email'] = email;
     if (interests != null) data['interests'] = interests;
     if (universityId != null) data['universityId'] = universityId;
+    if (major != null) data['major'] = major;
+    if (classOf != null) data['classOf'] = classOf;
+    if (showClassOf != null) data['showClassOf'] = showClassOf;
 
     // We use a WriteBatch to update the user profile AND propagate changes to their posts
     final batch = _db.batch();
