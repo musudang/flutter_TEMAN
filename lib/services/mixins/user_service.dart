@@ -397,6 +397,13 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       if (isMutualFriend) continue;
       afterMutual++;
 
+      final ts = data['locationUpdatedAt'];
+      int? ageSeconds;
+      if (ts is Timestamp) {
+        ageSeconds = DateTime.now().difference(ts.toDate()).inSeconds;
+      }
+      debug['lastCheckedUser'] = userId;
+      debug['lastAge'] = ageSeconds ?? 'no timestamp';
       if (!_isUserPresent(data)) continue;
       afterPresence++;
 

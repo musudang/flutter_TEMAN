@@ -436,7 +436,8 @@ class _MapScreenState extends State<MapScreen> {
                   'mutual: ${_nearbyDebug['afterMutual']} → '
                   'present: ${_nearbyDebug['afterPresence']} → '
                   'latLng: ${_nearbyDebug['afterLatLng']} → '
-                  'dist: ${_nearbyDebug['afterDistance']}',
+                  'dist: ${_nearbyDebug['afterDistance']}\n'
+                  'lastAge: ${_nearbyDebug['lastAge']}s (limit:180)',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontFamily: 'monospace'),
                 ),
               ),
