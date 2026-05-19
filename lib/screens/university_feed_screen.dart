@@ -512,36 +512,16 @@ class _UniversityPostCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
 
-            // Author row
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: uniColor.withValues(alpha: 0.15),
-                  backgroundImage: !post.isAnonymous && post.authorAvatar.isNotEmpty
-                      ? NetworkImage(post.authorAvatar)
-                      : null,
-                  child: post.isAnonymous || post.authorAvatar.isEmpty
-                      ? Icon(Icons.person, size: 14, color: uniColor)
-                      : null,
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: Text(
-                    post.isAnonymous ? 'Anonymous' : post.authorName,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      color: Color(0xFF1A1F36),
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
-                  const SizedBox(width: 6),
-                  UniversityBadge(universityId: post.authorUniversityId!, fontSize: 9),
-                ],
-              ],
+            // Author row — real-time profile lookup for non-anonymous posts
+            _LiveAuthorRow(
+              authorId: post.authorId,
+              isAnonymous: post.isAnonymous,
+              fallbackName: post.authorName,
+              fallbackAvatar: post.authorAvatar,
+              authorUniversityId: post.authorUniversityId,
+              uniColor: uniColor,
+              avatarRadius: 14,
+              fontSize: 13,
             ),
             const SizedBox(height: 10),
 
@@ -832,71 +812,11 @@ class UniversityPostDetailSheet extends StatelessWidget {
                   controller: scrollController,
                   padding: const EdgeInsets.all(20),
                   children: [
-                    // Author row
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () {
-                            if (!post.isAnonymous) {
-                              Navigator.pop(context);
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => UserProfileScreen(
-                                      userId: post.authorId),
-                                ),
-                              );
-                            }
-                          },
-                          child: CircleAvatar(
-                            radius: 20,
-                            backgroundColor:
-                                uniColor.withValues(alpha: 0.15),
-                            backgroundImage: !post.isAnonymous && post.authorAvatar.isNotEmpty
-                                ? NetworkImage(post.authorAvatar)
-                                : null,
-                            child: post.isAnonymous || post.authorAvatar.isEmpty
-                                ? Icon(Icons.person,
-                                    size: 20, color: uniColor)
-                                : null,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      post.isAnonymous
-                                          ? 'Anonymous'
-                                          : post.authorName,
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 15,
-                                      ),
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                  if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
-                                    const SizedBox(width: 6),
-                                    UniversityBadge(universityId: post.authorUniversityId!),
-                                  ],
-                                ],
-                              ),
-                              Text(
-                                _timeAgo(post.timestamp),
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[500],
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                    // Author row — real-time profile
+                    _LiveAuthorDetailRow(
+                      post: post,
+                      uniColor: uniColor,
+                      timeAgo: _timeAgo(post.timestamp),
                     ),
                     const SizedBox(height: 20),
 
@@ -1769,6 +1689,207 @@ class _UniversityPostActionsRowState extends State<_UniversityPostActionsRow> {
             ],
           ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// Live author widgets — fetch real-time profile data
+// ─────────────────────────────────────────────────────
+
+class _LiveAuthorRow extends StatelessWidget {
+  final String authorId;
+  final bool isAnonymous;
+  final String fallbackName;
+  final String fallbackAvatar;
+  final String? authorUniversityId;
+  final Color uniColor;
+  final double avatarRadius;
+  final double fontSize;
+
+  const _LiveAuthorRow({
+    required this.authorId,
+    required this.isAnonymous,
+    required this.fallbackName,
+    required this.fallbackAvatar,
+    required this.authorUniversityId,
+    required this.uniColor,
+    this.avatarRadius = 14,
+    this.fontSize = 13,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (isAnonymous) {
+      return Row(
+        children: [
+          CircleAvatar(
+            radius: avatarRadius,
+            backgroundColor: uniColor.withValues(alpha: 0.15),
+            child: Icon(Icons.person, size: avatarRadius, color: uniColor),
+          ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              'Anonymous',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: fontSize,
+                color: const Color(0xFF1A1F36),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (authorUniversityId != null && authorUniversityId!.isNotEmpty) ...[
+            const SizedBox(width: 6),
+            UniversityBadge(universityId: authorUniversityId!, fontSize: 9),
+          ],
+        ],
+      );
+    }
+
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    return StreamBuilder<app_models.User?>(
+      stream: fs.getUserStream(authorId),
+      builder: (context, snap) {
+        final name = snap.data?.name ?? fallbackName;
+        final avatar = snap.data?.avatarUrl ?? fallbackAvatar;
+        return Row(
+          children: [
+            CircleAvatar(
+              radius: avatarRadius,
+              backgroundColor: uniColor.withValues(alpha: 0.15),
+              backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+              child: avatar.isEmpty
+                  ? Icon(Icons.person, size: avatarRadius, color: uniColor)
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                name,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: fontSize,
+                  color: const Color(0xFF1A1F36),
+                ),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (authorUniversityId != null && authorUniversityId!.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              UniversityBadge(universityId: authorUniversityId!, fontSize: 9),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _LiveAuthorDetailRow extends StatelessWidget {
+  final Post post;
+  final Color uniColor;
+  final String timeAgo;
+
+  const _LiveAuthorDetailRow({
+    required this.post,
+    required this.uniColor,
+    required this.timeAgo,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (post.isAnonymous) {
+      return Row(
+        children: [
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: uniColor.withValues(alpha: 0.15),
+            child: Icon(Icons.person, size: 20, color: uniColor),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Flexible(
+                      child: Text(
+                        'Anonymous',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                      const SizedBox(width: 6),
+                      UniversityBadge(universityId: post.authorUniversityId!),
+                    ],
+                  ],
+                ),
+                Text(timeAgo, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    final fs = Provider.of<FirestoreService>(context, listen: false);
+    return StreamBuilder<app_models.User?>(
+      stream: fs.getUserStream(post.authorId),
+      builder: (context, snap) {
+        final name = snap.data?.name ?? post.authorName;
+        final avatar = snap.data?.avatarUrl ?? post.authorAvatar;
+        return Row(
+          children: [
+            GestureDetector(
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => UserProfileScreen(userId: post.authorId),
+                  ),
+                );
+              },
+              child: CircleAvatar(
+                radius: 20,
+                backgroundColor: uniColor.withValues(alpha: 0.15),
+                backgroundImage: avatar.isNotEmpty ? NetworkImage(avatar) : null,
+                child: avatar.isEmpty
+                    ? Icon(Icons.person, size: 20, color: uniColor)
+                    : null,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          name,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        UniversityBadge(universityId: post.authorUniversityId!),
+                      ],
+                    ],
+                  ),
+                  Text(timeAgo, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
