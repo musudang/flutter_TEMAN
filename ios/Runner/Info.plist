@@ -55,6 +55,8 @@
 	<string>Camera access is needed to take photos for posts or update your profile picture.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is needed to attach images to posts or set your profile picture.</string>
+	<key>GIDClientID</key>
+	<string>1065473302917-79u22o8qi0rutmhlvc8qmhj4g94s9cgd.apps.googleusercontent.com</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
