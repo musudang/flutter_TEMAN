@@ -103,6 +103,7 @@ class AuthService extends ChangeNotifier {
       'instagramId': instagram,
       'interests': interests,
       'onboardingComplete': true,
+      'locationSharingEnabled': true,
       'updatedAt': FieldValue.serverTimestamp(),
     };
     if (avatarUrl != null) {
@@ -176,6 +177,7 @@ class AuthService extends ChangeNotifier {
         'personalInfo': personalInfo,
         'interests': interests,
         'universityId': universityId,
+        'locationSharingEnabled': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
 
@@ -334,6 +336,7 @@ class AuthService extends ChangeNotifier {
             'role': 'user',
             'age': null,
             'personalInfo': '',
+            'locationSharingEnabled': true,
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
@@ -674,6 +677,7 @@ class AuthService extends ChangeNotifier {
           'role': 'user',
           'age': null,
           'personalInfo': '',
+          'locationSharingEnabled': true,
           'createdAt': FieldValue.serverTimestamp(),
         });
       }
@@ -734,6 +738,7 @@ class AuthService extends ChangeNotifier {
         'age': null,
         'personalInfo': '',
         'interests': [],
+        'locationSharingEnabled': true,
         'createdAt': FieldValue.serverTimestamp(),
       });
     }
@@ -787,6 +792,7 @@ class AuthService extends ChangeNotifier {
             'age': null,
             'personalInfo': '',
             'signInMethod': 'apple',
+            'locationSharingEnabled': true,
             'createdAt': FieldValue.serverTimestamp(),
           });
         }
