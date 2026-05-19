@@ -343,31 +343,10 @@ mixin UserService on ChangeNotifier implements UserDependencies {
 
   /// Discover ALL TEMAN users within [radiusInMeters] (default 1km).
   /// Excludes the current user and blocked users.
-  Future<Map<String, dynamic>> getNearbyUsersWithDebug(double lat, double lng, {double radiusInMeters = 1000}) async {
-    final debug = <String, dynamic>{
-      'myLat': lat,
-      'myLng': lng,
-      'radius': radiusInMeters,
-      'queryCount': 0,
-      'afterExclude': 0,
-      'afterMutual': 0,
-      'afterPresence': 0,
-      'afterLatLng': 0,
-      'afterDistance': 0,
-      'earlyExit': '',
-    };
-
+  Future<List<app_models.User>> getNearbyUsers(double lat, double lng, {double radiusInMeters = 1000}) async {
     final currentUser = await getCurrentUser();
-    if (currentUser == null) {
-      debug['earlyExit'] = 'currentUser null';
-      return {'users': <app_models.User>[], 'debug': debug};
-    }
-    debug['myLocationSharing'] = currentUser.locationSharingEnabled;
-    debug['myPhoneVerified'] = currentUser.isPhoneVerified;
-    if (!currentUser.locationSharingEnabled) {
-      debug['earlyExit'] = 'locationSharingEnabled=false';
-      return {'users': <app_models.User>[], 'debug': debug};
-    }
+    if (currentUser == null) return [];
+    if (!currentUser.locationSharingEnabled) return [];
 
     final excludeIds = <String>{
       currentUser.id,
@@ -382,35 +361,21 @@ mixin UserService on ChangeNotifier implements UserDependencies {
         .where('locationSharingEnabled', isEqualTo: true)
         .get();
 
-    debug['queryCount'] = snapshot.docs.length;
-    int afterExclude = 0, afterMutual = 0, afterPresence = 0, afterLatLng = 0;
-
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final userId = data['id'] ?? doc.id;
 
       if (excludeIds.contains(userId)) continue;
-      afterExclude++;
 
       final isMutualFriend = currentUser.following.contains(userId) &&
           currentUser.followers.contains(userId);
       if (isMutualFriend) continue;
-      afterMutual++;
 
-      final ts = data['locationUpdatedAt'];
-      int? ageSeconds;
-      if (ts is Timestamp) {
-        ageSeconds = DateTime.now().difference(ts.toDate()).inSeconds;
-      }
-      debug['lastCheckedUser'] = userId;
-      debug['lastAge'] = ageSeconds ?? 'no timestamp';
       if (!_isUserPresent(data)) continue;
-      afterPresence++;
 
       final userLat = data['latitude']?.toDouble();
       final userLng = data['longitude']?.toDouble();
       if (userLat == null || userLng == null) continue;
-      afterLatLng++;
 
       final distance = Geolocator.distanceBetween(lat, lng, userLat, userLng);
       if (distance <= radiusInMeters) {
@@ -418,18 +383,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       }
     }
 
-    debug['afterExclude'] = afterExclude;
-    debug['afterMutual'] = afterMutual;
-    debug['afterPresence'] = afterPresence;
-    debug['afterLatLng'] = afterLatLng;
-    debug['afterDistance'] = nearbyUsers.length;
-
-    return {'users': nearbyUsers, 'debug': debug};
-  }
-
-  Future<List<app_models.User>> getNearbyUsers(double lat, double lng, {double radiusInMeters = 1000}) async {
-    final result = await getNearbyUsersWithDebug(lat, lng, radiusInMeters: radiusInMeters);
-    return result['users'] as List<app_models.User>;
+    return nearbyUsers;
   }
 
   Future<void> updateUserProfile({

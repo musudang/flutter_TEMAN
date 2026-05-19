@@ -36,7 +36,6 @@ class _MapScreenState extends State<MapScreen> {
   List<app_models.User> _mutualFollowers = [];
   /// My own `mapFriends` array. Mirrors what's in Firestore on `users/{me}`.
   Set<String> _myMapFriendIds = <String>{};
-  Map<String, dynamic> _nearbyDebug = {};
   bool _locationSharingEnabled = true;
   bool _hideFromFriends = false;
   bool _panelOpen = false;
@@ -185,7 +184,7 @@ class _MapScreenState extends State<MapScreen> {
         _currentPosition!.latitude,
         _currentPosition!.longitude,
       ),
-      firestoreService.getNearbyUsersWithDebug(
+      firestoreService.getNearbyUsers(
         _currentPosition!.latitude,
         _currentPosition!.longitude,
         radiusInMeters: 1000,
@@ -193,18 +192,15 @@ class _MapScreenState extends State<MapScreen> {
       firestoreService.getMutualFollowerUsers(),
     ]);
 
-    final nearbyResult = results[1] as Map<String, dynamic>;
-
     // Also re-pull my own mapFriends array since I may have toggled
     // someone from the Friends tab. Cheap single-doc read.
     final me = await firestoreService.getCurrentUser();
 
     if (mounted) {
       setState(() {
-        _nearbyFriends = results[0] as List<app_models.User>;
-        _nearbyUsers = nearbyResult['users'] as List<app_models.User>;
-        _nearbyDebug = nearbyResult['debug'] as Map<String, dynamic>;
-        _mutualFollowers = results[2] as List<app_models.User>;
+        _nearbyFriends = results[0];
+        _nearbyUsers = results[1];
+        _mutualFollowers = results[2];
         if (me != null) {
           _myMapFriendIds = me.mapFriends.toSet();
         }
@@ -406,42 +402,15 @@ class _MapScreenState extends State<MapScreen> {
   Widget _buildNearbyTab() {
     final nearbyOnly = _nearbyUsers.where((u) => !_isFriend(u.id)).toList();
     if (nearbyOnly.isEmpty) {
-      return Center(
+      return const Center(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.explore_off, size: 40, color: Colors.grey),
-            const SizedBox(height: 8),
-            const Text('No nearby people found.\nTry again later!',
+            Icon(Icons.explore_off, size: 40, color: Colors.grey),
+            SizedBox(height: 8),
+            Text('No nearby people found.\nTry again later!',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey, fontSize: 13)),
-            if (_nearbyDebug.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Container(
-                margin: const EdgeInsets.symmetric(horizontal: 16),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Text(
-                  'DEBUG:\n'
-                  'GPS: ${(_nearbyDebug['myLat'] as double?)?.toStringAsFixed(4)}, '
-                  '${(_nearbyDebug['myLng'] as double?)?.toStringAsFixed(4)}\n'
-                  'locSharing: ${_nearbyDebug['myLocationSharing']}\n'
-                  'phoneVerified: ${_nearbyDebug['myPhoneVerified']}\n'
-                  'earlyExit: ${_nearbyDebug['earlyExit']}\n'
-                  'query: ${_nearbyDebug['queryCount']} → '
-                  'excl: ${_nearbyDebug['afterExclude']} → '
-                  'mutual: ${_nearbyDebug['afterMutual']} → '
-                  'present: ${_nearbyDebug['afterPresence']} → '
-                  'latLng: ${_nearbyDebug['afterLatLng']} → '
-                  'dist: ${_nearbyDebug['afterDistance']}\n'
-                  'lastAge: ${_nearbyDebug['lastAge']}s (limit:180)',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontFamily: 'monospace'),
-                ),
-              ),
-            ],
           ],
         ),
       );

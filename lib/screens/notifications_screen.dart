@@ -1,12 +1,16 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import '../services/firestore_service.dart';
 import '../models/notification_model.dart';
+import '../models/post_model.dart';
+import '../constants/university_constants.dart';
 import 'post_detail_screen.dart';
 import 'chat_screen.dart';
 import 'user_profile_screen.dart';
 import 'meetup_detail_screen.dart';
+import 'university_feed_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
@@ -221,6 +225,16 @@ class NotificationsScreen extends StatelessWidget {
           ),
         );
         break;
+      case 'uni_like':
+      case 'uni_comment':
+      case 'uni_reply':
+        final uniId = notification.uniId;
+        if (uniId != null && uniId.isNotEmpty) {
+          final uni = UniversityConstants.getById(uniId);
+          final uniColor = uni != null ? Color(uni.colorValue) : const Color(0xFF1565C0);
+          _openUniversityPostDetail(context, uniId, notification.relatedId, uniColor);
+        }
+        break;
       case 'message':
         Navigator.push(
           context,
@@ -241,6 +255,8 @@ class NotificationsScreen extends StatelessWidget {
         );
         break;
       case 'meetup_join':
+      case 'meetup_comment':
+      case 'meetup_reply':
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -248,6 +264,49 @@ class NotificationsScreen extends StatelessWidget {
           ),
         );
         break;
+    }
+  }
+
+  void _openUniversityPostDetail(
+    BuildContext context,
+    String uniId,
+    String postId,
+    Color uniColor,
+  ) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('universities')
+          .doc(uniId)
+          .collection('posts')
+          .doc(postId)
+          .get();
+      if (!doc.exists) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('This post has been deleted.')),
+          );
+        }
+        return;
+      }
+      final post = Post.fromFirestore(doc);
+      if (context.mounted) {
+        showModalBottomSheet(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (_) => UniversityPostDetailSheet(
+            post: post,
+            uniId: uniId,
+            uniColor: uniColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open post.')),
+        );
+      }
     }
   }
 }
@@ -388,13 +447,18 @@ class _NotificationTile extends StatelessWidget {
       case 'message':
         return Icons.chat_bubble_outline_rounded;
       case 'meetup_join':
+      case 'meetup_comment':
+      case 'meetup_reply':
         return Icons.group_outlined;
       case 'job':
         return Icons.work_outline_rounded;
       case 'comment':
       case 'reply':
+      case 'uni_comment':
+      case 'uni_reply':
         return Icons.mode_comment_outlined;
       case 'like':
+      case 'uni_like':
         return Icons.favorite_outline_rounded;
       case 'follow':
         return Icons.person_add_alt_1_outlined;
@@ -408,13 +472,18 @@ class _NotificationTile extends StatelessWidget {
       case 'message':
         return const Color(0xFF3B82F6); // Blue
       case 'meetup_join':
+      case 'meetup_comment':
+      case 'meetup_reply':
         return const Color(0xFF10B981); // Emerald
       case 'job':
         return const Color(0xFFF59E0B); // Amber
       case 'comment':
       case 'reply':
+      case 'uni_comment':
+      case 'uni_reply':
         return const Color(0xFF8B5CF6); // Violet
       case 'like':
+      case 'uni_like':
         return const Color(0xFFEF4444); // Red
       case 'follow':
         return const Color(0xFF06B6D4); // Cyan

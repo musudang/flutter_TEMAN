@@ -156,17 +156,23 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
         .doc(postId);
 
     try {
+      String? postAuthorId;
+      bool wasLiked = false;
+
       await _uniDb.runTransaction((transaction) async {
         final snapshot = await transaction.get(docRef);
         if (!snapshot.exists) return;
 
         final data = snapshot.data() as Map<String, dynamic>;
         final likedBy = List<String>.from(data['likedBy'] ?? []);
+        postAuthorId = data['authorId'] as String?;
 
         if (likedBy.contains(uid)) {
           likedBy.remove(uid);
+          wasLiked = false;
         } else {
           likedBy.add(uid);
+          wasLiked = true;
         }
 
         transaction.update(docRef, {
@@ -174,6 +180,26 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
           'likes': likedBy.length,
         });
       });
+
+      if (wasLiked && postAuthorId != null && postAuthorId != uid) {
+        final userData = await getCurrentUser();
+        final likerName = userData?.name ?? 'Someone';
+        final notifDb = FirebaseFirestore.instance;
+        await notifDb
+            .collection('users')
+            .doc(postAuthorId)
+            .collection('notifications')
+            .add({
+          'userId': postAuthorId,
+          'title': 'New Like',
+          'body': '$likerName liked your university post!',
+          'type': 'uni_like',
+          'relatedId': postId,
+          'uniId': uniId,
+          'timestamp': FieldValue.serverTimestamp(),
+          'isRead': false,
+        });
+      }
     } catch (e) {
       debugPrint("Error toggling university post like: $e");
     }
@@ -381,12 +407,13 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
               .collection('notifications')
               .add({
             'userId': postAuthorId,
-            'title': 'New Comment 💬',
+            'title': 'New Comment',
             'body': isAnonymous
-                ? 'Someone commented anonymously on your post.'
-                : '${userData?.name ?? "Someone"} commented on your post.',
-            'type': 'comment',
+                ? 'Someone commented anonymously on your university post.'
+                : '${userData?.name ?? "Someone"} commented on your university post.',
+            'type': 'uni_comment',
             'relatedId': postId,
+            'uniId': uniId,
             'timestamp': FieldValue.serverTimestamp(),
             'isRead': false,
           });
@@ -405,12 +432,13 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
                 .collection('notifications')
                 .add({
               'userId': parentAuthorId,
-              'title': 'New Reply 💬',
+              'title': 'New Reply',
               'body': isAnonymous
                   ? 'Someone replied to your comment anonymously.'
                   : '${userData?.name ?? "Someone"} replied to your comment.',
-              'type': 'reply',
+              'type': 'uni_reply',
               'relatedId': postId,
+              'uniId': uniId,
               'timestamp': FieldValue.serverTimestamp(),
               'isRead': false,
             });

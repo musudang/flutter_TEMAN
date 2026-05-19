@@ -223,7 +223,7 @@ mixin MeetupService on ChangeNotifier {
               .collection('notifications')
               .add({
                 'userId': hostId,
-                'title': 'New Member ?��',
+                'title': 'New Member',
                 'body': '$userName joined your meetup!',
                 'type': 'meetup_join',
                 'relatedId': meetupId,
@@ -816,10 +816,10 @@ mixin MeetupService on ChangeNotifier {
               .collection('notifications')
               .add({
                 'userId': hostId,
-                'title': 'New Meetup Comment ?��',
+                'title': 'New Meetup Comment',
                 'body':
                     '${userData?['name'] ?? "Someone"} commented on your meetup.',
-                'type': 'comment',
+                'type': 'meetup_comment',
                 'relatedId': meetupId,
                 'timestamp': FieldValue.serverTimestamp(),
                 'isRead': false,
@@ -846,10 +846,10 @@ mixin MeetupService on ChangeNotifier {
                 .collection('notifications')
                 .add({
               'userId': parentAuthorId,
-              'title': 'New Reply 💬',
+              'title': 'New Reply',
               'body':
                   '${userData?['name'] ?? "Someone"} replied to your comment.',
-              'type': 'reply',
+              'type': 'meetup_reply',
               'relatedId': meetupId,
               'timestamp': FieldValue.serverTimestamp(),
               'isRead': false,

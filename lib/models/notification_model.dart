@@ -5,8 +5,9 @@ class NotificationModel {
   final String userId;
   final String title;
   final String body;
-  final String type; // 'message', 'comment', 'system', 'meetup_join'
+  final String type; // 'message', 'comment', 'system', 'meetup_join', 'uni_comment', 'uni_reply', 'uni_like'
   final String relatedId; // ID of the post, chat, or meetup
+  final String? uniId; // University ID for university board notifications
   final bool isRead;
   final DateTime timestamp;
 
@@ -17,6 +18,7 @@ class NotificationModel {
     required this.body,
     required this.type,
     required this.relatedId,
+    this.uniId,
     required this.isRead,
     required this.timestamp,
   });
@@ -30,6 +32,7 @@ class NotificationModel {
       body: data['body'] ?? '',
       type: data['type'] ?? 'system',
       relatedId: data['relatedId'] ?? '',
+      uniId: data['uniId'] as String?,
       isRead: data['isRead'] ?? false,
       timestamp: (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -42,6 +45,7 @@ class NotificationModel {
       'body': body,
       'type': type,
       'relatedId': relatedId,
+      if (uniId != null) 'uniId': uniId,
       'isRead': isRead,
       'timestamp': Timestamp.fromDate(timestamp),
     };
