@@ -143,6 +143,24 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     });
   }
 
+  Future<void> ensureLocationSharingField() async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      if (doc.exists) {
+        final data = doc.data();
+        if (data != null && !data.containsKey('locationSharingEnabled')) {
+          await _db.collection('users').doc(uid).update({
+            'locationSharingEnabled': true,
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error ensuring locationSharingEnabled field: $e');
+    }
+  }
+
   Future<void> updateUserLocation(double lat, double lng) async {
     final uid = currentUserId;
     if (uid == null) return;
@@ -325,10 +343,31 @@ mixin UserService on ChangeNotifier implements UserDependencies {
 
   /// Discover ALL TEMAN users within [radiusInMeters] (default 1km).
   /// Excludes the current user and blocked users.
-  Future<List<app_models.User>> getNearbyUsers(double lat, double lng, {double radiusInMeters = 1000}) async {
+  Future<Map<String, dynamic>> getNearbyUsersWithDebug(double lat, double lng, {double radiusInMeters = 1000}) async {
+    final debug = <String, dynamic>{
+      'myLat': lat,
+      'myLng': lng,
+      'radius': radiusInMeters,
+      'queryCount': 0,
+      'afterExclude': 0,
+      'afterMutual': 0,
+      'afterPresence': 0,
+      'afterLatLng': 0,
+      'afterDistance': 0,
+      'earlyExit': '',
+    };
+
     final currentUser = await getCurrentUser();
-    if (currentUser == null) return [];
-    if (!currentUser.locationSharingEnabled) return [];
+    if (currentUser == null) {
+      debug['earlyExit'] = 'currentUser null';
+      return {'users': <app_models.User>[], 'debug': debug};
+    }
+    debug['myLocationSharing'] = currentUser.locationSharingEnabled;
+    debug['myPhoneVerified'] = currentUser.isPhoneVerified;
+    if (!currentUser.locationSharingEnabled) {
+      debug['earlyExit'] = 'locationSharingEnabled=false';
+      return {'users': <app_models.User>[], 'debug': debug};
+    }
 
     final excludeIds = <String>{
       currentUser.id,
@@ -338,33 +377,33 @@ mixin UserService on ChangeNotifier implements UserDependencies {
 
     List<app_models.User> nearbyUsers = [];
 
-    // Query users who have location sharing enabled
     final snapshot = await _db
         .collection('users')
         .where('locationSharingEnabled', isEqualTo: true)
         .get();
 
+    debug['queryCount'] = snapshot.docs.length;
+    int afterExclude = 0, afterMutual = 0, afterPresence = 0, afterLatLng = 0;
+
     for (var doc in snapshot.docs) {
       final data = doc.data();
       final userId = data['id'] ?? doc.id;
 
-      // Skip self and blocked
       if (excludeIds.contains(userId)) continue;
+      afterExclude++;
 
-      // Mutual followers belong in the Friends tab, NEVER in Nearby.
-      // One-way follow does NOT count as mutual (and stays in Nearby).
       final isMutualFriend = currentUser.following.contains(userId) &&
           currentUser.followers.contains(userId);
       if (isMutualFriend) continue;
+      afterMutual++;
 
-      // PRESENCE: Skip stale users (not pinging within freshness window).
-      // Without this, users who closed the app or lost connection would
-      // remain on the map indefinitely with their last known position.
       if (!_isUserPresent(data)) continue;
+      afterPresence++;
 
       final userLat = data['latitude']?.toDouble();
       final userLng = data['longitude']?.toDouble();
       if (userLat == null || userLng == null) continue;
+      afterLatLng++;
 
       final distance = Geolocator.distanceBetween(lat, lng, userLat, userLng);
       if (distance <= radiusInMeters) {
@@ -372,7 +411,18 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       }
     }
 
-    return nearbyUsers;
+    debug['afterExclude'] = afterExclude;
+    debug['afterMutual'] = afterMutual;
+    debug['afterPresence'] = afterPresence;
+    debug['afterLatLng'] = afterLatLng;
+    debug['afterDistance'] = nearbyUsers.length;
+
+    return {'users': nearbyUsers, 'debug': debug};
+  }
+
+  Future<List<app_models.User>> getNearbyUsers(double lat, double lng, {double radiusInMeters = 1000}) async {
+    final result = await getNearbyUsersWithDebug(lat, lng, radiusInMeters: radiusInMeters);
+    return result['users'] as List<app_models.User>;
   }
 
   Future<void> updateUserProfile({
