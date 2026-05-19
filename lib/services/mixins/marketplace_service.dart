@@ -11,6 +11,13 @@ mixin MarketplaceService on ChangeNotifier {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
+  Future<bool> _isAdminCheck() async {
+    final uid = currentUserId;
+    if (uid == null) return false;
+    final doc = await _db.collection('users').doc(uid).get();
+    return doc.data()?['role'] == 'admin';
+  }
+
   Stream<List<MarketplaceItem>> getMarketplaceItems({
     int limit = 20,
     List<String> hiddenUsers = const [],
@@ -103,8 +110,8 @@ mixin MarketplaceService on ChangeNotifier {
     if (!doc.exists) return;
 
     final docData = doc.data()!;
-    if (docData['sellerId'] == uid) {
-      // Delete images from Storage
+    final admin = await _isAdminCheck();
+    if (docData['sellerId'] == uid || admin) {
       final imageUrls = List<String>.from(docData['imageUrls'] ?? []);
       for (final url in imageUrls) {
         try {

@@ -67,7 +67,7 @@ class _MarketplaceDetailScreenState extends State<MarketplaceDetailScreen> {
       appBar: AppBar(
         title: const Text('Item Details'),
         actions: [
-          if (isOwnListing)
+          if (isOwnListing || firestoreService.isAdminCached)
             PopupMenuButton<String>(
               onSelected: (value) async {
                 if (value == 'edit') {
@@ -108,10 +108,11 @@ class _MarketplaceDetailScreenState extends State<MarketplaceDetailScreen> {
                 }
               },
               itemBuilder: (ctx) => [
-                const PopupMenuItem(value: 'edit', child: Text('Edit Item')),
+                if (isOwnListing)
+                  const PopupMenuItem(value: 'edit', child: Text('Edit Item')),
                 const PopupMenuItem(
                   value: 'delete',
-                  child: Text('Delete Item'),
+                  child: Text('Delete Item', style: TextStyle(color: Colors.red)),
                 ),
               ],
             ),

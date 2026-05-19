@@ -953,7 +953,8 @@ class _FeedScreenState extends State<FeedScreen> {
                       },
                       itemBuilder: (ctx) {
                         final isOwner = post.authorId == uid;
-                        if (isOwner) {
+                        final canDelete = isOwner || firestoreService.isAdminCached;
+                        if (canDelete) {
                           return [
                             const PopupMenuItem(
                               value: 'delete',
@@ -962,6 +963,17 @@ class _FeedScreenState extends State<FeedScreen> {
                                 style: TextStyle(color: Colors.red),
                               ),
                             ),
+                            if (!isOwner)
+                              const PopupMenuItem(
+                                value: 'report',
+                                child: Row(
+                                  children: [
+                                    Icon(Icons.flag_outlined, color: Colors.orange, size: 20),
+                                    SizedBox(width: 8),
+                                    Text('Report Post'),
+                                  ],
+                                ),
+                              ),
                           ];
                         } else {
                           return [

@@ -281,7 +281,7 @@ class PostDetailScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (isOwner)
+                  if (isOwner || fs.isAdminCached)
                     PopupMenuButton<String>(
                       icon: const Icon(Icons.more_horiz, color: Colors.grey),
                       onSelected: (value) async {
@@ -333,10 +333,11 @@ class PostDetailScreen extends StatelessWidget {
                         }
                       },
                       itemBuilder: (ctx) => [
-                        const PopupMenuItem(
-                          value: 'edit',
-                          child: Text('Edit Post'),
-                        ),
+                        if (isOwner)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit Post'),
+                          ),
                         const PopupMenuItem(
                           value: 'delete',
                           child: Text(
@@ -634,7 +635,7 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                   _handleReply(comment.id, comment.content, comment.displayName);
                 },
               ),
-              if (isMyComment)
+              if (isMyComment || widget.fs.isAdminCached)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
                   title: const Text(

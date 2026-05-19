@@ -9,6 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/meetup_model.dart';
 import '../services/firestore_service.dart';
 import '../utils/image_compress_util.dart';
+import '../utils/verification_helper.dart';
 
 class CreateMeetupScreen extends StatefulWidget {
   final Meetup? editingMeetup;
@@ -117,7 +118,21 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
   bool _isSubmitting = false;
 
   Future<void> _submitForm() async {
+    debugPrint('[MEETUP_DEBUG] _submitForm called');
     if (_formKey.currentState!.validate()) {
+      debugPrint('[MEETUP_DEBUG] form validated, editingMeetup=${widget.editingMeetup == null ? "null" : "exists"}');
+      if (widget.editingMeetup == null) {
+        debugPrint('[MEETUP_DEBUG] calling checkPhoneVerification...');
+        final verified = await checkPhoneVerification(
+          context,
+          title: 'Phone Verification Required',
+          description:
+              'For community safety, please verify your phone number before creating a meetup.',
+        );
+        debugPrint('[MEETUP_DEBUG] checkPhoneVerification returned: $verified');
+        if (!verified || !mounted) return;
+      }
+
       setState(() => _isSubmitting = true);
 
       try {
@@ -261,10 +276,26 @@ class _CreateMeetupScreenState extends State<CreateMeetupScreen> {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Error creating meetup: $e')));
-          setState(() => _isSubmitting = false);
+          final errStr = e.toString().toLowerCase();
+          if (errStr.contains('permission-denied') ||
+              errStr.contains('permission_denied')) {
+            setState(() => _isSubmitting = false);
+            final verified = await checkPhoneVerification(
+              context,
+              title: 'Phone Verification Required',
+              description:
+                  'Please verify your phone number before creating a meetup.',
+            );
+            if (verified && mounted) {
+              _submitForm();
+            }
+          } else {
+            debugPrint('[MEETUP_DEBUG] non-permission error: $e');
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error creating meetup (v2): $e')),
+            );
+            setState(() => _isSubmitting = false);
+          }
         }
       }
     }

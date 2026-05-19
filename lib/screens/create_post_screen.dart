@@ -12,6 +12,7 @@ import '../models/meetup_model.dart';
 import '../models/user_model.dart' as app_models;
 import '../models/post_model.dart';
 import '../utils/image_compress_util.dart';
+import '../utils/verification_helper.dart';
 
 class CreatePostScreen extends StatefulWidget {
   final String? initialPostText;
@@ -225,6 +226,19 @@ class _CreatePostScreenState extends State<CreatePostScreen> {
         });
       } else {
         if (_selectedCategory == 'Meetup') {
+          // Phone verification required for meetup creation (mirrors CreateMeetupScreen)
+          if (widget.editingItem == null) {
+            final verified = await checkPhoneVerification(
+              context,
+              title: 'Phone Verification Required',
+              description:
+                  'For community safety, please verify your phone number before creating a meetup.',
+            );
+            if (!verified || !mounted) {
+              setState(() => _isSubmitting = false);
+              return;
+            }
+          }
           await _submitMeetup(firestoreService, user, finalImageUrls);
         } else {
           // General post

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import '../services/firestore_service.dart';
 import '../widgets/phone_verification_dialog.dart';
 import '../screens/phone_auth_screen.dart';
-import 'package:provider/provider.dart';
 
 /// Checks whether the current user has a verified phone number.
 /// If not, shows the JIT [PhoneVerificationDialog].
@@ -21,28 +19,32 @@ Future<bool> checkPhoneVerification(
   String? title,
   String? description,
 }) async {
-  final firestoreService =
-      Provider.of<FirestoreService>(context, listen: false);
-  final currentUser = await firestoreService.getCurrentUser();
+  debugPrint('[VERIFY_DEBUG] checkPhoneVerification called');
+  try {
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    debugPrint('[VERIFY_DEBUG] currentUser uid=${firebaseUser?.uid}');
+    final providers = firebaseUser?.providerData.map((p) => p.providerId).toList();
+    debugPrint('[VERIFY_DEBUG] providers=$providers');
+    final hasPhoneProvider = firebaseUser?.providerData
+        .any((info) => info.providerId == 'phone') ?? false;
 
-  // Check both Firestore doc AND Firebase Auth provider list.
-  // The Firestore security rules check request.auth.token.phone_number,
-  // which requires the phone provider to be linked in Firebase Auth.
-  final firebaseUser = FirebaseAuth.instance.currentUser;
-  final hasPhoneProvider = firebaseUser?.providerData
-      .any((info) => info.providerId == 'phone') ?? false;
-
-  // Already verified — let them through immediately.
-  if (currentUser != null && currentUser.isPhoneVerified && hasPhoneProvider) {
-    return true;
+    debugPrint('[VERIFY_DEBUG] hasPhoneProvider=$hasPhoneProvider');
+    if (hasPhoneProvider) {
+      return true;
+    }
+  } catch (e) {
+    debugPrint('[VERIFY_DEBUG] error checking provider: $e');
   }
 
-  if (!context.mounted) return false;
+  if (!context.mounted) {
+    debugPrint('[VERIFY_DEBUG] context not mounted, returning false');
+    return false;
+  }
 
-  // Show the JIT dialog
+  debugPrint('[VERIFY_DEBUG] showing PhoneVerificationDialog...');
   final shouldVerify = await PhoneVerificationDialog.show(
     context,
-    title: title,
+    title: title ?? 'Phone Verification Required',
     description: description,
   );
 
@@ -56,6 +58,19 @@ Future<bool> checkPhoneVerification(
     ),
   );
 
-  // result == true means verification completed successfully
-  return result == true;
+  if (result == true) {
+    // Force-refresh the ID token so Firestore security rules see the
+    // updated phone_number claim immediately. Without this the stale
+    // token still has phone_number=null and writes guarded by
+    // isPhoneVerified() get permission-denied.
+    try {
+      await FirebaseAuth.instance.currentUser?.getIdToken(true);
+      debugPrint('[VERIFY_DEBUG] ID token force-refreshed after phone link');
+    } catch (e) {
+      debugPrint('[VERIFY_DEBUG] token refresh error (non-fatal): $e');
+    }
+    return true;
+  }
+
+  return false;
 }

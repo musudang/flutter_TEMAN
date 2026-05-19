@@ -16,6 +16,11 @@ mixin QnaService on ChangeNotifier implements QnaDependencies {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
+  Future<bool> _isAdminCheck() async {
+    final user = await getCurrentUser();
+    return user?.isAdmin ?? false;
+  }
+
   Stream<List<Question>> getQuestions({
     int limit = 20,
     List<String> hiddenUsers = const [],
@@ -84,7 +89,8 @@ mixin QnaService on ChangeNotifier implements QnaDependencies {
     if (!doc.exists) return;
 
     final docData = doc.data()!;
-    if (docData['authorId'] == uid) {
+    final admin = await _isAdminCheck();
+    if (docData['authorId'] == uid || admin) {
       await _db.collection('questions').doc(questionId).delete();
     } else {
       throw Exception('Permission denied');

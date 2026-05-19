@@ -11,6 +11,13 @@ mixin JobService on ChangeNotifier {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
+  Future<bool> _isAdminCheck() async {
+    final uid = currentUserId;
+    if (uid == null) return false;
+    final doc = await _db.collection('users').doc(uid).get();
+    return doc.data()?['role'] == 'admin';
+  }
+
   Stream<List<Job>> getJobs({
     int limit = 20,
     List<String> hiddenUsers = const [],
@@ -89,8 +96,8 @@ mixin JobService on ChangeNotifier {
     if (!doc.exists) return;
 
     final docData = doc.data()!;
-    if (docData['authorId'] == uid) {
-      // Delete images from Storage
+    final admin = await _isAdminCheck();
+    if (docData['authorId'] == uid || admin) {
       final imageUrls = List<String>.from(docData['imageUrls'] ?? []);
       await _deleteStorageFiles(imageUrls);
 

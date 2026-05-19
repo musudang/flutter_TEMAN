@@ -71,7 +71,7 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
       appBar: AppBar(
         title: const Text('Q&A Detail'),
         actions: [
-          if (isOwner)
+          if (isOwner || firestoreService.isAdminCached)
             PopupMenuButton<String>(
               onSelected: (value) async {
                 if (value == 'edit') {
@@ -110,10 +110,11 @@ class _QnaDetailScreenState extends State<QnaDetailScreen> {
                 }
               },
               itemBuilder: (ctx) => [
-                const PopupMenuItem(
-                  value: 'edit',
-                  child: Text('Edit Question'),
-                ),
+                if (isOwner)
+                  const PopupMenuItem(
+                    value: 'edit',
+                    child: Text('Edit Question'),
+                  ),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Text(

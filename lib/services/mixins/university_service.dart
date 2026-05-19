@@ -27,6 +27,11 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
 
   String? get currentUserId => FirebaseAuth.instance.currentUser?.uid;
 
+  Future<bool> _isAdminCheck() async {
+    final user = await getCurrentUser();
+    return user?.isAdmin ?? false;
+  }
+
   // ──────────────────────────────────────────────
   // University Posts (General + News)
   // ──────────────────────────────────────────────
@@ -126,7 +131,8 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     if (!doc.exists) return;
 
     final data = doc.data()!;
-    if (data['authorId'] == uid) {
+    final admin = await _isAdminCheck();
+    if (data['authorId'] == uid || admin) {
       await _uniDb
           .collection('universities')
           .doc(uniId)
@@ -447,12 +453,13 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
           .get();
       final hasReplies = replies.docs.isNotEmpty;
 
+      final admin = await _isAdminCheck();
       await _uniDb.runTransaction((transaction) async {
         final commentRef = commentsRef.doc(commentId);
         final snap = await transaction.get(commentRef);
         if (!snap.exists) return;
         final data = snap.data();
-        if (data?['authorId'] != user.uid) {
+        if (data?['authorId'] != user.uid && !admin) {
           throw Exception('Only the comment author can delete');
         }
 
@@ -788,7 +795,8 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     if (!doc.exists) return;
 
     final data = doc.data()!;
-    if (data['authorId'] == uid) {
+    final admin = await _isAdminCheck();
+    if (data['authorId'] == uid || admin) {
       await _uniDb
           .collection('universities')
           .doc(uniId)
@@ -964,10 +972,11 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
         .doc(questionId);
 
     try {
+      final admin = await _isAdminCheck();
       await _uniDb.runTransaction((transaction) async {
         final snap = await transaction.get(answerRef);
         if (!snap.exists) return;
-        if (snap.data()?['authorId'] != uid) {
+        if (snap.data()?['authorId'] != uid && !admin) {
           throw Exception('Only the answer author can delete');
         }
         transaction.delete(answerRef);

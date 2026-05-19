@@ -46,15 +46,15 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>내 주변의 친구나 모임을 지도에서 확인하기 위해 위치 권한이 필요합니다.</string>
+	<string>Location access is needed to find nearby friends and meetups on the map.</string>
 	<key>NSLocationAlwaysUsageDescription</key>
-	<string>내 주변의 친구나 모임을 지도에서 확인하기 위해 위치 권한이 필요합니다.</string>
+	<string>Location access is needed to find nearby friends and meetups on the map.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>내 주변의 친구나 모임을 지도에서 확인하기 위해 위치 권한이 필요합니다.</string>
+	<string>Location access is needed to find nearby friends and meetups on the map.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>게시글에 첨부할 사진을 찍거나 프로필 사진을 변경하기 위해 카메라 권한이 필요합니다.</string>
+	<string>Camera access is needed to take photos for posts or update your profile picture.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>게시글 첨부 및 프로필 사진 등록을 위해 사진첩 접근 권한이 필요합니다.</string>
+	<string>Photo library access is needed to attach images to posts or set your profile picture.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

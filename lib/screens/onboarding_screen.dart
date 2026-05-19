@@ -45,6 +45,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
 
+  bool _isAppleSignIn = false;
+  late final Future<void> _appleCheckFuture;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +61,19 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _pageAnim, curve: Curves.easeOut));
     _pageAnim.forward();
+    _appleCheckFuture = _checkAppleSignIn();
+  }
+
+  Future<void> _checkAppleSignIn() async {
+    final auth = Provider.of<AuthService>(context, listen: false);
+    final data = await auth.getUserOnboardingData();
+    if (data != null && data['signInMethod'] == 'apple' && mounted) {
+      final appleName = data['name'] as String? ?? '';
+      setState(() {
+        _isAppleSignIn = true;
+        _name = appleName.isNotEmpty ? appleName : 'Apple User';
+      });
+    }
   }
 
   @override
@@ -137,7 +153,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   Widget _buildStep() {
     switch (_step) {
       case 0:
-        return _CommunityRulesStep(onAgree: _nextStep);
+        return _CommunityRulesStep(onAgree: () async {
+          await _appleCheckFuture;
+          if (_isAppleSignIn) {
+            await _pageAnim.reverse();
+            setState(() => _step = 2);
+            _pageAnim.forward();
+          } else {
+            _nextStep();
+          }
+        });
       case 1:
         return _NameStep(
           onNext: (name) {
@@ -152,7 +177,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             _birthday = birthday;
             _nextStep();
           },
-          onBack: _prevStep,
+          onBack: () async {
+            if (_isAppleSignIn) {
+              await _pageAnim.reverse();
+              setState(() => _step = 0);
+              _pageAnim.forward();
+            } else {
+              _prevStep();
+            }
+          },
         );
       case 3:
         return _GenderStep(

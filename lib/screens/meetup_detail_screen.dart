@@ -74,8 +74,8 @@ class MeetupDetailScreen extends StatelessWidget {
                   tooltip: 'Report Meetup',
                   onPressed: () => showReportDialog(context, meetup.id, 'meetup'),
                 ),
-              // Host Delete Option
-              if (currentUserId == meetup.host.id)
+              // Host / Admin Delete Option
+              if (currentUserId == meetup.host.id || firestoreService.isAdminCached)
                 PopupMenuButton<String>(
                   icon: const Icon(Icons.more_vert),
                   onSelected: (value) async {
@@ -135,10 +135,11 @@ class MeetupDetailScreen extends StatelessWidget {
                     }
                   },
                   itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'edit',
-                      child: Text('Edit Meetup'),
-                    ),
+                    if (currentUserId == meetup.host.id)
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit Meetup'),
+                      ),
                     const PopupMenuItem(
                       value: 'delete',
                       child: Text(

@@ -45,6 +45,23 @@ class AuthService extends ChangeNotifier {
   // Get Current User
   AuthUser? get currentUser => _toAuthUser(_auth.currentUser);
 
+  Future<Map<String, dynamic>?> getUserOnboardingData() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return null;
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      if (!doc.exists) return null;
+      final data = doc.data();
+      if (data == null) return null;
+      return {
+        'name': data['name'] as String? ?? '',
+        'signInMethod': data['signInMethod'] as String? ?? '',
+      };
+    } catch (_) {
+      return null;
+    }
+  }
+
   // Check if the current user needs to complete onboarding
   // Returns true if the user's Firestore document is missing required fields
   Future<bool> isNewUser() async {
@@ -769,6 +786,7 @@ class AuthService extends ChangeNotifier {
             'role': 'user',
             'age': null,
             'personalInfo': '',
+            'signInMethod': 'apple',
             'createdAt': FieldValue.serverTimestamp(),
           });
         }

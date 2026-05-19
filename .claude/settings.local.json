@@ -3,7 +3,14 @@
     "allow": [
       "Bash(flutter analyze *)",
       "Bash(Select-String -Pattern \"error|Error\")",
-      "Bash(Select-Object -First 20)"
+      "Bash(Select-Object -First 20)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\OneDrive\\\\Desktop\\\\teman_app\\\\flutter_TEMAN\" -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "Bash(rtk ls *)",
+      "Bash(rtk grep *)",
+      "Bash(findstr /n \"delete\" \"C:\\\\Users\\\\user\\\\OneDrive\\\\Desktop\\\\teman_app\\\\flutter_TEMAN\\\\lib\\\\services\\\\firestore_service.dart\")",
+      "Bash(rtk find *)",
+      "PowerShell(flutter analyze --no-pub 2>&1)"
     ]
   }
 }

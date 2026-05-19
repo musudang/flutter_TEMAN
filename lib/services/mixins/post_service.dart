@@ -832,13 +832,14 @@ mixin PostService on ChangeNotifier {
           .get();
       final hasReplies = replies.docs.isNotEmpty;
 
+      final admin = await isAdmin();
       await _db.runTransaction((transaction) async {
         final commentRef = commentsRef.doc(commentId);
         final snapshot = await transaction.get(commentRef);
         if (!snapshot.exists) throw Exception('Comment not found');
 
         final data = snapshot.data();
-        if (data?['authorId'] != user.uid) {
+        if (data?['authorId'] != user.uid && !admin) {
           throw Exception('Not authorized to delete this comment');
         }
 
@@ -846,14 +847,11 @@ mixin PostService on ChangeNotifier {
             _db.collection(AppConstants.postsCollection).doc(postId);
 
         if (hasReplies) {
-          // Soft-delete: keep doc, clear identity, mark deleted.
           transaction.update(commentRef, {
             'isDeleted': true,
             'content': '',
             'authorAvatar': '',
           });
-          // Note: comments counter NOT decremented for soft-delete so the
-          // displayed count still reflects the visible thread length.
         } else {
           transaction.delete(commentRef);
           transaction.update(postRef, {'comments': FieldValue.increment(-1)});

@@ -146,7 +146,7 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
           ),
         ),
         actions: [
-          if (firestoreService.currentUserId == q.authorId)
+          if (firestoreService.currentUserId == q.authorId || firestoreService.isAdminCached)
             PopupMenuButton<String>(
               icon: const Icon(Icons.more_vert, color: Colors.black87),
               onSelected: (value) async {
@@ -516,7 +516,7 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                                   height: 1.5,
                                 ),
                               ),
-                              if (isMine && answerId.isNotEmpty)
+                              if ((isMine || firestoreService.isAdminCached) && answerId.isNotEmpty)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 6),
                                   child: GestureDetector(

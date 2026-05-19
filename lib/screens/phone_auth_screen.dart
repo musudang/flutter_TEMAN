@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart' as firebase_auth;
 import '../services/auth_service.dart';
 
 class PhoneAuthScreen extends StatefulWidget {
@@ -158,9 +159,42 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
         _popWithSuccess();
       }
     } else {
-      // Standalone mode: DON'T sign in with phone.
-      // Just store the OTP and proceed to Google linking (step 3).
-      // The phone credential will be linked after Google sign-in.
+      // Standalone mode: try signing in with the phone credential.
+      // If the resulting account already has Google linked (returning user),
+      // skip step 3 and go straight to the main screen.
+      setState(() => _isLoading = true);
+      final authService = Provider.of<AuthService>(context, listen: false);
+      final result = await authService.signInWithPhoneOtp(
+        verificationId: _verificationId,
+        smsCode: otp,
+      );
+      if (!mounted) return;
+
+      if (result.isSuccess) {
+        final user = firebase_auth.FirebaseAuth.instance.currentUser;
+        final hasGoogle = user?.providerData
+            .any((info) => info.providerId == 'google.com') ?? false;
+        final hasEmail = (user?.email ?? '').isNotEmpty;
+
+        if (hasGoogle || hasEmail) {
+          // Existing account — go straight to main screen
+          setState(() => _isLoading = false);
+          Navigator.of(context, rootNavigator: true)
+              .pushNamedAndRemoveUntil('/', (route) => false);
+          return;
+        }
+      } else {
+        // Phone sign-in failed (e.g. invalid code) — show error but
+        // don't block; let user retry or proceed to Google linking
+        if (result.errorCode == 'invalid-verification-code') {
+          setState(() => _isLoading = false);
+          _showError('Invalid verification code. Please try again.');
+          return;
+        }
+      }
+
+      // New user or sign-in issue — proceed to Google linking (step 3)
+      setState(() => _isLoading = false);
       _verifiedSmsCode = otp;
       setState(() => _step = 3);
       _animController.reset();

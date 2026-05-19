@@ -32,11 +32,46 @@ class UserProfileScreen extends StatelessWidget {
           );
         }
 
+        if (snapshot.hasError) {
+          return Scaffold(
+            appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text('Something went wrong', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Go back'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final user = snapshot.data;
         if (user == null) {
           return Scaffold(
             appBar: AppBar(backgroundColor: Colors.white, elevation: 0),
-            body: const Center(child: Text('User not found')),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_off_outlined, size: 48, color: Colors.grey.shade400),
+                  const SizedBox(height: 12),
+                  Text('This profile is unavailable', style: TextStyle(fontSize: 16, color: Colors.grey.shade600)),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('Go back'),
+                  ),
+                ],
+              ),
+            ),
           );
         }
 

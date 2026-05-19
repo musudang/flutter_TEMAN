@@ -474,7 +474,7 @@ class _MeetupCommentsSheetState extends State<MeetupCommentsSheet> {
                         ),
                       ),
                     ),
-                    if (isMine)
+                    if (isMine || Provider.of<FirestoreService>(context, listen: false).isAdminCached)
                       GestureDetector(
                         onTap: () => _confirmAndDelete(comment),
                         child: Padding(

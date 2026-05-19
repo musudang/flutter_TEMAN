@@ -1487,7 +1487,7 @@ class _UniversityCommentsSectionState
                   _setReplyTo(comment);
                 },
               ),
-              if (isMine)
+              if (isMine || fs.isAdminCached)
                 ListTile(
                   leading: const Icon(Icons.delete_outline,
                       color: Colors.red),
@@ -1711,8 +1711,8 @@ class _UniversityPostActionsRowState extends State<_UniversityPostActionsRow> {
           ),
         ),
         const Spacer(),
-        // 3-dot menu — owner sees Edit/Delete
-        if (isOwner)
+        // 3-dot menu — owner/admin sees Edit/Delete
+        if (isOwner || fs.isAdminCached)
           PopupMenuButton<String>(
             icon: Icon(Icons.more_vert, color: Colors.grey[500], size: 20),
             onSelected: (value) async {
@@ -1723,16 +1723,17 @@ class _UniversityPostActionsRowState extends State<_UniversityPostActionsRow> {
               }
             },
             itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: Row(
-                  children: [
-                    Icon(Icons.edit_outlined, size: 18),
-                    SizedBox(width: 8),
-                    Text('Edit'),
-                  ],
+              if (isOwner)
+                const PopupMenuItem(
+                  value: 'edit',
+                  child: Row(
+                    children: [
+                      Icon(Icons.edit_outlined, size: 18),
+                      SizedBox(width: 8),
+                      Text('Edit'),
+                    ],
+                  ),
                 ),
-              ),
               const PopupMenuItem(
                 value: 'delete',
                 child: Row(

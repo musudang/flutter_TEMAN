@@ -39,7 +39,9 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       if (doc.exists) {
         final data = doc.data();
         if (data != null) {
-          return _userFromData(data, user.uid);
+          final appUser = _userFromData(data, user.uid);
+          _cachedIsAdmin = appUser.isAdmin;
+          return appUser;
         }
       } else {
         debugPrint("User doc missing. Auto-creating for ${user.uid}");
@@ -535,7 +537,17 @@ mixin UserService on ChangeNotifier implements UserDependencies {
 
   Future<bool> isAdmin() async {
     final user = await getCurrentUser();
-    return user?.isAdmin ?? false;
+    final result = user?.isAdmin ?? false;
+    _cachedIsAdmin = result;
+    return result;
+  }
+
+  bool _cachedIsAdmin = false;
+
+  bool get isAdminCached => _cachedIsAdmin;
+
+  void refreshAdminStatus() {
+    isAdmin();
   }
 
   Future<void> followUser(String targetUserId) async {

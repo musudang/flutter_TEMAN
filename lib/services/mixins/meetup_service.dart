@@ -11,6 +11,13 @@ mixin MeetupService on ChangeNotifier {
 
   String? get currentUserId => _auth.currentUser?.uid;
 
+  Future<bool> _isAdminCheck() async {
+    final uid = currentUserId;
+    if (uid == null) return false;
+    final doc = await _db.collection('users').doc(uid).get();
+    return doc.data()?['role'] == 'admin';
+  }
+
   Stream<List<Meetup>> getMeetups({
     int limit = 20,
     List<String> hiddenUsers = const [],
@@ -565,7 +572,8 @@ mixin MeetupService on ChangeNotifier {
       if (!docSnapshot.exists) return;
 
       final data = docSnapshot.data();
-      if (data != null && data['hostId'] == uid) {
+      final admin = await _isAdminCheck();
+      if (data != null && (data['hostId'] == uid || admin)) {
         // Delete the meetup
         await _db.collection('meetups').doc(meetupId).delete();
 
@@ -874,12 +882,13 @@ mixin MeetupService on ChangeNotifier {
           .get();
       final hasReplies = replies.docs.isNotEmpty;
 
+      final admin = await _isAdminCheck();
       await _db.runTransaction((transaction) async {
         final commentRef = commentsRef.doc(commentId);
         final snap = await transaction.get(commentRef);
         if (!snap.exists) return;
         final data = snap.data();
-        if (data?['authorId'] != user.uid) {
+        if (data?['authorId'] != user.uid && !admin) {
           throw Exception('Not authorized to delete this comment');
         }
 

@@ -202,7 +202,7 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       appBar: AppBar(
         title: const Text('Job Details'),
         actions: [
-          if (isOwner)
+          if (isOwner || fs.isAdminCached)
             PopupMenuButton<String>(
               onSelected: (value) async {
                 if (value == 'edit') {
@@ -240,8 +240,12 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 }
               },
               itemBuilder: (ctx) => [
-                const PopupMenuItem(value: 'edit', child: Text('Edit Job')),
-                const PopupMenuItem(value: 'delete', child: Text('Delete Job')),
+                if (isOwner)
+                  const PopupMenuItem(value: 'edit', child: Text('Edit Job')),
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: Text('Delete Job', style: TextStyle(color: Colors.red)),
+                ),
               ],
             ),
           if (!isOwner)
