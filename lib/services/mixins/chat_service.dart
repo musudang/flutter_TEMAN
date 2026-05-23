@@ -122,9 +122,33 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
           final conversations = snapshot.docs
               .map((doc) => Conversation.fromFirestore(doc))
               .where((c) => !c.hiddenByIds.contains(user.uid))
+              .where((c) => !c.isAnonymousDm) // Exclude anonymous DMs
               .toList();
 
           // Client-side sort to avoid composite index requirement
+          conversations.sort(
+            (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
+          );
+          return conversations;
+        });
+  }
+
+  /// Stream of anonymous DM conversations only
+  Stream<List<Conversation>> getAnonymousConversations() {
+    final user = _auth.currentUser;
+    if (user == null) return const Stream.empty();
+
+    return _db
+        .collection('conversations')
+        .where('participantIds', arrayContains: user.uid)
+        .snapshots()
+        .map((snapshot) {
+          final conversations = snapshot.docs
+              .map((doc) => Conversation.fromFirestore(doc))
+              .where((c) => !c.hiddenByIds.contains(user.uid))
+              .where((c) => c.isAnonymousDm)
+              .toList();
+
           conversations.sort(
             (a, b) => b.lastMessageTime.compareTo(a.lastMessageTime),
           );
@@ -144,9 +168,11 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
           int total = 0;
           for (var doc in snapshot.docs) {
             final data = doc.data();
+            // Exclude anonymous DMs from normal unread count
+            if (data['type'] == 'anonymous_dm') continue;
             final hiddenByIds = List<String>.from(data['hiddenByIds'] ?? []);
             if (hiddenByIds.contains(uid)) continue;
-            
+
             final unreads = data['unreadCounts'];
             if (unreads != null && unreads is Map) {
               final count = unreads[uid];
@@ -390,5 +416,175 @@ mixin ChatService on ChangeNotifier implements ChatDependencies {
 
   Future<String> startConversation(String otherUserId) async {
     return getOrCreateConversation(otherUserId);
+  }
+
+  /// Find or create an anonymous DM conversation for a specific post.
+  /// [postId] – the source post/question document ID
+  /// [postAuthorId] – uid of the anonymous post/comment author
+  /// [postTitle] – displayed as the chat room name
+  /// [postCollection] – Firestore path prefix, e.g. 'posts'
+  /// [senderAnonIndex] – caller's anonymous index for this conversation
+  /// [authorAnonIndex] – post author's anonymous index
+  Future<String> getOrCreateAnonymousConversation({
+    required String postId,
+    required String postAuthorId,
+    required String postTitle,
+    required String postCollection,
+    required int senderAnonIndex,
+    required int authorAnonIndex,
+  }) async {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) throw Exception('Not logged in');
+    if (uid == postAuthorId) throw Exception('Cannot message yourself');
+
+    // Search for existing anonymous conversation between these two users on this post
+    final querySnapshot = await _db
+        .collection('conversations')
+        .where('participantIds', arrayContains: uid)
+        .get();
+
+    for (var doc in querySnapshot.docs) {
+      final data = doc.data();
+      if (data['type'] != 'anonymous_dm') continue;
+      if (data['postId'] != postId) continue;
+      final participants = List<String>.from(data['participantIds'] ?? []);
+      if (participants.length == 2 && participants.contains(postAuthorId)) {
+        // Found existing anonymous conversation — unhide if needed
+        final hiddenByIds = List<String>.from(data['hiddenByIds'] ?? []);
+        if (hiddenByIds.isNotEmpty) {
+          await _db.collection('conversations').doc(doc.id).update({
+            'hiddenByIds': [],
+          });
+        }
+        return doc.id;
+      }
+    }
+
+    // Create new anonymous DM conversation
+    final newDoc = await _db.collection('conversations').add({
+      'participantIds': [uid, postAuthorId],
+      'lastMessage': '',
+      'lastMessageTime': FieldValue.serverTimestamp(),
+      'unreadCounts': {uid: 0, postAuthorId: 0},
+      'isGroup': false,
+      'hiddenByIds': [],
+      'type': 'anonymous_dm',
+      'postId': postId,
+      'postTitle': postTitle,
+      'postCollection': postCollection,
+      'anonymousIndices': {
+        uid: senderAnonIndex,
+        postAuthorId: authorAnonIndex,
+      },
+    });
+
+    return newDoc.id;
+  }
+
+  /// Send a message in an anonymous DM conversation.
+  /// The sender's name/avatar are replaced with their anonymous identity.
+  Future<void> sendAnonymousMessage(
+    String conversationId,
+    String content, {
+    String? replyToMessageId,
+    String? replyToMessageText,
+    String? replyToMessageSender,
+  }) async {
+    final user = await getCurrentUser();
+    if (user == null || content.trim().isEmpty) return;
+
+    // Fetch conversation to get anonymousIndices
+    final convRef = _db.collection('conversations').doc(conversationId);
+    final convSnap = await convRef.get();
+    if (!convSnap.exists) return;
+
+    final convData = convSnap.data()!;
+    final anonymousIndices = convData['anonymousIndices'] != null
+        ? Map<String, dynamic>.from(convData['anonymousIndices'])
+        : <String, dynamic>{};
+    final anonIndex = anonymousIndices[user.id] ?? 0;
+    final anonName = 'Anonymous $anonIndex';
+
+    final messageId = const Uuid().v4();
+    final messageData = {
+      'id': messageId,
+      'senderId': user.id,
+      'senderName': anonName,  // Anonymous identity
+      'senderAvatar': '',       // No avatar for anonymous
+      'content': content.trim(),
+      'timestamp': FieldValue.serverTimestamp(),
+      'replyToMessageId': replyToMessageId,
+      'replyToMessageText': replyToMessageText,
+      'replyToMessageSender': replyToMessageSender,
+    };
+
+    try {
+      final participants = List<String>.from(convData['participantIds'] ?? []);
+
+      final batch = _db.batch();
+      final messageRef = convRef.collection('messages').doc(messageId);
+
+      final updates = <String, dynamic>{
+        'lastMessage': content.trim(),
+        'lastMessageTime': FieldValue.serverTimestamp(),
+        'hiddenByIds': [],
+      };
+
+      for (final pid in participants) {
+        if (pid != user.id) {
+          updates['unreadCounts.$pid'] = FieldValue.increment(1);
+        }
+      }
+
+      batch.set(messageRef, messageData);
+      batch.update(convRef, updates);
+      await batch.commit();
+
+      // Send notification (anonymous — don't reveal identity)
+      for (final pid in participants) {
+        if (pid != user.id) {
+          final postTitle = convData['postTitle'] ?? 'a post';
+          await sendNotification(
+            userId: pid,
+            title: 'Anonymous Message',
+            body: 'Someone sent you a message about "$postTitle"',
+            type: 'message',
+            relatedId: conversationId,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint("Error sending anonymous DM: $e");
+      rethrow;
+    }
+  }
+
+  /// Get the anonymous unread count (separate from normal chats)
+  Stream<int> getAnonymousUnreadMessageCount() {
+    final uid = _auth.currentUser?.uid;
+    if (uid == null) return Stream.value(0);
+
+    return _db
+        .collection('conversations')
+        .where('participantIds', arrayContains: uid)
+        .snapshots()
+        .map((snapshot) {
+          int total = 0;
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            if (data['type'] != 'anonymous_dm') continue;
+            final hiddenByIds = List<String>.from(data['hiddenByIds'] ?? []);
+            if (hiddenByIds.contains(uid)) continue;
+
+            final unreads = data['unreadCounts'];
+            if (unreads != null && unreads is Map) {
+              final count = unreads[uid];
+              if (count is num) {
+                total += count.toInt();
+              }
+            }
+          }
+          return total;
+        });
   }
 }

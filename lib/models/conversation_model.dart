@@ -11,6 +11,13 @@ class Conversation {
   final String? meetupId;
   final List<String> hiddenByIds;
 
+  // [NEW] Anonymous DM support
+  final String? type;             // null or 'direct' = normal, 'anonymous_dm' = anonymous
+  final String? postId;           // source post ID for anonymous DM
+  final String? postTitle;        // displayed as chat room name
+  final String? postCollection;   // 'posts', 'universities/{uniId}/posts', etc.
+  final Map<String, int>? anonymousIndices; // {uid: anonymousIndex} per participant
+
   Conversation({
     required this.id,
     required this.participantIds,
@@ -21,6 +28,11 @@ class Conversation {
     this.groupName,
     this.meetupId,
     this.hiddenByIds = const [],
+    this.type,
+    this.postId,
+    this.postTitle,
+    this.postCollection,
+    this.anonymousIndices,
   });
 
   factory Conversation.fromFirestore(DocumentSnapshot doc) {
@@ -36,6 +48,20 @@ class Conversation {
       groupName: data['groupName'],
       meetupId: data['meetupId'],
       hiddenByIds: List<String>.from(data['hiddenByIds'] ?? []),
+      type: data['type'],
+      postId: data['postId'],
+      postTitle: data['postTitle'],
+      postCollection: data['postCollection'],
+      anonymousIndices: data['anonymousIndices'] != null
+          ? Map<String, int>.from(
+              (data['anonymousIndices'] as Map).map(
+                (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+              ),
+            )
+          : null,
     );
   }
+
+  /// Whether this conversation is an anonymous DM
+  bool get isAnonymousDm => type == 'anonymous_dm';
 }

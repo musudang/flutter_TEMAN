@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/post_model.dart';
@@ -11,6 +12,7 @@ import 'create_post_screen.dart';
 import '../widgets/report_dialog.dart';
 import '../widgets/university_badge.dart';
 import '../widgets/comment_helpers.dart';
+import 'chat_screen.dart';
 
 class PostDetailScreen extends StatelessWidget {
   final String postId;
@@ -139,7 +141,16 @@ class PostDetailScreen extends StatelessWidget {
                 children: [
                   GestureDetector(
                     onTap: post.isAnonymous
-                        ? null
+                        ? (isOwner
+                            ? null
+                            : () => _showAnonymousDmPrompt(
+                                  context,
+                                  fs,
+                                  postId: post.id,
+                                  postAuthorId: post.authorId,
+                                  postTitle: post.title,
+                                  postCollection: 'posts',
+                                ))
                         : () {
                             if (post.authorId == uid) {
                               Navigator.push(
@@ -184,7 +195,16 @@ class PostDetailScreen extends StatelessWidget {
                       children: [
                         GestureDetector(
                           onTap: post.isAnonymous
-                              ? null
+                              ? (isOwner
+                                  ? null
+                                  : () => _showAnonymousDmPrompt(
+                                        context,
+                                        fs,
+                                        postId: post.id,
+                                        postAuthorId: post.authorId,
+                                        postTitle: post.title,
+                                        postCollection: 'posts',
+                                      ))
                               : () {
                                   if (post.authorId == uid) {
                                     Navigator.push(
@@ -516,6 +536,21 @@ class PostDetailScreen extends StatelessWidget {
                     );
                   },
                 ),
+                // [NEW] Anonymous DM button in action bar
+                if (post.isAnonymous && !isOwner)
+                  _buildActionButtons(
+                    icon: Icons.mail_outline,
+                    label: 'Message',
+                    color: Colors.teal,
+                    onTap: () => _startAnonymousDm(
+                      context,
+                      fs,
+                      postId: post.id,
+                      postAuthorId: post.authorId,
+                      postTitle: post.title,
+                      postCollection: 'posts',
+                    ),
+                  ),
               ],
             ),
           ),
@@ -547,6 +582,188 @@ class PostDetailScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  /// Show a bottom sheet prompting the user to send an anonymous message.
+  void _showAnonymousDmPrompt(
+    BuildContext context,
+    FirestoreService fs, {
+    required String postId,
+    required String postAuthorId,
+    required String postTitle,
+    required String postCollection,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.grey[200],
+                  child: Icon(
+                    Icons.person_off_outlined,
+                    size: 28,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Anonymous User',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'This user posted anonymously.\nYou can send them an anonymous message.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _startAnonymousDm(
+                        context,
+                        fs,
+                        postId: postId,
+                        postAuthorId: postAuthorId,
+                        postTitle: postTitle,
+                        postCollection: postCollection,
+                      );
+                    },
+                    icon: const Icon(Icons.mail_outline),
+                    label: const Text('Send Anonymous Message'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Navigate to an anonymous DM chat for the given post/comment author.
+  Future<void> _startAnonymousDm(
+    BuildContext context,
+    FirestoreService fs, {
+    required String postId,
+    required String postAuthorId,
+    required String postTitle,
+    required String postCollection,
+    int? commentAuthorAnonIndex,
+  }) async {
+    final uid = fs.currentUserId;
+    if (uid == null) return;
+    if (uid == postAuthorId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot message yourself')),
+      );
+      return;
+    }
+
+    try {
+      final authorAnonIndex = commentAuthorAnonIndex ?? 0;
+
+      final existingConvs = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('participantIds', arrayContains: uid)
+          .get();
+
+      int senderIndex = 1;
+      for (var doc in existingConvs.docs) {
+        final data = doc.data();
+        if (data['type'] == 'anonymous_dm' && data['postId'] == postId) {
+          if (List<String>.from(data['participantIds'] ?? [])
+              .contains(postAuthorId)) {
+            if (context.mounted) {
+              final anonIndices = data['anonymousIndices'] != null
+                  ? Map<String, int>.from(
+                      (data['anonymousIndices'] as Map).map(
+                        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+                      ),
+                    )
+                  : <String, int>{};
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(
+                    conversationId: doc.id,
+                    chatTitle: postTitle,
+                    isAnonymousDm: true,
+                    anonymousIndices: anonIndices,
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+          senderIndex++;
+        }
+      }
+
+      final conversationId = await fs.getOrCreateAnonymousConversation(
+        postId: postId,
+        postAuthorId: postAuthorId,
+        postTitle: postTitle,
+        postCollection: postCollection,
+        senderAnonIndex: senderIndex,
+        authorAnonIndex: authorAnonIndex,
+      );
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(
+              conversationId: conversationId,
+              chatTitle: postTitle,
+              isAnonymousDm: true,
+              anonymousIndices: {
+                uid: senderIndex,
+                postAuthorId: authorAnonIndex,
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start conversation: $e')),
+        );
+      }
+    }
   }
 }
 
@@ -635,6 +852,16 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
                   _handleReply(comment.id, comment.content, comment.displayName);
                 },
               ),
+              // [NEW] Anonymous DM option for anonymous comments by others
+              if (comment.isAnonymous && !isMyComment)
+                ListTile(
+                  leading: Icon(Icons.mail_outline, color: Colors.grey[700]),
+                  title: const Text('Send Anonymous Message'),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _startAnonymousDmFromComment(comment);
+                  },
+                ),
               if (isMyComment || widget.fs.isAdminCached)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.red),
@@ -669,6 +896,193 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
     );
   }
 
+  /// Show bottom sheet prompting to send anonymous DM to a comment author
+  void _showAnonymousDmPromptFromComment(Comment comment) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircleAvatar(
+                  radius: 28,
+                  backgroundColor: Colors.grey[200],
+                  child: Icon(
+                    Icons.person_off_outlined,
+                    size: 28,
+                    color: Colors.grey[600],
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  comment.displayName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'This user commented anonymously.\nYou can send them an anonymous message.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.grey[600],
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _startAnonymousDmFromComment(comment);
+                    },
+                    icon: const Icon(Icons.mail_outline),
+                    label: const Text('Send Anonymous Message'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(color: Colors.grey[600]),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Start an anonymous DM with the author of an anonymous comment
+  void _startAnonymousDmFromComment(Comment comment) {
+    final fs = widget.fs;
+    final post = widget.post;
+
+    // Delegate to the top-level PostDetailScreen helper
+    // We need a PostDetailScreen instance — use the static-like approach
+    _startAnonymousDmHelper(
+      context,
+      fs,
+      postId: post.id,
+      postAuthorId: comment.authorId,
+      postTitle: post.title,
+      postCollection: 'posts',
+      commentAuthorAnonIndex: comment.anonymousIndex,
+    );
+  }
+
+  Future<void> _startAnonymousDmHelper(
+    BuildContext context,
+    FirestoreService fs, {
+    required String postId,
+    required String postAuthorId,
+    required String postTitle,
+    required String postCollection,
+    int? commentAuthorAnonIndex,
+  }) async {
+    final uid = fs.currentUserId;
+    if (uid == null) return;
+    if (uid == postAuthorId) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You cannot message yourself')),
+      );
+      return;
+    }
+
+    try {
+      final authorAnonIndex = commentAuthorAnonIndex ?? 0;
+
+      // Check for existing conversation on this post with this author
+      final existingConvs = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('participantIds', arrayContains: uid)
+          .get();
+
+      int senderIndex = 1;
+      for (var doc in existingConvs.docs) {
+        final data = doc.data();
+        if (data['type'] == 'anonymous_dm' && data['postId'] == postId) {
+          if (List<String>.from(data['participantIds'] ?? [])
+              .contains(postAuthorId)) {
+            // Reuse existing conversation
+            if (context.mounted) {
+              final anonIndices = data['anonymousIndices'] != null
+                  ? Map<String, int>.from(
+                      (data['anonymousIndices'] as Map).map(
+                        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+                      ),
+                    )
+                  : <String, int>{};
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(
+                    conversationId: doc.id,
+                    chatTitle: postTitle,
+                    isAnonymousDm: true,
+                    anonymousIndices: anonIndices,
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+          senderIndex++;
+        }
+      }
+
+      final conversationId = await fs.getOrCreateAnonymousConversation(
+        postId: postId,
+        postAuthorId: postAuthorId,
+        postTitle: postTitle,
+        postCollection: postCollection,
+        senderAnonIndex: senderIndex,
+        authorAnonIndex: authorAnonIndex,
+      );
+
+      if (context.mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(
+              conversationId: conversationId,
+              chatTitle: postTitle,
+              isAnonymousDm: true,
+              anonymousIndices: {
+                uid: senderIndex,
+                postAuthorId: authorAnonIndex,
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start conversation: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildCommentItem(Comment c, {bool isReply = false}) {
     // Soft-deleted (parent comment that still has replies): render a
     // simple placeholder so the reply thread structure stays intact.
@@ -690,7 +1104,11 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
 
         // For anonymous comments, only allow profile navigation if it's your own comment
         void navigateToProfile() {
-          if (isAnon && !isMyComment) return; // Block navigation for anonymous others
+          if (isAnon && !isMyComment) {
+            // [CHANGED] Show anonymous DM prompt instead of blocking
+            _showAnonymousDmPromptFromComment(c);
+            return;
+          }
           final uid = widget.fs.currentUserId ?? '';
           if (c.authorId == uid) {
             Navigator.push(
@@ -1146,4 +1564,5 @@ class _PostCommentsSectionState extends State<PostCommentsSection> {
       );
     }).toList();
   }
+
 }

@@ -9,7 +9,7 @@ import '../services/auth_service.dart';
 import '../widgets/teman_logo.dart';
 import '../widgets/interest_selection_sheet.dart';
 import '../utils/image_compress_util.dart';
-import 'main_screen.dart';
+import 'eula_screen.dart';
 // import 'verification_steps.dart'; // No longer needed in onboarding
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -307,7 +307,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           name: _name,
           onEnter: () {
             Navigator.of(context).pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const MainScreen()),
+              MaterialPageRoute(builder: (_) => const EulaScreen()),
               (route) => false,
             );
           },

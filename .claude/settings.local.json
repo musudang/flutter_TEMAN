@@ -11,7 +11,9 @@
       "Bash(findstr /n \"delete\" \"C:\\\\Users\\\\user\\\\OneDrive\\\\Desktop\\\\teman_app\\\\flutter_TEMAN\\\\lib\\\\services\\\\firestore_service.dart\")",
       "Bash(rtk find *)",
       "PowerShell(flutter analyze --no-pub 2>&1)",
-      "Bash(xargs grep -l \"firebase_messaging\\\\|getInitialMessage\\\\|onMessage\")"
+      "Bash(xargs grep -l \"firebase_messaging\\\\|getInitialMessage\\\\|onMessage\")",
+      "Bash(rtk wc *)",
+      "Bash(grep -E \"\\\\.md$\")"
     ]
   }
 }

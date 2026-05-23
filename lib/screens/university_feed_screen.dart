@@ -14,9 +14,11 @@ import '../widgets/university_badge.dart';
 import '../widgets/comment_helpers.dart';
 import 'profile_screen.dart';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'user_profile_screen.dart';
 import 'university_search_screen.dart';
 import 'share_content_sheet.dart';
+import 'chat_screen.dart';
 import '../widgets/report_dialog.dart';
 
 /// The dedicated feed screen for a single university.
@@ -817,6 +819,7 @@ class UniversityPostDetailSheet extends StatelessWidget {
                       post: post,
                       uniColor: uniColor,
                       timeAgo: _timeAgo(post.timestamp),
+                      uniId: uniId,
                     ),
                     const SizedBox(height: 20),
 
@@ -887,6 +890,7 @@ class UniversityPostDetailSheet extends StatelessWidget {
                     _UniversityCommentsSection(
                       uniId: uniId,
                       postId: post.id,
+                      postTitle: post.title.isNotEmpty ? post.title : 'University Post',
                       uniColor: uniColor,
                     ),
                   ],
@@ -908,11 +912,13 @@ class UniversityPostDetailSheet extends StatelessWidget {
 class _UniversityCommentsSection extends StatefulWidget {
   final String uniId;
   final String postId;
+  final String postTitle;
   final Color uniColor;
 
   const _UniversityCommentsSection({
     required this.uniId,
     required this.postId,
+    required this.postTitle,
     required this.uniColor,
   });
 
@@ -1192,9 +1198,18 @@ class _UniversityCommentsSectionState
     final isAnon = c.isAnonymous;
 
     void onAuthorTap() {
-      // Block profile navigation for anonymous comments authored by
-      // others — they shouldn't be deanonymizable via UI.
-      if (isAnon && !isMine) return;
+      if (isAnon && !isMine) {
+        // Find post info from the parent widget's context
+        _showUniAnonymousDmPrompt(
+          context,
+          postId: widget.postId,
+          postAuthorId: c.authorId,
+          postTitle: widget.postTitle,
+          uniId: widget.uniId,
+          authorAnonIndex: c.anonymousIndex,
+        );
+        return;
+      }
       if (isMine) {
         Navigator.push(
           context,
@@ -1407,6 +1422,23 @@ class _UniversityCommentsSectionState
                   _setReplyTo(comment);
                 },
               ),
+              if (comment.isAnonymous && !isMine)
+                ListTile(
+                  leading: const Icon(Icons.mail_outline, color: Color(0xFF26A69A)),
+                  title: const Text('Send Anonymous Message',
+                      style: TextStyle(color: Color(0xFF26A69A))),
+                  onTap: () {
+                    Navigator.pop(sheetCtx);
+                    _showUniAnonymousDmPrompt(
+                      context,
+                      postId: widget.postId,
+                      postAuthorId: comment.authorId,
+                      postTitle: widget.postTitle,
+                      uniId: widget.uniId,
+                      authorAnonIndex: comment.anonymousIndex,
+                    );
+                  },
+                ),
               if (isMine || fs.isAdminCached)
                 ListTile(
                   leading: const Icon(Icons.delete_outline,
@@ -1791,48 +1823,63 @@ class _LiveAuthorDetailRow extends StatelessWidget {
   final Post post;
   final Color uniColor;
   final String timeAgo;
+  final String uniId;
 
   const _LiveAuthorDetailRow({
     required this.post,
     required this.uniColor,
     required this.timeAgo,
+    required this.uniId,
   });
 
   @override
   Widget build(BuildContext context) {
     if (post.isAnonymous) {
-      return Row(
-        children: [
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: uniColor.withValues(alpha: 0.15),
-            child: Icon(Icons.person, size: 20, color: uniColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Flexible(
-                      child: Text(
-                        'Anonymous',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
-                      const SizedBox(width: 6),
-                      UniversityBadge(universityId: post.authorUniversityId!),
-                    ],
-                  ],
+      final fs = Provider.of<FirestoreService>(context, listen: false);
+      final isMine = post.authorId == (fs.currentUserId ?? '');
+      return GestureDetector(
+        onTap: isMine
+            ? null
+            : () => _showUniAnonymousDmPrompt(
+                  context,
+                  postId: post.id,
+                  postAuthorId: post.authorId,
+                  postTitle: post.title.isNotEmpty ? post.title : 'Anonymous Post',
+                  uniId: uniId,
                 ),
-                Text(timeAgo, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-              ],
+        child: Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: Colors.grey[300],
+              child: Icon(Icons.person_off_outlined, size: 20, color: Colors.grey[600]),
             ),
-          ),
-        ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Flexible(
+                        child: Text(
+                          'Anonymous',
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (post.authorUniversityId != null && post.authorUniversityId!.isNotEmpty) ...[
+                        const SizedBox(width: 6),
+                        UniversityBadge(universityId: post.authorUniversityId!),
+                      ],
+                    ],
+                  ),
+                  Text(timeAgo, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                ],
+              ),
+            ),
+          ],
+        ),
       );
     }
 
@@ -1891,5 +1938,175 @@ class _LiveAuthorDetailRow extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// Anonymous DM helpers for university posts
+// ─────────────────────────────────────────────────────
+
+void _showUniAnonymousDmPrompt(
+  BuildContext context, {
+  required String postId,
+  required String postAuthorId,
+  required String postTitle,
+  required String uniId,
+  int? authorAnonIndex,
+}) {
+  showModalBottomSheet(
+    context: context,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetCtx) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            CircleAvatar(
+              radius: 28,
+              backgroundColor: Colors.grey[300],
+              child: Icon(Icons.person_off_outlined,
+                  size: 28, color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 14),
+            Text(
+              'Send Anonymous Message',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: Colors.grey[800],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Both you and the recipient will remain anonymous.\nThe chat room will be named after the post title.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: const Icon(Icons.mail_outline, size: 18),
+                label: const Text('Start Anonymous Chat'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF26A69A),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.pop(sheetCtx);
+                  _startUniAnonymousDm(
+                    context,
+                    postId: postId,
+                    postAuthorId: postAuthorId,
+                    postTitle: postTitle,
+                    uniId: uniId,
+                    authorAnonIndex: authorAnonIndex,
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+Future<void> _startUniAnonymousDm(
+  BuildContext context, {
+  required String postId,
+  required String postAuthorId,
+  required String postTitle,
+  required String uniId,
+  int? authorAnonIndex,
+}) async {
+  final fs = Provider.of<FirestoreService>(context, listen: false);
+  final uid = fs.currentUserId;
+  if (uid == null) return;
+  if (uid == postAuthorId) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('You cannot message yourself')),
+    );
+    return;
+  }
+
+  try {
+    final postCollection = 'universities/$uniId/posts';
+    final anonIndex = authorAnonIndex ?? 0;
+
+    final existingConvs = await FirebaseFirestore.instance
+        .collection('conversations')
+        .where('participantIds', arrayContains: uid)
+        .get();
+
+    int senderIndex = 1;
+    for (var doc in existingConvs.docs) {
+      final data = doc.data();
+      if (data['type'] == 'anonymous_dm' && data['postId'] == postId) {
+        if (List<String>.from(data['participantIds'] ?? [])
+            .contains(postAuthorId)) {
+          final anonIndices = data['anonymousIndices'] != null
+              ? Map<String, int>.from(
+                  (data['anonymousIndices'] as Map).map(
+                    (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+                  ),
+                )
+              : <String, int>{};
+          if (context.mounted) {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ChatScreen(
+                  conversationId: doc.id,
+                  chatTitle: postTitle,
+                  isAnonymousDm: true,
+                  anonymousIndices: anonIndices,
+                ),
+              ),
+            );
+          }
+          return;
+        }
+        senderIndex++;
+      }
+    }
+
+    final conversationId = await fs.getOrCreateAnonymousConversation(
+      postId: postId,
+      postAuthorId: postAuthorId,
+      postTitle: postTitle,
+      postCollection: postCollection,
+      senderAnonIndex: senderIndex,
+      authorAnonIndex: anonIndex,
+    );
+
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            conversationId: conversationId,
+            chatTitle: postTitle,
+            isAnonymousDm: true,
+            anonymousIndices: {
+              uid: senderIndex,
+              postAuthorId: anonIndex,
+            },
+          ),
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to start conversation: $e')),
+      );
+    }
   }
 }

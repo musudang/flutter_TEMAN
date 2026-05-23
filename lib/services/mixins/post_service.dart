@@ -8,6 +8,7 @@ import '../../models/meetup_model.dart';
 import '../../models/post_model.dart';
 import '../../models/user_model.dart' as app_models;
 import '../../models/question_model.dart';
+import '../../utils/content_filter.dart';
 import '../../models/job_model.dart';
 import '../../models/marketplace_model.dart';
 import '../../models/comment_model.dart';
@@ -317,9 +318,15 @@ mixin PostService on ChangeNotifier {
       throw Exception('User must be logged in to post');
     }
 
+    // [NEW] Content filtering
+    final titleError = ContentFilter.validate(title);
+    if (titleError != null) throw Exception(titleError);
+    final contentError = ContentFilter.validate(content);
+    if (contentError != null) throw Exception(contentError);
+
     try {
       final userData = await getCurrentUser();
-      
+
       final docData = <String, dynamic>{
         'authorId': authorId,
         'authorName': authorName,
@@ -682,6 +689,10 @@ mixin PostService on ChangeNotifier {
   }) async {
     final user = _auth.currentUser;
     if (user == null) throw Exception('Must be logged in to comment');
+
+    // [NEW] Content filtering
+    final filterError = ContentFilter.validate(content);
+    if (filterError != null) throw Exception(filterError);
 
     final userData = await getCurrentUser();
 

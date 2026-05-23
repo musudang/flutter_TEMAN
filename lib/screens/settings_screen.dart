@@ -137,53 +137,78 @@ class _SettingsScreenState extends State<SettingsScreen> {
     String? password,
   ) async {
     final navigator = Navigator.of(context, rootNavigator: true);
+    BuildContext? dialogContext;
 
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (_) => const Center(child: CircularProgressIndicator()),
+      builder: (ctx) {
+        dialogContext = ctx;
+        return const Center(child: CircularProgressIndicator());
+      },
     );
 
-    final result = await authService.deleteAccount(currentPassword: password);
+    try {
+      final result = await authService.deleteAccount(currentPassword: password);
 
-    navigator.pop(); // Close loading
+      // Close loading dialog safely using its own context if built
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.pop(dialogContext!);
+      } else {
+        navigator.pop();
+      }
 
-    if (!context.mounted) return;
-
-    if (result.isSuccess) {
-      // Show confirmation then navigate to login.
-      // Use navigator (rootNavigator) for the dialog to avoid context issues
-      // after the Firebase user has been deleted.
-      await showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (ctx) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Account Deleted'),
-          content: const Text(
-            'Your account and data have been permanently deleted.\nYou will be redirected to the login screen.',
-          ),
-          actions: [
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E56C8)),
-              onPressed: () {
-                Navigator.pop(ctx);
-                // Navigate to root — AuthWrapper will show LoginScreen
-                // since the Firebase user is now null.
-                navigator.pushNamedAndRemoveUntil('/', (route) => false);
-              },
-              child: const Text('Confirm', style: TextStyle(color: Colors.white)),
-            ),
-          ],
-        ),
-      );
-    } else {
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result.errorMessage ?? 'Failed to delete account.'),
-        ),
-      );
+
+      if (result.isSuccess) {
+        // Show confirmation then navigate to login.
+        // Use navigator (rootNavigator) for the dialog to avoid context issues
+        // after the Firebase user has been deleted.
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Account Deleted'),
+            content: const Text(
+              'Your account and data have been permanently deleted.\nYou will be redirected to the login screen.',
+            ),
+            actions: [
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF1E56C8)),
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  // Navigate to root — AuthWrapper will show LoginScreen
+                  // since the Firebase user is now null.
+                  navigator.pushNamedAndRemoveUntil('/', (route) => false);
+                },
+                child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+              ),
+            ],
+          ),
+        );
+      } else {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.errorMessage ?? 'Failed to delete account.'),
+          ),
+        );
+      }
+    } catch (e) {
+      // Close loading if there's an unexpected exception
+      if (dialogContext != null && dialogContext!.mounted) {
+        Navigator.pop(dialogContext!);
+      } else {
+        navigator.pop();
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('An unexpected error occurred: $e'),
+          ),
+        );
+      }
     }
   }
 

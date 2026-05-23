@@ -30,6 +30,7 @@ class User {
   final double? longitude;
   final bool locationSharingEnabled;
   final bool hideLocationFromFriends;
+  final DateTime? locationUpdatedAt;
 
   /// "Map friends" — the user's opt-in close-friends list for location
   /// visibility. Bilateral: A sees B's pin on the map only if
@@ -65,6 +66,7 @@ class User {
     this.longitude,
     this.locationSharingEnabled = true,
     this.hideLocationFromFriends = false,
+    this.locationUpdatedAt,
     this.mapFriends = const [],
   });
 

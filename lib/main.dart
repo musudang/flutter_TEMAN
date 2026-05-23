@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'dart:ui';
 import 'package:provider/provider.dart';
@@ -14,6 +15,7 @@ import 'firebase_options.dart';
 import 'screens/main_screen.dart';
 import 'screens/login_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/eula_screen.dart';
 import 'services/firestore_service.dart';
 import 'services/auth_service.dart';
 import 'models/auth_result.dart';
@@ -100,6 +102,21 @@ class MyApp extends StatelessWidget {
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
+  /// Check if the user has accepted the EULA
+  static Future<bool> _hasAcceptedEula(String uid) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      if (!doc.exists) return false;
+      final data = doc.data();
+      return data?['eulaAcceptedAt'] != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authService = Provider.of<AuthService>(context);
@@ -119,7 +136,7 @@ class AuthWrapper extends StatelessWidget {
           return const LoginScreen();
         }
 
-        // Logged in → check if onboarding is complete
+        // Logged in → check if onboarding is complete, then EULA
         return FutureBuilder<bool>(
           future: authService.isNewUser(),
           builder: (context, onboardingSnapshot) {
@@ -130,7 +147,21 @@ class AuthWrapper extends StatelessWidget {
             if (needsOnboarding) {
               return const OnboardingScreen();
             }
-            return const MainScreen();
+
+            // [NEW] Check if EULA has been accepted
+            return FutureBuilder<bool>(
+              future: _hasAcceptedEula(user.uid),
+              builder: (context, eulaSnapshot) {
+                if (eulaSnapshot.connectionState == ConnectionState.waiting) {
+                  return const _SplashScreen();
+                }
+                final eulaAccepted = eulaSnapshot.data ?? false;
+                if (!eulaAccepted) {
+                  return const EulaScreen();
+                }
+                return const MainScreen();
+              },
+            );
           },
         );
       },

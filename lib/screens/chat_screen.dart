@@ -16,6 +16,10 @@ class ChatScreen extends StatefulWidget {
   final String? otherUserAvatar;
   final String? initialMessage;
 
+  // [NEW] Anonymous DM support
+  final bool isAnonymousDm;
+  final Map<String, int>? anonymousIndices; // uid -> anonymousIndex
+
   const ChatScreen({
     super.key,
     required this.conversationId,
@@ -24,6 +28,8 @@ class ChatScreen extends StatefulWidget {
     this.otherUserName,
     this.otherUserAvatar,
     this.initialMessage,
+    this.isAnonymousDm = false,
+    this.anonymousIndices,
   });
 
   @override
@@ -88,13 +94,23 @@ class _ChatScreenState extends State<ChatScreen> {
     }
 
     if (currentConvId.isNotEmpty) {
-      firestoreService.sendDirectMessage(
-        currentConvId,
-        content,
-        replyToMessageId: replyToMessageId,
-        replyToMessageText: replyToMessageText,
-        replyToMessageSender: replyToMessageSender,
-      );
+      if (widget.isAnonymousDm) {
+        firestoreService.sendAnonymousMessage(
+          currentConvId,
+          content,
+          replyToMessageId: replyToMessageId,
+          replyToMessageText: replyToMessageText,
+          replyToMessageSender: replyToMessageSender,
+        );
+      } else {
+        firestoreService.sendDirectMessage(
+          currentConvId,
+          content,
+          replyToMessageId: replyToMessageId,
+          replyToMessageText: replyToMessageText,
+          replyToMessageSender: replyToMessageSender,
+        );
+      }
     }
 
     // Scroll to bottom
@@ -259,6 +275,10 @@ class _ChatScreenState extends State<ChatScreen> {
           // Input area with block check
           Builder(
             builder: (_) {
+              // Anonymous DMs skip block check (identities are hidden)
+              if (widget.isAnonymousDm) {
+                return _buildMessageInput();
+              }
               if (currentUserId == null || widget.otherUserId == null) {
                 return _buildMessageInput();
               }
@@ -379,19 +399,29 @@ class _ChatScreenState extends State<ChatScreen> {
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!isMe) ...[
-            CircleAvatar(
-              radius: 16,
-              backgroundImage: message.senderAvatar.isNotEmpty
-                  ? NetworkImage(message.senderAvatar)
-                  : null,
-              child: message.senderAvatar.isEmpty
-                  ? Text(
-                      message.senderName.isNotEmpty
-                          ? message.senderName[0].toUpperCase()
-                          : 'U',
-                    )
-                  : null,
-            ),
+            widget.isAnonymousDm
+                ? CircleAvatar(
+                    radius: 16,
+                    backgroundColor: Colors.grey[300],
+                    child: Icon(
+                      Icons.person_off_outlined,
+                      size: 18,
+                      color: Colors.grey[600],
+                    ),
+                  )
+                : CircleAvatar(
+                    radius: 16,
+                    backgroundImage: message.senderAvatar.isNotEmpty
+                        ? NetworkImage(message.senderAvatar)
+                        : null,
+                    child: message.senderAvatar.isEmpty
+                        ? Text(
+                            message.senderName.isNotEmpty
+                                ? message.senderName[0].toUpperCase()
+                                : 'U',
+                          )
+                        : null,
+                  ),
             const SizedBox(width: 8),
           ],
           Flexible(

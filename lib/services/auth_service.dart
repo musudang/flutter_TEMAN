@@ -630,14 +630,30 @@ class AuthService extends ChangeNotifier {
   }
 
   /// Signs in with Google first, then links the phone credential.
-  /// This avoids the double-account problem: no phone sign-in happens,
-  /// so there's only one Firebase Auth user (the Google one) with phone
-  /// linked as a secondary provider.
+  /// If [orphanPhoneUid] is provided (the UID from a phone sign-in in
+  /// step 2), the orphan phone Auth user and its Firestore doc are
+  /// cleaned up before Google sign-in so the phone credential is freed.
   Future<AuthResult> signInWithGoogleAndLinkPhone({
     required String verificationId,
     required String smsCode,
+    String? orphanPhoneUid,
+    String? phoneNumber,
   }) async {
     try {
+      // Step 0: Clean up orphan phone user from step 2 so the phone
+      // credential is freed for linking to the Google account.
+      if (orphanPhoneUid != null) {
+        try {
+          final currentUser = _auth.currentUser;
+          if (currentUser != null && currentUser.uid == orphanPhoneUid) {
+            await _db.collection('users').doc(orphanPhoneUid).delete();
+            await currentUser.delete();
+          }
+        } catch (e) {
+          debugPrint('Warning: Could not delete orphan phone user: $e');
+        }
+      }
+
       // Step 1: Sign in with Google
       firebase_auth.UserCredential googleResult;
 
@@ -693,9 +709,10 @@ class AuthService extends ChangeNotifier {
       } on firebase_auth.FirebaseAuthException catch (e) {
         if (e.code == 'provider-already-linked') {
           // Phone already linked to this Google account — fine
+        } else if (e.code == 'credential-already-in-use') {
+          // Phone credential still tied to orphan user (cleanup may have
+          // been partial). Store the phone number in Firestore only.
         } else {
-          // Phone linking failed, but Google sign-in succeeded.
-          // Return error so the user knows phone wasn't linked.
           return AuthResult.failure(
             e.message ?? 'Google signed in, but phone linking failed.',
             e.code,
@@ -707,7 +724,7 @@ class AuthService extends ChangeNotifier {
       final refreshedUser = _auth.currentUser;
       if (refreshedUser != null) {
         await _db.collection('users').doc(refreshedUser.uid).update({
-          'phoneNumber': refreshedUser.phoneNumber ?? '',
+          'phoneNumber': refreshedUser.phoneNumber ?? phoneNumber ?? '',
         });
       }
 
@@ -1015,7 +1032,19 @@ class AuthService extends ChangeNotifier {
 
       // Cleanup local state
       try {
-        await _googleSignIn.disconnect();
+        final isGoogleUser = user.providerData.any((info) => info.providerId == 'google.com');
+        if (isGoogleUser) {
+          if (!_googleSignInInitialized) {
+            await _ensureGoogleSignInInitialized().timeout(
+              const Duration(seconds: 3),
+              onTimeout: () => null,
+            );
+          }
+          await _googleSignIn.disconnect().timeout(
+            const Duration(seconds: 3),
+            onTimeout: () => null,
+          );
+        }
       } catch (_) {}
 
       return AuthResult.success();

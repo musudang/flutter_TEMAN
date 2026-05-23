@@ -116,6 +116,9 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       longitude: data['longitude']?.toDouble(),
       locationSharingEnabled: data['locationSharingEnabled'] ?? true,
       hideLocationFromFriends: data['hideLocationFromFriends'] ?? false,
+      locationUpdatedAt: data['locationUpdatedAt'] != null
+          ? (data['locationUpdatedAt'] as Timestamp?)?.toDate()
+          : null,
       mapFriends: List<String>.from(data['mapFriends'] ?? []),
     );
   }
@@ -208,11 +211,10 @@ mixin UserService on ChangeNotifier implements UserDependencies {
     }
   }
 
-  /// Presence threshold: a user counts as "online / live" only if their
-  /// `locationUpdatedAt` heartbeat is within this many seconds.
-  /// Map heartbeat timer is 30s, so 3 min = 6 missed pings before they
-  /// disappear from the map.
-  static const int _presenceFreshnessSeconds = 180;
+  /// Presence threshold: a user counts as "checked in" only if their
+  /// `locationUpdatedAt` is within this many seconds.
+  /// Manual check-in lasts 1 hour before auto-expiring.
+  static const int _presenceFreshnessSeconds = 3600;
 
   /// Returns true when the user document's `locationUpdatedAt` is recent
   /// enough to be considered online. Missing/null timestamp ⇒ offline.

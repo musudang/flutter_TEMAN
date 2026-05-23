@@ -44,6 +44,26 @@ class _MapScreenState extends State<MapScreen> {
   bool _safetyDialogShownThisSession = false;
   int _panelTabIndex = 0; // 0 = Nearby, 1 = Friends
 
+  // Manual check-in state
+  bool _isCheckedIn = false;
+  DateTime? _lastCheckInTime;
+  Timer? _checkInCountdownTimer;
+
+  /// Remaining seconds on the check-in countdown (max 3600)
+  int get _checkInSecondsRemaining {
+    if (!_isCheckedIn || _lastCheckInTime == null) return 0;
+    final elapsed = DateTime.now().difference(_lastCheckInTime!).inSeconds;
+    return (3600 - elapsed).clamp(0, 3600);
+  }
+
+  String get _checkInTimerText {
+    final s = _checkInSecondsRemaining;
+    if (s <= 0) return '0:00';
+    final m = s ~/ 60;
+    final sec = s % 60;
+    return '$m:${sec.toString().padLeft(2, '0')}';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -72,6 +92,7 @@ class _MapScreenState extends State<MapScreen> {
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    _checkInCountdownTimer?.cancel();
     _mapController.dispose();
     super.dispose();
   }
@@ -120,16 +141,12 @@ class _MapScreenState extends State<MapScreen> {
       );
 
       if (mounted && _currentPosition != null) {
-        if (_locationSharingEnabled) {
-          await firestoreService.updateUserLocation(
-            _currentPosition!.latitude,
-            _currentPosition!.longitude,
-          );
-        }
-
+        // [CHANGED] No automatic location publishing on init.
+        // User must manually check in to share their location.
         await _refreshData();
         setState(() => _isLoading = false);
 
+        // Timer only refreshes friend/nearby lists — does NOT publish location
         _refreshTimer = Timer.periodic(
           const Duration(seconds: 30),
           (_) => _refreshData(),
@@ -150,29 +167,26 @@ class _MapScreenState extends State<MapScreen> {
     final firestoreService =
         Provider.of<FirestoreService>(context, listen: false);
 
-    // Heartbeat: re-publish my own location every refresh tick so other
-    // users see me as "online / present". If sharing is OFF we skip — we
-    // don't want to leak a fresh timestamp while hidden.
-    if (_locationSharingEnabled) {
-      // Best-effort: don't block the rest of the refresh on this write.
-      // Re-fetch a current GPS reading if possible so the heartbeat reflects
-      // the user's actual location (not just the initial fix).
-      try {
-        final pos = await Geolocator.getCurrentPosition(
-          locationSettings: const LocationSettings(
-            accuracy: LocationAccuracy.high,
-          ),
-        );
-        _currentPosition = pos;
-        await firestoreService.updateUserLocation(pos.latitude, pos.longitude);
-      } catch (_) {
-        // If GPS fails, still refresh the timestamp via the last known fix
-        // so we don't disappear from friends' maps purely due to a transient
-        // GPS error.
-        await firestoreService.updateUserLocation(
-          _currentPosition!.latitude,
-          _currentPosition!.longitude,
-        );
+    // [CHANGED] No automatic location publishing (heartbeat removed).
+    // Location is only published when the user manually checks in.
+    // We still refresh GPS for our own map centering.
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
+      );
+      _currentPosition = pos;
+    } catch (_) {
+      // Keep last known position if GPS fails
+    }
+
+    // Auto-expire check-in after 1 hour (3600 seconds)
+    if (_isCheckedIn && _lastCheckInTime != null) {
+      final age = DateTime.now().difference(_lastCheckInTime!);
+      if (age.inSeconds > 3600) {
+        _isCheckedIn = false;
+        _lastCheckInTime = null;
       }
     }
 
@@ -241,6 +255,145 @@ class _MapScreenState extends State<MapScreen> {
     await _refreshData();
   }
 
+  /// [NEW] Manual check-in: publish current location to the map once.
+  Future<void> _manualCheckIn() async {
+    if (_currentPosition == null) return;
+
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+
+    // JIT phone verification
+    if (!_locationSharingEnabled) {
+      final verified = await checkPhoneVerification(
+        context,
+        title: 'Phone Verification Required',
+        description:
+            'For community safety, please verify your phone number before '
+            'sharing your location on the map.',
+      );
+      if (!verified || !mounted) return;
+      // Also enable location sharing flag
+      setState(() => _locationSharingEnabled = true);
+      await firestoreService.toggleLocationSharing(true);
+    }
+
+    // Confirm check-in
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.location_on, color: Colors.teal),
+            SizedBox(width: 8),
+            Text('Check In'),
+          ],
+        ),
+        content: const Text(
+          'Your current location will be visible to your map friends for 60 minutes. '
+          'You can check out at any time.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.teal),
+            child: const Text('Check In'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true || !mounted) return;
+
+    try {
+      await firestoreService.updateUserLocation(
+        _currentPosition!.latitude,
+        _currentPosition!.longitude,
+      );
+
+      setState(() {
+        _isCheckedIn = true;
+        _lastCheckInTime = DateTime.now();
+      });
+      _startCheckInCountdown();
+
+      await _refreshData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Checked in! Your location is visible for 60 minutes.'),
+            backgroundColor: Colors.teal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Check-in failed: $e')),
+        );
+      }
+    }
+  }
+
+  /// [NEW] Manual check-out: remove location from the map immediately.
+  Future<void> _manualCheckOut() async {
+    final firestoreService =
+        Provider.of<FirestoreService>(context, listen: false);
+
+    try {
+      // Clear location by toggling sharing off then on
+      // This clears lat/lng from Firestore
+      await firestoreService.toggleLocationSharing(false);
+      await firestoreService.toggleLocationSharing(true);
+
+      _checkInCountdownTimer?.cancel();
+      setState(() {
+        _isCheckedIn = false;
+        _lastCheckInTime = null;
+      });
+
+      await _refreshData();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Checked out. Your location is no longer visible.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Check-out failed: $e')),
+        );
+      }
+    }
+  }
+
+  void _startCheckInCountdown() {
+    _checkInCountdownTimer?.cancel();
+    _checkInCountdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      if (_checkInSecondsRemaining <= 0) {
+        timer.cancel();
+        setState(() {
+          _isCheckedIn = false;
+          _lastCheckInTime = null;
+        });
+      } else {
+        setState(() {});
+      }
+    });
+  }
+
   Future<void> _toggleLocationSharing() async {
     final firestoreService =
         Provider.of<FirestoreService>(context, listen: false);
@@ -259,16 +412,19 @@ class _MapScreenState extends State<MapScreen> {
       if (!verified || !mounted) return;
     }
 
-    setState(() => _locationSharingEnabled = newValue);
+    setState(() {
+      _locationSharingEnabled = newValue;
+      if (!newValue) {
+        _checkInCountdownTimer?.cancel();
+        _isCheckedIn = false;
+        _lastCheckInTime = null;
+      }
+    });
 
     await firestoreService.toggleLocationSharing(newValue);
 
-    if (newValue && _currentPosition != null) {
-      await firestoreService.updateUserLocation(
-        _currentPosition!.latitude,
-        _currentPosition!.longitude,
-      );
-    }
+    // [CHANGED] Don't auto-publish location on enable.
+    // User must manually check in.
 
     await _refreshData();
   }
@@ -332,28 +488,44 @@ class _MapScreenState extends State<MapScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _helpRow(Icons.location_on, Colors.teal, 'Location Sharing (Green)',
-                'When ON, your location is visible to nearby users and friends within 1km.'),
+            _helpRow(Icons.location_on_outlined, Colors.teal, 'Check In',
+                'Tap to share your location with your Map Friends. '
+                'Your location is shown for 60 minutes, then automatically disappears. '
+                'Tap again to check out early.'),
             const SizedBox(height: 16),
-            _helpRow(Icons.visibility_off, Colors.red, 'Hide from Friends (Red)',
-                'When ON, even your mutual friends cannot see your location on the map.'),
+            _helpRow(Icons.refresh, Colors.teal, 'Countdown Timer',
+                'Once checked in, the button shows the remaining time (e.g. 58:30). '
+                'When the timer reaches 0, your location is removed from the map.'),
+            const SizedBox(height: 16),
+            _helpRow(Icons.visibility_off, Colors.red, 'Hide from Friends',
+                'When ON, your Map Friends cannot see you on the map, '
+                'even if you check in.'),
+            const SizedBox(height: 16),
+            _helpRow(Icons.people_outline, Colors.blue, 'Map Friends',
+                'Only mutually selected Map Friends can see each other. '
+                'Add friends in the Friends tab below. Both of you must add '
+                'each other to appear on each other\'s map.'),
             const SizedBox(height: 20),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
+                color: Colors.teal.shade50,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.amber.shade300),
+                border: Border.all(color: Colors.teal.shade200),
               ),
               child: const Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 22),
+                  Icon(Icons.shield_outlined, color: Colors.teal, size: 22),
                   SizedBox(width: 10),
                   Expanded(
                     child: Text(
-                      'Always turn OFF location sharing when you are not using this feature to protect your privacy and save battery.',
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: Colors.black87, height: 1.4),
+                      'Your privacy is protected:\n'
+                      '• Location is never shared automatically\n'
+                      '• Only your Map Friends can see you\n'
+                      '• Location disappears after 60 minutes\n'
+                      '• You can check out at any time',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500, color: Colors.black87, height: 1.5),
                     ),
                   ),
                 ],
@@ -393,6 +565,16 @@ class _MapScreenState extends State<MapScreen> {
         ),
       ],
     );
+  }
+
+  /// Format locationUpdatedAt into a human-readable "X ago" string
+  String _formatCheckInTime(DateTime? updatedAt) {
+    if (updatedAt == null) return 'now';
+    final diff = DateTime.now().difference(updatedAt);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
   bool _isFriend(String userId) {
@@ -747,13 +929,15 @@ class _MapScreenState extends State<MapScreen> {
                       .where((u) => u.latitude != null && u.longitude != null)
                       .map((u) {
                         final userColor = Colors.teal;
+                        final timeAgo = _formatCheckInTime(u.locationUpdatedAt);
                         return Marker(
                           point: LatLng(u.latitude!, u.longitude!),
-                          width: 60,
-                          height: 60,
+                          width: 80,
+                          height: 78,
                           child: GestureDetector(
                             onTap: () => _openChatWithUser(u),
                             child: Column(
+                              mainAxisSize: MainAxisSize.min,
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(
@@ -796,6 +980,22 @@ class _MapScreenState extends State<MapScreen> {
                                         ? Icon(Icons.person,
                                             color: userColor, size: 20)
                                         : null,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 4, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withValues(alpha: 0.6),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    timeAgo,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 7,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -881,41 +1081,55 @@ class _MapScreenState extends State<MapScreen> {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Location toggle chip
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.15),
-                        blurRadius: 8,
-                      ),
-                    ],
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        color: Colors.teal,
-                        size: 16,
-                      ),
-                      SizedBox(
-                        height: 28,
-                        child: Switch(
-                          value: _locationSharingEnabled,
-                          onChanged: (_) => _toggleLocationSharing(),
-                          activeTrackColor:
-                              Colors.teal.withValues(alpha: 0.5),
-                          activeThumbColor: Colors.teal,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
+                // Check-in button with countdown timer
+                GestureDetector(
+                  onTap: _isCheckedIn ? _manualCheckOut : _manualCheckIn,
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _isCheckedIn ? Colors.teal : Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.15),
+                          blurRadius: 8,
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isCheckedIn
+                              ? Icons.refresh
+                              : Icons.location_on_outlined,
+                          color: _isCheckedIn ? Colors.white : Colors.teal,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 4),
+                        if (_isCheckedIn) ...[
+                          Text(
+                            _checkInTimerText,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ] else ...[
+                          Text(
+                            'Check In',
+                            style: TextStyle(
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w600,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ),
               ],

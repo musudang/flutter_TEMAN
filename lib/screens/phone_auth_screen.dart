@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -29,7 +30,13 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
   bool _isLoading = false;
   String _verificationId = '';
   String _verifiedSmsCode = '';
+  String _phoneUserUid = '';
   String _selectedCountryCode = '+82'; // Korea default
+
+  // OTP 5-minute countdown
+  Timer? _otpTimer;
+  int _otpSecondsRemaining = 300;
+  bool get _otpExpired => _otpSecondsRemaining <= 0;
 
   // Common country codes
   final List<Map<String, String>> _countryCodes = [
@@ -63,10 +70,34 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
 
   @override
   void dispose() {
+    _otpTimer?.cancel();
     _phoneController.dispose();
     _otpController.dispose();
     _animController.dispose();
     super.dispose();
+  }
+
+  void _startOtpTimer() {
+    _otpTimer?.cancel();
+    _otpSecondsRemaining = 300;
+    _otpTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _otpSecondsRemaining--;
+        if (_otpSecondsRemaining <= 0) {
+          timer.cancel();
+        }
+      });
+    });
+  }
+
+  String get _otpTimerText {
+    final m = _otpSecondsRemaining ~/ 60;
+    final s = _otpSecondsRemaining % 60;
+    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
   }
 
   Future<void> _sendOtp() async {
@@ -90,6 +121,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
           _step = 2;
           _isLoading = false;
         });
+        _startOtpTimer();
         _animController.reset();
         _animController.forward();
       };
@@ -137,6 +169,11 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
   }
 
   Future<void> _verifyOtp() async {
+    if (_otpExpired) {
+      _showError('Verification code has expired. Please resend.');
+      return;
+    }
+
     final otp = _otpController.text.trim();
     if (otp.length != 6) {
       _showError('Please enter the 6-digit verification code.');
@@ -156,6 +193,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
       if (!result.isSuccess) {
         _showError(result.errorMessage ?? 'Verification failed. Please try again.');
       } else {
+        _otpTimer?.cancel();
         _popWithSuccess();
       }
     } else {
@@ -171,7 +209,9 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
       if (!mounted) return;
 
       if (result.isSuccess) {
+        _otpTimer?.cancel();
         final user = firebase_auth.FirebaseAuth.instance.currentUser;
+        _phoneUserUid = user?.uid ?? '';
         final hasGoogle = user?.providerData
             .any((info) => info.providerId == 'google.com') ?? false;
         final hasEmail = (user?.email ?? '').isNotEmpty;
@@ -206,9 +246,12 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
     setState(() => _isLoading = true);
     final authService = Provider.of<AuthService>(context, listen: false);
 
+    final fullPhone = '$_selectedCountryCode${_phoneController.text.trim()}';
     final result = await authService.signInWithGoogleAndLinkPhone(
       verificationId: _verificationId,
       smsCode: _verifiedSmsCode,
+      orphanPhoneUid: _phoneUserUid.isNotEmpty ? _phoneUserUid : null,
+      phoneNumber: fullPhone,
     );
 
     if (!mounted) return;
@@ -271,6 +314,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                 ),
                 onPressed: () {
                   if (_step == 2) {
+                    _otpTimer?.cancel();
                     setState(() {
                       _step = 1;
                       _otpController.clear();
@@ -489,16 +533,47 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                     ),
                   ),
                   const SizedBox(height: 16),
-                  TextButton(
-                    onPressed: _isLoading ? null : _sendOtp,
-                    child: Text(
-                      'Resend code',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        decoration: TextDecoration.underline,
-                        fontSize: 14,
+
+                  // Timer + Resend
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (!_otpExpired) ...[
+                        Icon(Icons.timer_outlined,
+                            size: 16, color: _otpSecondsRemaining <= 60
+                                ? Colors.red.shade400
+                                : Colors.grey.shade500),
+                        const SizedBox(width: 4),
+                        Text(
+                          _otpTimerText,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                            color: _otpSecondsRemaining <= 60
+                                ? Colors.red.shade400
+                                : Colors.grey.shade600,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                      ],
+                      TextButton(
+                        onPressed: _isLoading ? null : () {
+                          _otpController.clear();
+                          _sendOtp();
+                        },
+                        child: Text(
+                          _otpExpired ? 'Code expired — Resend' : 'Resend code',
+                          style: TextStyle(
+                            color: _otpExpired
+                                ? const Color(0xFF2563EB)
+                                : Colors.grey.shade600,
+                            decoration: TextDecoration.underline,
+                            fontSize: 14,
+                            fontWeight: _otpExpired ? FontWeight.w600 : FontWeight.normal,
+                          ),
+                        ),
                       ),
-                    ),
+                    ],
                   ),
 
                   const Spacer(),
@@ -507,7 +582,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                     width: double.infinity,
                     height: 56,
                     child: ElevatedButton(
-                      onPressed: _isLoading ? null : _verifyOtp,
+                      onPressed: _isLoading || _otpExpired ? null : _verifyOtp,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF2563EB),
                         foregroundColor: Colors.white,
@@ -547,7 +622,7 @@ class _PhoneAuthScreenState extends State<PhoneAuthScreen>
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Connect your Google account to complete sign-up.\nIf you already have a TEMAN account, it will be linked automatically.',
+                    'Connect your Google account to complete sign-up.\nIf you already have a TEMAN account,\nyour phone number will be merged with it.',
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade500, height: 1.5),
                   ),
                   const SizedBox(height: 48),

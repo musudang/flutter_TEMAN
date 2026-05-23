@@ -7,6 +7,8 @@ import '../widgets/comment_helpers.dart';
 import 'user_profile_screen.dart';
 import 'profile_screen.dart';
 import '../widgets/report_dialog.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'chat_screen.dart';
 
 /// Detail screen for a university Q&A question.
 /// Shows the question, answers, and an input to add new answers.
@@ -71,6 +73,174 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
     if (diff.inHours > 0) return '${diff.inHours}h ago';
     if (diff.inMinutes > 0) return '${diff.inMinutes}m ago';
     return 'Just now';
+  }
+
+  /// Show bottom sheet prompt to send anonymous DM
+  void _showAnonymousDmPrompt(
+    BuildContext ctx,
+    FirestoreService fs, {
+    required String postAuthorId,
+    required String postTitle,
+    required String postCollection,
+    int? authorAnonIndex,
+  }) {
+    showModalBottomSheet(
+      context: ctx,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetCtx) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircleAvatar(
+                radius: 28,
+                backgroundColor: Colors.grey[300],
+                child: Icon(Icons.person_off_outlined,
+                    size: 28, color: Colors.grey[600]),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                'Send Anonymous Message',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.grey[800],
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Both you and the recipient will remain anonymous.\nThe chat room will be named after the post title.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  icon: const Icon(Icons.mail_outline, size: 18),
+                  label: const Text('Start Anonymous Chat'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF26A69A),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  onPressed: () {
+                    Navigator.pop(sheetCtx);
+                    _startAnonymousDm(
+                      fs,
+                      postAuthorId: postAuthorId,
+                      postTitle: postTitle,
+                      postCollection: postCollection,
+                      commentAuthorAnonIndex: authorAnonIndex,
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// Start an anonymous DM conversation from this Q&A screen
+  Future<void> _startAnonymousDm(
+    FirestoreService fs, {
+    required String postAuthorId,
+    required String postTitle,
+    required String postCollection,
+    int? commentAuthorAnonIndex,
+  }) async {
+    final uid = fs.currentUserId;
+    if (uid == null) return;
+    if (uid == postAuthorId) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('You cannot message yourself')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final postId = widget.question.id;
+      final authorAnonIndex = commentAuthorAnonIndex ?? 0;
+
+      // Check for existing conversation
+      final existingConvs = await FirebaseFirestore.instance
+          .collection('conversations')
+          .where('participantIds', arrayContains: uid)
+          .get();
+
+      int senderIndex = 1;
+      for (var doc in existingConvs.docs) {
+        final data = doc.data();
+        if (data['type'] == 'anonymous_dm' && data['postId'] == postId) {
+          if (List<String>.from(data['participantIds'] ?? [])
+              .contains(postAuthorId)) {
+            if (mounted) {
+              final anonIndices = data['anonymousIndices'] != null
+                  ? Map<String, int>.from(
+                      (data['anonymousIndices'] as Map).map(
+                        (k, v) => MapEntry(k.toString(), (v as num).toInt()),
+                      ),
+                    )
+                  : <String, int>{};
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatScreen(
+                    conversationId: doc.id,
+                    chatTitle: postTitle,
+                    isAnonymousDm: true,
+                    anonymousIndices: anonIndices,
+                  ),
+                ),
+              );
+            }
+            return;
+          }
+          senderIndex++;
+        }
+      }
+
+      final conversationId = await fs.getOrCreateAnonymousConversation(
+        postId: postId,
+        postAuthorId: postAuthorId,
+        postTitle: postTitle,
+        postCollection: postCollection,
+        senderAnonIndex: senderIndex,
+        authorAnonIndex: authorAnonIndex,
+      );
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ChatScreen(
+              conversationId: conversationId,
+              chatTitle: postTitle,
+              isAnonymousDm: true,
+              anonymousIndices: {
+                uid: senderIndex,
+                postAuthorId: authorAnonIndex,
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to start conversation: $e')),
+        );
+      }
+    }
   }
 
   Future<void> _confirmAndDelete(BuildContext context) async {
@@ -397,7 +567,17 @@ class _UniversityQnaDetailScreenState extends State<UniversityQnaDetailScreen> {
                         final answerId = answer['id'] as String? ?? '';
 
                         void onAuthorTap() {
-                          if (isAnon && !isMine) return;
+                          if (isAnon && !isMine) {
+                            _showAnonymousDmPrompt(
+                              context,
+                              firestoreService,
+                              postAuthorId: answer['authorId'] ?? '',
+                              postTitle: widget.question.title,
+                              postCollection: 'universities/${widget.uniId}/questions',
+                              authorAnonIndex: aIdx,
+                            );
+                            return;
+                          }
                           if (isMine) {
                             Navigator.push(
                               context,

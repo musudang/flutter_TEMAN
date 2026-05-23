@@ -6,6 +6,7 @@ import '../../models/comment_model.dart';
 import '../../models/question_model.dart';
 import '../../models/user_model.dart' as app_models;
 import '../../constants/app_constants.dart';
+import '../../utils/content_filter.dart';
 
 /// Service mixin for university-specific boards.
 ///
@@ -92,6 +93,12 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
     if (_uniAuth.currentUser == null) {
       throw Exception('User must be logged in to post');
     }
+
+    // [NEW] Content filtering
+    final titleError = ContentFilter.validate(title);
+    if (titleError != null) throw Exception(titleError);
+    final contentError = ContentFilter.validate(content);
+    if (contentError != null) throw Exception(contentError);
 
     final userData = await getCurrentUser();
 
@@ -324,6 +331,10 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
   }) async {
     final user = _uniAuth.currentUser;
     if (user == null) throw Exception('Must be logged in to comment');
+
+    // [NEW] Content filtering
+    final filterError = ContentFilter.validate(content);
+    if (filterError != null) throw Exception(filterError);
 
     final userData = await getCurrentUser();
 
@@ -788,6 +799,12 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
       throw Exception('User must be logged in to ask a question');
     }
 
+    // [NEW] Content filtering
+    final titleError = ContentFilter.validate(title);
+    if (titleError != null) throw Exception(titleError);
+    final contentError = ContentFilter.validate(content);
+    if (contentError != null) throw Exception(contentError);
+
     final userData = await getCurrentUser();
 
     await _uniDb
@@ -920,6 +937,10 @@ mixin UniversityService on ChangeNotifier implements UniversityDependencies {
   }) async {
     final user = _uniAuth.currentUser;
     if (user == null) throw Exception('Must be logged in to answer');
+
+    // [NEW] Content filtering
+    final filterError = ContentFilter.validate(content);
+    if (filterError != null) throw Exception(filterError);
 
     final userData = await getCurrentUser();
     final answersRef = _uniDb
