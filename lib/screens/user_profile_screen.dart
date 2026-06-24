@@ -5,6 +5,7 @@ import '../services/firestore_service.dart';
 import '../models/user_model.dart' as app_models;
 import '../models/meetup_model.dart';
 import 'chat_screen.dart';
+import 'timetable_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../widgets/university_badge.dart';
 
@@ -429,6 +430,50 @@ class UserProfileScreen extends StatelessWidget {
                           ),
                         ],
                       ),
+                      if (user.id != firestoreService.currentUserId)
+                        StreamBuilder<app_models.User?>(
+                          stream: firestoreService.getUserStream(firestoreService.currentUserId!),
+                          builder: (context, snapshot) {
+                            if (!snapshot.hasData || snapshot.data == null) return const SizedBox();
+                            final currentUser = snapshot.data!;
+                            final isFollowing = currentUser.following.contains(userId);
+                            final isVisible = user.timetableVisibleToFollowers;
+
+                            if (isFollowing && isVisible) {
+                              return Padding(
+                                padding: const EdgeInsets.only(top: 12),
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => TimetableScreen(
+                                            userId: userId,
+                                            userName: user.name,
+                                            isReadOnly: true,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.calendar_today, size: 18),
+                                    label: const Text('View Timetable'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.teal,
+                                      side: const BorderSide(color: Colors.teal),
+                                      padding: const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                            return const SizedBox();
+                          },
+                        ),
                     ],
                   ),
                 ),

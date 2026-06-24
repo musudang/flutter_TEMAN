@@ -298,6 +298,12 @@ service cloud.firestore {
         allow create: if isAuthenticated(); 
         allow update, delete: if isOwner(userId);
       }
+
+      // Timetable
+      match /timetable/{itemId} {
+        allow read: if isAuthenticated();
+        allow write: if isOwner(userId);
+      }
     }
 
     // ==========================================================

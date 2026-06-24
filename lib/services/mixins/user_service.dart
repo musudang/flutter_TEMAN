@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../../models/user_model.dart' as app_models;
+import '../../models/timetable_item_model.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 
@@ -120,6 +121,7 @@ mixin UserService on ChangeNotifier implements UserDependencies {
           ? (data['locationUpdatedAt'] as Timestamp?)?.toDate()
           : null,
       mapFriends: List<String>.from(data['mapFriends'] ?? []),
+      timetableVisibleToFollowers: data['timetableVisibleToFollowers'] ?? false,
     );
   }
 
@@ -718,6 +720,90 @@ mixin UserService on ChangeNotifier implements UserDependencies {
       await batch.commit();
     } catch (e) {
       debugPrint("Error unblocking user: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateTimetableVisibility(bool visible) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    try {
+      await _db.collection('users').doc(uid).update({
+        'timetableVisibleToFollowers': visible,
+      });
+    } catch (e) {
+      debugPrint("Error updating timetable visibility: $e");
+      rethrow;
+    }
+  }
+
+  Stream<List<TimetableItem>> getTimetableStream(String userId) {
+    return _db
+        .collection('users')
+        .doc(userId)
+        .collection('timetable')
+        .snapshots()
+        .map((snapshot) {
+      return snapshot.docs
+          .map((doc) => TimetableItem.fromMap(doc.data(), doc.id))
+          .toList();
+    });
+  }
+
+  Future<void> addTimetableItem(TimetableItem item) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    try {
+      final docRef = _db
+          .collection('users')
+          .doc(uid)
+          .collection('timetable')
+          .doc();
+      final newItem = TimetableItem(
+        id: docRef.id,
+        name: item.name,
+        location: item.location,
+        notes: item.notes,
+        daysOfWeek: item.daysOfWeek,
+        startTime: item.startTime,
+        endTime: item.endTime,
+        colorHex: item.colorHex,
+      );
+      await docRef.set(newItem.toMap());
+    } catch (e) {
+      debugPrint("Error adding timetable item: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> updateTimetableItem(TimetableItem item) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    try {
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('timetable')
+          .doc(item.id)
+          .update(item.toMap());
+    } catch (e) {
+      debugPrint("Error updating timetable item: $e");
+      rethrow;
+    }
+  }
+
+  Future<void> deleteTimetableItem(String itemId) async {
+    final uid = currentUserId;
+    if (uid == null) return;
+    try {
+      await _db
+          .collection('users')
+          .doc(uid)
+          .collection('timetable')
+          .doc(itemId)
+          .delete();
+    } catch (e) {
+      debugPrint("Error deleting timetable item: $e");
       rethrow;
     }
   }

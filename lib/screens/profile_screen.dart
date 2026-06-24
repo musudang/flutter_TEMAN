@@ -21,6 +21,7 @@ import '../widgets/university_badge.dart';
 import '../models/question_model.dart';
 import 'university_qna_detail_screen.dart';
 import 'university_feed_screen.dart';
+import 'timetable_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -221,7 +222,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
   }
 
   @override
@@ -595,6 +596,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                       indicatorColor: Colors.teal,
                       tabs: const [
                         Tab(text: 'My Posts'),
+                        Tab(text: 'My Timetable'),
                         Tab(text: 'Joined Meetups'),
                         Tab(text: 'Scrapped'),
                       ],
@@ -608,6 +610,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               controller: _tabController,
               children: [
                 _buildMyPostsList(firestoreService, user),
+                _buildMyTimetableTab(firestoreService, user),
                 _buildJoinedMeetupsList(firestoreService, user.id),
                 _buildScrappedPostsList(firestoreService, user),
               ],
@@ -1369,6 +1372,15 @@ class _ProfileScreenState extends State<ProfileScreen>
               )
             : const Icon(Icons.bookmark, color: Colors.teal, size: 20),
       ),
+    );
+  }
+
+  Widget _buildMyTimetableTab(FirestoreService service, app_models.User user) {
+    return TimetableScreen(
+      userId: user.id,
+      userName: user.name,
+      isReadOnly: false,
+      embedMode: true,
     );
   }
 

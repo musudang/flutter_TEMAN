@@ -38,6 +38,7 @@ class User {
   /// Independent of `following`/`followers` (you can be mutual without
   /// being map friends).
   final List<String> mapFriends;
+  final bool timetableVisibleToFollowers;
 
   User({
     required this.id,
@@ -68,6 +69,7 @@ class User {
     this.hideLocationFromFriends = false,
     this.locationUpdatedAt,
     this.mapFriends = const [],
+    this.timetableVisibleToFollowers = false,
   });
 
   bool get isAdmin => role == 'admin';
